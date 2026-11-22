@@ -202,6 +202,7 @@ export function createMockBackend(
       tree.connections.forEach((c) => (c.hasStoredSecret = false));
       return { cleared };
     },
+    window_apply_theme: () => 'themeOnly',
     logging_status: (): LoggingStatus => {
       const d = settings.diagnostics;
       return {

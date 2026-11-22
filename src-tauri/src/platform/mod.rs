@@ -70,6 +70,84 @@ impl AppPaths {
     }
 }
 
+/// An sRGB colour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Rgb(pub u8, pub u8, pub u8);
+
+impl Rgb {
+    /// `#rrggbb` (exactly; no shorthand, no alpha).
+    pub fn parse(text: &str) -> Option<Self> {
+        let hex = text.strip_prefix('#')?;
+        if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return None;
+        }
+        let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).ok();
+        Some(Self(byte(0)?, byte(2)?, byte(4)?))
+    }
+
+    /// Windows `COLORREF` layout: `0x00BBGGRR`.
+    pub fn colorref(self) -> u32 {
+        u32::from(self.0) | (u32::from(self.1) << 8) | (u32::from(self.2) << 16)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowTheme {
+    Dark,
+    Light,
+}
+
+/// Title bar colours matching the application theme (`src/styles/theme.css`:
+/// `--surface-1`, `--text-1`, `--line`). A test keeps both in sync.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TitleBarColors {
+    pub caption: Rgb,
+    pub text: Rgb,
+    pub border: Rgb,
+}
+
+impl WindowTheme {
+    pub fn palette(self) -> TitleBarColors {
+        match self {
+            WindowTheme::Dark => TitleBarColors {
+                caption: Rgb(0x18, 0x18, 0x17),
+                text: Rgb(0xf1, 0xed, 0xe8),
+                border: Rgb(0x2d, 0x2b, 0x28),
+            },
+            WindowTheme::Light => TitleBarColors {
+                caption: Rgb(0xf3, 0xf1, 0xee),
+                text: Rgb(0x23, 0x20, 0x1d),
+                border: Rgb(0xe1, 0xdd, 0xd7),
+            },
+        }
+    }
+}
+
+/// How far the native title bar could be matched to the theme.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TitleBarOutcome {
+    /// Caption, text and border colours were set (Windows 11).
+    Colored,
+    /// Only the light/dark window theme was set (macOS, Linux, older Windows).
+    ThemeOnly,
+}
+
+/// Apply the window theme and, where the OS allows it, the caption colours.
+pub fn apply_window_theme(
+    window: &tauri::WebviewWindow,
+    theme: WindowTheme,
+    colors: TitleBarColors,
+) -> Result<TitleBarOutcome, String> {
+    window
+        .set_theme(Some(match theme {
+            WindowTheme::Dark => tauri::Theme::Dark,
+            WindowTheme::Light => tauri::Theme::Light,
+        }))
+        .map_err(|e| e.to_string())?;
+    Ok(current::apply_title_bar(window, colors))
+}
+
 /// Open a directory in the OS file manager. The path must come from Rust-side
 /// state (never straight from the renderer).
 pub fn open_folder(path: &Path) -> std::io::Result<()> {
@@ -127,6 +205,62 @@ mod tests {
             );
         }
         assert_ne!(paths.config_dir, paths.log_dir);
+    }
+
+    #[test]
+    fn hex_colours_parse_strictly() {
+        assert_eq!(Rgb::parse("#181817"), Some(Rgb(0x18, 0x18, 0x17)));
+        assert_eq!(Rgb::parse("#FFaa00"), Some(Rgb(255, 170, 0)));
+        for bad in [
+            "",
+            "181817",
+            "#18181",
+            "#1818177",
+            "#12345g",
+            "#fff",
+            " #181817",
+            "#181817 ",
+            "rgb(1,2,3)",
+            "#+12345",
+        ] {
+            assert_eq!(Rgb::parse(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn colorref_is_bgr_ordered() {
+        assert_eq!(Rgb(0x11, 0x22, 0x33).colorref(), 0x0033_2211);
+        assert_eq!(Rgb(0, 0, 0).colorref(), 0);
+        assert_eq!(Rgb(255, 255, 255).colorref(), 0x00ff_ffff);
+    }
+
+    /// The Rust palette used at start-up must equal the CSS tokens the UI uses.
+    #[test]
+    fn title_bar_palette_matches_the_css_theme_tokens() {
+        let css = include_str!("../../../src/styles/theme.css");
+        let hex = |c: Rgb| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2);
+        // Dark tokens live in `:root`, light ones in `:root[data-theme='light']`.
+        let split = css
+            .find(":root[data-theme='light'] {")
+            .expect("light theme block");
+        let (dark_css, light_css) = css.split_at(split);
+        for (theme, block) in [
+            (WindowTheme::Dark, dark_css),
+            (WindowTheme::Light, light_css),
+        ] {
+            let p = theme.palette();
+            for (token, color) in [
+                ("--surface-1", p.caption),
+                ("--text-1", p.text),
+                ("--line", p.border),
+            ] {
+                let want = format!("{token}: {}", hex(color));
+                assert!(
+                    block.contains(&want),
+                    "{theme:?}: expected `{want}` in theme.css"
+                );
+            }
+        }
     }
 
     #[test]

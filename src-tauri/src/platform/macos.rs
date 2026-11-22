@@ -27,6 +27,15 @@ pub fn log_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join("Library").join("Logs").join(APP_DIR))
 }
 
+/// GTK and AppKit draw the title bar from the window theme set by Tauri
+/// (`set_theme`), which is already dark/light aware; nothing else to do.
+pub fn apply_title_bar(
+    _window: &tauri::WebviewWindow,
+    _colors: super::TitleBarColors,
+) -> super::TitleBarOutcome {
+    super::TitleBarOutcome::ThemeOnly
+}
+
 pub fn open_folder(path: &Path) -> std::io::Result<()> {
     std::process::Command::new("open")
         .arg(path)

@@ -87,6 +87,12 @@ export const ipc = {
   treeDelete: (items: ItemRef[], mode: FolderDeleteMode) =>
     call<DeleteOutcome>('tree_delete', { items, mode }),
 
+  /** Colour the native title bar like the application theme. */
+  windowApplyTheme: (
+    theme: 'dark' | 'light',
+    colors: { caption: string; text: string; border: string },
+  ) => call<'colored' | 'themeOnly'>('window_apply_theme', { theme, ...colors }),
+
   settingsLoad: () => call<Settings>('settings_load'),
   settingsSave: (settings: Settings) => call<Settings>('settings_save', { settings }),
 

@@ -7,6 +7,7 @@ pub mod connections;
 pub mod logging;
 pub mod security;
 pub mod settings;
+pub mod window;
 
 use crate::error::{AppError, AppResult};
 

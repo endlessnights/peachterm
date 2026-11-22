@@ -97,6 +97,8 @@ pub const IDENT_VOCABULARY: &[&str] = &[
     "unreadable",
     "invalid_value",
     "invalid_entries",
+    "dark",
+    "light",
     "repaired_references",
     // credential store
     "keychain",
@@ -154,6 +156,7 @@ pub const IDENT_VOCABULARY: &[&str] = &[
 pub const EVENTS: &[&str] = &[
     // application
     "app.start",
+    "window.theme_applied",
     "app.shutdown",
     "app.panic",
     "app.init_failed",

@@ -24,6 +24,7 @@ const COMMANDS: &[&str] = &[
     "known_hosts_list",
     "known_hosts_remove",
     "editor_presets",
+    "window_apply_theme",
     "logging_status",
     "logging_open_dir",
     "logging_export_preview",

@@ -133,6 +133,26 @@ fn prepare_paths() -> (AppPaths, Vec<String>) {
     }
 }
 
+/// Colour the native title bar before the UI has loaded, so a dark theme does
+/// not flash the system accent colour. The renderer re-applies it on theme
+/// changes (`window_apply_theme`).
+fn apply_startup_title_bar(app: &tauri::App, state: &AppState) {
+    use platform::WindowTheme;
+    use storage::settings::ThemeMode;
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let theme = match state.settings.get().map(|s| s.appearance.theme) {
+        Ok(ThemeMode::Light) => WindowTheme::Light,
+        Ok(ThemeMode::System) => match window.theme() {
+            Ok(tauri::Theme::Light) => WindowTheme::Light,
+            _ => WindowTheme::Dark,
+        },
+        _ => WindowTheme::Dark,
+    };
+    let _ = platform::apply_window_theme(&window, theme, theme.palette());
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
@@ -145,6 +165,7 @@ pub fn run() {
                 notes,
                 LogController::init,
             )?;
+            apply_startup_title_bar(app, &state);
             app.manage(Arc::new(state));
             Ok(())
         })
@@ -165,6 +186,7 @@ pub fn run() {
             commands::connections::tree_delete,
             commands::settings::settings_load,
             commands::settings::settings_save,
+            commands::window::window_apply_theme,
             commands::security::credentials_status,
             commands::security::credentials_set_password,
             commands::security::credentials_clear,

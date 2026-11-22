@@ -13,7 +13,9 @@ name = "peachterm_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [lints.rust]
-unsafe_code = "forbid"
+# `deny`, not `forbid`: the one Windows title-bar call in platform/windows.rs
+# is the only place allowed to opt out (with a SAFETY comment).
+unsafe_code = "deny"
 
 [lints.clippy]
 all = { level = "deny", priority = -1 }
@@ -47,6 +49,8 @@ russh-sftp = "4.0.0"
 
 # OS-native secret storage. Each platform enables only its own backend.
 [target.'cfg(target_os = "windows")'.dependencies]
+# Only for DwmSetWindowAttribute (title bar colours); see platform/windows.rs.
+windows-sys = { version = "0.61", default-features = false, features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
 keyring = { version = "3.6.3", default-features = false, features = ["windows-native"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]

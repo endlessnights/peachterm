@@ -24,6 +24,7 @@ permissions = [
   "allow-known-hosts-list",
   "allow-known-hosts-remove",
   "allow-editor-presets",
+  "allow-window-apply-theme",
   "allow-logging-status",
   "allow-logging-open-dir",
   "allow-logging-export-preview",

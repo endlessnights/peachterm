@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react';
 import { App } from '../app/App';
+import { __resetTitleBarCache } from '../app/useTheme';
 import { useDialogs } from '../app/dialogs';
 import { useToasts } from '../components/Toasts';
 import { useConnections } from '../features/connections/store';
@@ -29,9 +30,15 @@ export const conn = (id: string, name: string, extra: Partial<Connection> = {}):
 });
 
 /** Fresh stores + a fresh in-memory backend; returns the backend for inspection. */
-export function mountApp(seed?: Partial<ConnectionTree>, options: MockOptions = {}) {
+export function mountApp(
+  seed?: Partial<ConnectionTree>,
+  options: MockOptions = {},
+  /** Wrap the backend, e.g. to record calls. */
+  wrap?: (backend: ReturnType<typeof createMockBackend>) => ReturnType<typeof createMockBackend>,
+) {
   const backend = createMockBackend(seed, options);
-  __setBackendForTests(backend);
+  __setBackendForTests(wrap ? wrap(backend) : backend);
+  __resetTitleBarCache();
   useTabs.setState({ tabs: [], activeId: null });
   useConnections.setState({
     query: '',

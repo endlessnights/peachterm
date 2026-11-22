@@ -8,6 +8,8 @@ mod editor;
 mod error;
 mod lock;
 mod logging;
+#[cfg(test)]
+mod openssh_ci;
 mod platform;
 mod security;
 mod sessions;

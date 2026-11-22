@@ -872,9 +872,11 @@ fn the_only_write_paths_are_the_reviewed_ones() {
             if path.is_dir() {
                 scan(&path, hits);
             } else if path.extension().is_some_and(|e| e == "rs")
-                && !path
-                    .file_name()
-                    .is_some_and(|n| n.to_string_lossy().contains("test") || n == "integration.rs")
+                && !path.file_name().is_some_and(|n| {
+                    n.to_string_lossy().contains("test")
+                        || n == "integration.rs"
+                        || n == "openssh_ci.rs"
+                })
             {
                 let text = std::fs::read_to_string(&path).unwrap();
                 // test code is allowed to exercise the function

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ConfirmDialog, PromptDialog } from '../components/Dialog';
 import { ResizeHandle } from '../components/ResizeHandle';
-import { reportError, Toasts } from '../components/Toasts';
+import { reportError, Toasts, useToasts } from '../components/Toasts';
 import { ConnectionEditor } from '../features/connections/ConnectionEditor';
 import { Sidebar } from '../features/connections/Sidebar';
 import { useConnections } from '../features/connections/store';
 import { TabBar } from '../features/sessions/TabBar';
 import { useTabs } from '../features/sessions/store';
+import { describeReason } from '../features/settings/DiagnosticsPage';
 import { SettingsDialog } from '../features/settings/SettingsDialog';
 import { useSettings } from '../features/settings/store';
 import { TerminalWorkspace } from '../features/terminal/TerminalWorkspace';
@@ -34,8 +35,26 @@ export function App() {
     );
     ipc
       .appInfo()
-      .then((info) => setVersion(info.version))
+      .then((info) => {
+        setVersion(info.version);
+        // Recoverable start-up problems (damaged config entries, fallback folder).
+        info.issues.forEach((issue) => useToasts.getState().push('error', issue));
+      })
       .catch(reportError);
+    // Non-blocking notice if file logging cannot write; the app keeps working.
+    ipc
+      .loggingStatus()
+      .then((status) => {
+        if (status.enabled && !status.active) {
+          useToasts
+            .getState()
+            .push(
+              'error',
+              `File logging is unavailable (${describeReason(status.error)}). PeachTerm keeps working; check Settings → Diagnostics.`,
+            );
+        }
+      })
+      .catch(() => undefined);
   }, []);
 
   // Tab titles follow edits of their saved connection.

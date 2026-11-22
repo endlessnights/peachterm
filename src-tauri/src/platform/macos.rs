@@ -6,7 +6,33 @@
 
 use crate::editor::EditorPreset;
 
+use std::path::{Path, PathBuf};
+
 pub const OS_NAME: &str = "macos";
+
+const APP_DIR: &str = "PeachTerm";
+
+/// `~/Library/Application Support/PeachTerm`.
+pub fn config_dir() -> Option<PathBuf> {
+    dirs::config_dir().map(|d| d.join(APP_DIR))
+}
+
+/// `~/Library/Caches/PeachTerm`.
+pub fn cache_dir() -> Option<PathBuf> {
+    dirs::cache_dir().map(|d| d.join(APP_DIR))
+}
+
+/// `~/Library/Logs/PeachTerm` (the macOS convention; Console.app reads it).
+pub fn log_dir() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join("Library").join("Logs").join(APP_DIR))
+}
+
+pub fn open_folder(path: &Path) -> std::io::Result<()> {
+    std::process::Command::new("open")
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+}
 
 #[allow(dead_code)]
 pub fn executable_names(program: &str) -> Vec<String> {

@@ -19,4 +19,9 @@ permissions = [
   "allow-known-hosts-list",
   "allow-known-hosts-remove",
   "allow-editor-presets",
+  "allow-logging-status",
+  "allow-logging-open-dir",
+  "allow-logging-export-preview",
+  "allow-logging-export",
+  "allow-logging-reveal-export",
 ]

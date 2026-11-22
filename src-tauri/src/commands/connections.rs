@@ -20,7 +20,12 @@ pub async fn connections_save(
     state: AppStateRef<'_>,
     connection: ConnectionInput,
 ) -> AppResult<Connection> {
+    let created = connection.id.is_none();
     let saved = state.connections.save_connection(connection)?;
+    tracing::info!(
+        event = if created { "connection.created" } else { "connection.updated" },
+        connection_id = %saved.id
+    );
     // Turning "save password" off must also remove what was stored.
     if !saved.save_password && saved.has_stored_secret {
         let app = Arc::clone(&state);
@@ -35,13 +40,16 @@ pub async fn connections_save(
 #[tauri::command]
 pub async fn connections_delete(state: AppStateRef<'_>, id: Uuid) -> AppResult<()> {
     state.connections.delete_connection(id)?;
+    tracing::info!(event = "connection.deleted", connection_id = %id);
     let app = Arc::clone(&state);
     super::blocking(move || app.credentials.delete(&connection_account(&id))).await
 }
 
 #[tauri::command]
 pub async fn connections_duplicate(state: AppStateRef<'_>, id: Uuid) -> AppResult<Connection> {
-    state.connections.duplicate_connection(id)
+    let copy = state.connections.duplicate_connection(id)?;
+    tracing::info!(event = "connection.duplicated", connection_id = %copy.id);
+    Ok(copy)
 }
 
 #[tauri::command]
@@ -55,10 +63,14 @@ pub async fn connections_move(
 
 #[tauri::command]
 pub async fn folders_save(state: AppStateRef<'_>, folder: FolderInput) -> AppResult<Folder> {
-    state.connections.save_folder(folder)
+    let saved = state.connections.save_folder(folder)?;
+    tracing::debug!(event = "folder.saved");
+    Ok(saved)
 }
 
 #[tauri::command]
 pub async fn folders_delete(state: AppStateRef<'_>, id: Uuid) -> AppResult<()> {
-    state.connections.delete_folder(id)
+    state.connections.delete_folder(id)?;
+    tracing::info!(event = "folder.deleted");
+    Ok(())
 }

@@ -19,6 +19,11 @@ const COMMANDS: &[&str] = &[
     "known_hosts_list",
     "known_hosts_remove",
     "editor_presets",
+    "logging_status",
+    "logging_open_dir",
+    "logging_export_preview",
+    "logging_export",
+    "logging_reveal_export",
 ];
 
 fn main() {

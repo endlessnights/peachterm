@@ -88,6 +88,20 @@ impl Default for KeyringCredentialStore {
     }
 }
 
+/// Fixed vocabulary for logs: keyring error text may embed platform details.
+fn keyring_error_kind(error: &keyring::Error) -> &'static str {
+    match error {
+        keyring::Error::PlatformFailure(_) => "platform_failure",
+        keyring::Error::NoStorageAccess(_) => "no_storage_access",
+        keyring::Error::NoEntry => "no_entry",
+        keyring::Error::BadEncoding(_) => "bad_encoding",
+        keyring::Error::TooLong(_, _) => "too_long",
+        keyring::Error::Invalid(_, _) => "invalid",
+        keyring::Error::Ambiguous(_) => "ambiguous",
+        _ => "other",
+    }
+}
+
 fn map_keyring_error(error: keyring::Error) -> AppError {
     match error {
         keyring::Error::PlatformFailure(e) => AppError::CredentialsUnavailable(e.to_string()),
@@ -113,7 +127,11 @@ impl CredentialStore for KeyringCredentialStore {
                         detail: None,
                     },
                     Err(error) => {
-                        log::warn!("secure credential storage unavailable: {error}");
+                        tracing::warn!(
+                            event = "credentials.unavailable",
+                            backend = "keychain",
+                            error_kind = keyring_error_kind(&error),
+                        );
                         CredentialStatus {
                             available: false,
                             backend: Self::backend_name(),

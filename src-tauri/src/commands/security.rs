@@ -38,7 +38,11 @@ pub async fn credentials_set_password(
             .set(&connection_account(&connection_id), &secret)
     })
     .await?;
-    state.connections.set_has_stored_secret(connection_id, true)
+    state
+        .connections
+        .set_has_stored_secret(connection_id, true)?;
+    tracing::info!(event = "credentials.saved", connection_id = %connection_id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -48,7 +52,9 @@ pub async fn credentials_clear(state: AppStateRef<'_>, connection_id: Uuid) -> A
     super::blocking(move || app.credentials.delete(&connection_account(&connection_id))).await?;
     state
         .connections
-        .set_has_stored_secret(connection_id, false)
+        .set_has_stored_secret(connection_id, false)?;
+    tracing::info!(event = "credentials.cleared", connection_id = %connection_id);
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -77,6 +83,7 @@ pub async fn credentials_clear_all(state: AppStateRef<'_>) -> AppResult<ClearedC
     })
     .await?;
     state.connections.clear_all_secret_flags()?;
+    tracing::info!(event = "credentials.cleared_all", count = cleared as u64);
     Ok(ClearedCount { cleared })
 }
 
@@ -87,5 +94,7 @@ pub async fn known_hosts_list(state: AppStateRef<'_>) -> AppResult<Vec<KnownHost
 
 #[tauri::command]
 pub async fn known_hosts_remove(state: AppStateRef<'_>, host: String, port: u16) -> AppResult<()> {
-    state.known_hosts.remove(&host, port).map(|_| ())
+    let removed = state.known_hosts.remove(&host, port)?;
+    tracing::info!(event = "known_hosts.removed", count = removed as u64);
+    Ok(())
 }

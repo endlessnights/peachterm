@@ -94,6 +94,14 @@ export interface Settings {
     args: string[];
     tempDir: string | null;
   };
+  diagnostics: {
+    fileLogging: boolean;
+    level: LogLevel;
+    /** Custom log directory; null = platform default. */
+    logDir: string | null;
+    retentionDays: 7 | 14 | 30;
+    maxTotalMb: number;
+  };
   ui: {
     sidebarVisible: boolean;
     sidebarWidth: number;
@@ -129,6 +137,38 @@ export interface AppInfo {
   version: string;
   os: 'windows' | 'linux' | 'macos';
   arch: string;
+  /** Recoverable start-up problems (secret-free, no paths). */
+  issues: string[];
+}
+
+export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'trace';
+
+export interface LoggingStatus {
+  enabled: boolean;
+  level: LogLevel;
+  effectiveDir: string;
+  customDir: boolean;
+  /** Lines are being written to disk right now. */
+  active: boolean;
+  /** Fixed token explaining why logging is inactive (never a path). */
+  error: string | null;
+  droppedLines: number;
+  fileCount: number;
+  totalBytes: number;
+  retentionDays: number;
+  maxTotalMb: number;
+}
+
+export interface ExportPreview {
+  files: { name: string; bytes: number }[];
+  totalBytes: number;
+}
+
+export interface ExportOutcome {
+  /** null when the user cancelled the save dialog. */
+  savedTo: string | null;
+  entries: { name: string; linesKept: number; linesDropped: number }[];
+  archiveBytes: number;
 }
 
 /** Error shape returned by every command (`AppError` in Rust). */
@@ -161,6 +201,13 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   sftp: { defaultPosition: 'right', defaultVisible: true, confirmDelete: true, showHidden: false },
   editor: { program: null, args: ['{file}'], tempDir: null },
+  diagnostics: {
+    fileLogging: true,
+    level: 'info',
+    logDir: null,
+    retentionDays: 14,
+    maxTotalMb: 100,
+  },
   ui: {
     sidebarVisible: true,
     sidebarWidth: 260,

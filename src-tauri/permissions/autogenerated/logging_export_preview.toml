@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-logging-export-preview"
+description = "Enables the logging_export_preview command without any pre-configured scope."
+commands.allow = ["logging_export_preview"]
+
+[[permission]]
+identifier = "deny-logging-export-preview"
+description = "Denies the logging_export_preview command without any pre-configured scope."
+commands.deny = ["logging_export_preview"]

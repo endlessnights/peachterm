@@ -9,9 +9,9 @@ Status legend: ✅ implemented (Phase 1) · 🟡 contract fixed, implemented lat
 
 ## App
 
-| Command    | Args | Returns                       | Status |
-| ---------- | ---- | ----------------------------- | ------ |
-| `app_info` | –    | `{ name, version, os, arch }` | ✅     |
+| Command    | Args | Returns                                                                         | Status |
+| ---------- | ---- | ------------------------------------------------------------------------------- | ------ |
+| `app_info` | –    | `{ name, version, os, arch, issues[] }` (`issues` = secret-free start-up notes) | ✅     |
 
 ## Connections (`storage::connections`)
 
@@ -35,9 +35,22 @@ Status legend: ✅ implemented (Phase 1) · 🟡 contract fixed, implemented lat
 | `settings_load` | –                        | `Settings`                      | ✅     |
 | `settings_save` | `{ settings: Settings }` | `Settings` (normalised/clamped) | ✅     |
 
-`Settings` sections: `general`, `appearance`, `ssh`, `sftp`, `editor`, `ui`.
+`Settings` sections: `general`, `appearance`, `ssh`, `sftp`, `editor`, `diagnostics`, `ui`.
+A changed `diagnostics` section is applied to the running logger immediately.
 There is intentionally **no** field that disables remote-upload confirmation;
 unknown fields are ignored on load, so such a flag cannot be injected.
+
+## Diagnostics (`logging`)
+
+| Command                  | Args | Returns                                                                                                                      | Status |
+| ------------------------ | ---- | ---------------------------------------------------------------------------------------------------------------------------- | ------ |
+| `logging_status`         | –    | `{ enabled, level, effectiveDir, customDir, active, error, droppedLines, fileCount, totalBytes, retentionDays, maxTotalMb }` | ✅     |
+| `logging_open_dir`       | –    | `()` — opens the _effective_ log folder (path never supplied by UI)                                                          | ✅     |
+| `logging_export_preview` | –    | `{ files[{name,bytes}], totalBytes }`                                                                                        | ✅     |
+| `logging_export`         | –    | `{ savedTo \| null, entries[{name,linesKept,linesDropped}], archiveBytes }` — Rust opens the native save dialog              | ✅     |
+| `logging_reveal_export`  | –    | `()` — shows the folder of the last archive written by this process                                                          | ✅     |
+
+`error` is a fixed token (`permission_denied`, `relative_path`, …), never a path.
 
 ## Credentials (`security::credentials`)
 

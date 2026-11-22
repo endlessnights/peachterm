@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-logging-reveal-export"
+description = "Enables the logging_reveal_export command without any pre-configured scope."
+commands.allow = ["logging_reveal_export"]
+
+[[permission]]
+identifier = "deny-logging-reveal-export"
+description = "Denies the logging_reveal_export command without any pre-configured scope."
+commands.deny = ["logging_reveal_export"]

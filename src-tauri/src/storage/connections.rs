@@ -4,9 +4,10 @@
 //! (see `security::credentials`); `has_stored_secret` merely records that one
 //! was saved so the sidebar does not query the keychain for every entry.
 
-use super::atomic::{load_json_or_default, save_json};
+use super::atomic::{ConfigIssue, ensure_backup, load_json_value, parse_entries, save_json};
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -201,16 +202,46 @@ impl ConnectionTree {
 pub struct ConnectionStore {
     path: PathBuf,
     doc: Mutex<ConnectionTree>,
+    issues: Vec<ConfigIssue>,
 }
 
 impl ConnectionStore {
+    /// Never fails because of file contents: damaged entries are skipped, a
+    /// backup of the original is kept and the problem is reported via
+    /// [`ConnectionStore::issues`].
     pub fn open(path: PathBuf) -> AppResult<Self> {
-        let mut doc: ConnectionTree = load_json_or_default(&path)?;
+        let mut issues = Vec::new();
+        let mut doc = ConnectionTree::default();
+        match load_json_value(&path, &mut issues) {
+            Some(Value::Object(obj)) => {
+                let before = issues.len();
+                doc.folders = parse_entries(obj.get("folders"), &path, "folders", &mut issues);
+                doc.connections =
+                    parse_entries(obj.get("connections"), &path, "connections", &mut issues);
+                ensure_backup(&path, &mut issues, before);
+            }
+            Some(_) => {
+                issues.push(ConfigIssue {
+                    file: super::atomic::file_label(&path),
+                    kind: "not_an_object",
+                    field: None,
+                    backed_up: false,
+                });
+                let at = issues.len() - 1;
+                ensure_backup(&path, &mut issues, at);
+            }
+            None => {}
+        }
         doc.version = DOC_VERSION;
         Ok(Self {
             path,
             doc: Mutex::new(doc),
+            issues,
         })
+    }
+
+    pub fn issues(&self) -> &[ConfigIssue] {
+        &self.issues
     }
 
     fn with_doc<R>(&self, f: impl FnOnce(&mut ConnectionTree) -> AppResult<R>) -> AppResult<R> {

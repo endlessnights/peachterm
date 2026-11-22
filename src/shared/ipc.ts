@@ -10,9 +10,12 @@ import type {
   ConnectionTree,
   CredentialStatus,
   EditorPreset,
+  ExportOutcome,
+  ExportPreview,
   Folder,
   FolderInput,
   KnownHost,
+  LoggingStatus,
   Settings,
   Uuid,
 } from './types';
@@ -83,6 +86,14 @@ export const ipc = {
   knownHostsList: () => call<KnownHost[]>('known_hosts_list'),
   knownHostsRemove: (host: string, port: number) =>
     call<void>('known_hosts_remove', { host, port }),
+
+  loggingStatus: () => call<LoggingStatus>('logging_status'),
+  /** Opens the effective log directory in the OS file manager. */
+  loggingOpenDir: () => call<void>('logging_open_dir'),
+  loggingExportPreview: () => call<ExportPreview>('logging_export_preview'),
+  /** Rust opens the native "save as" dialog; the renderer never chooses the path. */
+  loggingExport: () => call<ExportOutcome>('logging_export'),
+  loggingRevealExport: () => call<void>('logging_reveal_export'),
 };
 
 /** Test hook: replace the backend with a custom implementation. */

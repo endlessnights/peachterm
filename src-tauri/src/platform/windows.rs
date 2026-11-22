@@ -1,9 +1,34 @@
 //! Windows-only leaf: executable name resolution and editor presets.
 
 use crate::editor::EditorPreset;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub const OS_NAME: &str = "windows";
+
+const APP_DIR: &str = "PeachTerm";
+
+/// `%APPDATA%\PeachTerm` (roaming: settings follow the user profile).
+pub fn config_dir() -> Option<PathBuf> {
+    dirs::config_dir().map(|d| d.join(APP_DIR))
+}
+
+/// `%LOCALAPPDATA%\PeachTerm\cache`.
+pub fn cache_dir() -> Option<PathBuf> {
+    dirs::cache_dir().map(|d| d.join(APP_DIR).join("cache"))
+}
+
+/// `%LOCALAPPDATA%\PeachTerm\logs` (machine-local: logs must not roam).
+pub fn log_dir() -> Option<PathBuf> {
+    dirs::data_local_dir().map(|d| d.join(APP_DIR).join("logs"))
+}
+
+pub fn open_folder(path: &Path) -> std::io::Result<()> {
+    // explorer.exe reports exit code 1 even on success, so do not wait for it.
+    std::process::Command::new("explorer")
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+}
 
 #[allow(dead_code)]
 pub fn executable_names(program: &str) -> Vec<String> {

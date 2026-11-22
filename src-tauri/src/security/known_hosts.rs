@@ -10,8 +10,11 @@
 //! `trust` (called after an explicit user decision) writes.
 
 use crate::error::{AppError, AppResult};
-use crate::storage::atomic::{load_json_or_default, save_json};
+use crate::storage::atomic::{
+    ConfigIssue, ensure_backup, file_label, load_json_value, parse_entries, save_json,
+};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -55,16 +58,43 @@ pub fn normalize_host(host: &str) -> String {
 pub struct KnownHostsStore {
     path: PathBuf,
     doc: Mutex<KnownHostsDoc>,
+    issues: Vec<ConfigIssue>,
 }
 
 impl KnownHostsStore {
+    /// Damaged entries are skipped (the host is simply asked about again) and
+    /// a backup of the original file is kept.
     pub fn open(path: PathBuf) -> AppResult<Self> {
-        let mut doc: KnownHostsDoc = load_json_or_default(&path)?;
+        let mut issues = Vec::new();
+        let mut doc = KnownHostsDoc::default();
+        match load_json_value(&path, &mut issues) {
+            Some(Value::Object(obj)) => {
+                let before = issues.len();
+                doc.hosts = parse_entries(obj.get("hosts"), &path, "hosts", &mut issues);
+                ensure_backup(&path, &mut issues, before);
+            }
+            Some(_) => {
+                issues.push(ConfigIssue {
+                    file: file_label(&path),
+                    kind: "not_an_object",
+                    field: None,
+                    backed_up: false,
+                });
+                let at = issues.len() - 1;
+                ensure_backup(&path, &mut issues, at);
+            }
+            None => {}
+        }
         doc.version = 1;
         Ok(Self {
             path,
             doc: Mutex::new(doc),
+            issues,
         })
+    }
+
+    pub fn issues(&self) -> &[ConfigIssue] {
+        &self.issues
     }
 
     fn lock(&self) -> AppResult<std::sync::MutexGuard<'_, KnownHostsDoc>> {

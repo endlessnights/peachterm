@@ -4,6 +4,7 @@
 
 pub mod app;
 pub mod connections;
+pub mod logging;
 pub mod security;
 pub mod settings;
 

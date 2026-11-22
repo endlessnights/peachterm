@@ -73,10 +73,17 @@ rename) is simpler, diff-able, trivially portable and avoids a native SQLite
 build on three platforms. The store sits behind `ConnectionStore`, so it can be
 swapped for SQLite later without touching IPC.
 
-App directories come from Tauri's path resolver (`app_config_dir`,
-`app_cache_dir`), which maps to `%APPDATA%`, `$XDG_CONFIG_HOME` and
-`~/Library/Application Support` respectively. Shared code only receives a
-`PathBuf` (`AppPaths`).
+App directories come from the OS conventions through the `dirs` crate, wrapped in
+the per-OS leaf modules (`platform/{windows,linux,macos}.rs`): config in
+`%APPDATA%\PeachTerm`, `$XDG_CONFIG_HOME/peachterm` or
+`~/Library/Application Support/PeachTerm`; logs in `%LOCALAPPDATA%\PeachTerm\logs`,
+`$XDG_STATE_HOME/peachterm/logs` or `~/Library/Logs/PeachTerm`. Shared code only
+receives plain `PathBuf`s (`AppPaths`). See [logging.md](logging.md).
+
+Loading is forgiving (`storage::atomic`): invalid JSON, wrong field types and
+damaged list entries are reported as `ConfigIssue`s, replaced by defaults
+field-by-field, and the original file is copied aside, so a bad value never
+discards valid data and never prevents start-up.
 
 Never persisted: plaintext passwords, private-key contents, remote-write
 permission overrides, host-key decisions that were not explicitly confirmed.

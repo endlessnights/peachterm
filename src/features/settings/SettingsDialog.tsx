@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { Dialog } from '../../components/Dialog';
 import { notify, reportError } from '../../components/Toasts';
@@ -6,10 +6,12 @@ import { formatArgs, parseArgs } from '../../shared/args';
 import { ipc, isTauri, toAppError } from '../../shared/ipc';
 import type { Accent, AuthMethod, EditorPreset, KnownHost, Settings } from '../../shared/types';
 import { useConnections } from '../connections/store';
+import { Field, Segmented, numberInput, type PageProps } from './controls';
+import { DiagnosticsPage } from './DiagnosticsPage';
 import { useCredentialStatus } from '../connections/useCredentialStatus';
 import { useSettings } from './store';
 
-type Page = 'general' | 'appearance' | 'ssh' | 'sftp' | 'security';
+type Page = 'general' | 'appearance' | 'ssh' | 'sftp' | 'security' | 'diagnostics';
 
 const PAGES: { id: Page; label: string }[] = [
   { id: 'general', label: 'General' },
@@ -17,6 +19,7 @@ const PAGES: { id: Page; label: string }[] = [
   { id: 'ssh', label: 'SSH' },
   { id: 'sftp', label: 'SFTP & editor' },
   { id: 'security', label: 'Security' },
+  { id: 'diagnostics', label: 'Diagnostics' },
 ];
 
 const ACCENTS: { id: Accent; color: string }[] = [
@@ -36,10 +39,12 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const patch = <S extends keyof Settings>(section: S, values: Partial<Settings[S]>) =>
     setDraft((d) => ({ ...d, [section]: { ...d[section], ...values } }));
 
+  // UI layout may have changed while the dialog was open; keep the live value.
+  const persist = () => save({ ...draft, ui: useSettings.getState().settings.ui });
+
   const submit = async () => {
     try {
-      // UI layout may have changed while the dialog was open; keep the live value.
-      await save({ ...draft, ui: useSettings.getState().settings.ui });
+      await persist();
       onClose();
     } catch (e) {
       setError(toAppError(e).message);
@@ -81,62 +86,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           {page === 'ssh' && <SshPage draft={draft} patch={patch} />}
           {page === 'sftp' && <SftpPage draft={draft} patch={patch} />}
           {page === 'security' && <SecurityPage />}
+          {page === 'diagnostics' && (
+            <DiagnosticsPage
+              draft={draft}
+              patch={patch}
+              onApply={async () => void (await persist())}
+            />
+          )}
         </div>
       </div>
     </Dialog>
   );
 }
-
-type PageProps = {
-  draft: Settings;
-  patch: <S extends keyof Settings>(section: S, values: Partial<Settings[S]>) => void;
-};
-
-function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T;
-  options: { value: T; label: string }[];
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div className="segmented" role="group">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          aria-pressed={value === o.value}
-          onClick={() => onChange(o.value)}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      {children}
-      {hint && <span className="hint">{hint}</span>}
-    </label>
-  );
-}
-
-const numberInput = (value: number, onChange: (n: number) => void, min: number, max: number) => (
-  <input
-    className="input"
-    type="number"
-    min={min}
-    max={max}
-    value={value}
-    onChange={(e) => onChange(Number(e.target.value))}
-  />
-);
 
 function GeneralPage({ draft, patch }: PageProps) {
   const g = draft.general;

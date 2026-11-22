@@ -9,6 +9,7 @@ import type {
   ConnectionTree,
   Folder,
   FolderInput,
+  LoggingStatus,
   Settings,
 } from './types';
 import { DEFAULT_SETTINGS } from './types';
@@ -17,7 +18,17 @@ type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>
 
 const uuid = () => globalThis.crypto?.randomUUID?.() ?? `id-${Math.random().toString(36).slice(2)}`;
 
-export function createMockBackend(seed?: Partial<ConnectionTree>): Invoke {
+export interface MockOptions {
+  /** Pretend file logging cannot write, with this fixed error token. */
+  loggingError?: string;
+  /** Start-up notes returned by `app_info`. */
+  issues?: string[];
+}
+
+export function createMockBackend(
+  seed?: Partial<ConnectionTree>,
+  options: MockOptions = {},
+): Invoke {
   const tree: ConnectionTree = {
     version: 1,
     folders: seed?.folders ?? [],
@@ -32,7 +43,13 @@ export function createMockBackend(seed?: Partial<ConnectionTree>): Invoke {
   };
 
   const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
-    app_info: () => ({ name: 'PeachTerm', version: '0.0.0-dev', os: 'windows', arch: 'x86_64' }),
+    app_info: () => ({
+      name: 'PeachTerm',
+      version: '0.0.0-dev',
+      os: 'windows',
+      arch: 'x86_64',
+      issues: options.issues ?? [],
+    }),
     editor_presets: () => [
       { id: 'mock', label: 'Mock editor', program: 'editor', args: ['{file}'] },
     ],
@@ -114,6 +131,36 @@ export function createMockBackend(seed?: Partial<ConnectionTree>): Invoke {
       tree.connections.forEach((c) => (c.hasStoredSecret = false));
       return { cleared };
     },
+    logging_status: (): LoggingStatus => {
+      const d = settings.diagnostics;
+      return {
+        enabled: d.fileLogging,
+        level: d.level,
+        effectiveDir: d.logDir ?? '(browser dev mock)',
+        customDir: d.logDir !== null,
+        active: d.fileLogging && !options.loggingError,
+        error: d.fileLogging ? (options.loggingError ?? null) : null,
+        droppedLines: 0,
+        fileCount: 1,
+        totalBytes: 2048,
+        retentionDays: d.retentionDays,
+        maxTotalMb: d.maxTotalMb,
+      };
+    },
+    logging_open_dir: () => undefined,
+    logging_export_preview: () => ({
+      files: [
+        { name: 'peachterm-2026-11-22.log', bytes: 2048 },
+        { name: 'diagnostics.json', bytes: 0 },
+      ],
+      totalBytes: 2048,
+    }),
+    logging_export: () => ({
+      savedTo: '(browser dev mock)/peachterm-diagnostics.zip',
+      entries: [{ name: 'peachterm-2026-11-22.log', linesKept: 12, linesDropped: 0 }],
+      archiveBytes: 1024,
+    }),
+    logging_reveal_export: () => undefined,
     known_hosts_list: () => [],
     known_hosts_remove: () => undefined,
   };

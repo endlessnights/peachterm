@@ -94,14 +94,22 @@ Native installers must be built on their own OS (CI does this on native runners:
 
 ## Where data lives
 
-| OS      | Directory                                                     |
-| ------- | ------------------------------------------------------------- |
-| Windows | `%APPDATA%\dev.peachterm.app\`                                |
-| Linux   | `$XDG_CONFIG_HOME/dev.peachterm.app/` (usually `~/.config/…`) |
-| macOS   | `~/Library/Application Support/dev.peachterm.app/`            |
+| OS      | Configuration                                 | Logs (default, changeable)                             |
+| ------- | --------------------------------------------- | ------------------------------------------------------ |
+| Windows | `%APPDATA%\PeachTerm\`                        | `%LOCALAPPDATA%\PeachTerm\logs\`                       |
+| Linux   | `$XDG_CONFIG_HOME/peachterm/` (`~/.config/…`) | `$XDG_STATE_HOME/peachterm/logs/` (`~/.local/state/…`) |
+| macOS   | `~/Library/Application Support/PeachTerm/`    | `~/Library/Logs/PeachTerm/`                            |
 
 `connections.json`, `settings.json` and `known_hosts.json` contain no secrets.
-Passwords go to the OS keychain only — never to disk in plain text.
+Passwords go to the OS keychain only — never to disk in plain text. A damaged
+file never resets the rest of your data: bad fields/entries fall back to defaults
+and a copy of the original is kept as `<file>.corrupt-<timestamp>`.
+
+## Diagnostic logs
+
+Local, allowlisted, rotated logs (Settings → Diagnostics): no passwords, keys,
+host names, user names, paths or terminal content at any level, and nothing is
+ever uploaded. Details: [docs/logging.md](docs/logging.md).
 
 ## Security principles
 

@@ -5,7 +5,7 @@
 //! load, so such a flag cannot be smuggled in through the file or over IPC.
 //! See `editor::policy`.
 
-use super::atomic::{load_json_or_default, save_json};
+use super::atomic::{ConfigIssue, load_json_value, merge_lenient, save_json};
 use crate::error::{AppError, AppResult};
 use crate::storage::connections::AuthMethod;
 use serde::{Deserialize, Serialize};
@@ -164,6 +164,44 @@ impl Default for EditorSettings {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum LogLevel {
+    Error,
+    Warn,
+    #[default]
+    Info,
+    Debug,
+    Trace,
+}
+
+/// Diagnostic logging preferences. Contains no secrets; the log *content* is
+/// restricted by an allowlist in `logging`, independent of these settings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DiagnosticsSettings {
+    pub file_logging: bool,
+    pub level: LogLevel,
+    /// Custom directory; `None` = the platform default.
+    pub log_dir: Option<String>,
+    /// 7, 14 or 30.
+    pub retention_days: u32,
+    /// Upper bound for all log files together.
+    pub max_total_mb: u32,
+}
+
+impl Default for DiagnosticsSettings {
+    fn default() -> Self {
+        Self {
+            file_logging: true,
+            level: LogLevel::Info,
+            log_dir: None,
+            retention_days: 14,
+            max_total_mb: 100,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UiState {
@@ -194,6 +232,7 @@ pub struct Settings {
     pub ssh: SshSettings,
     pub sftp: SftpSettings,
     pub editor: EditorSettings,
+    pub diagnostics: DiagnosticsSettings,
     pub ui: UiState,
 }
 
@@ -235,6 +274,19 @@ impl Settings {
             e.args.push("{file}".into());
         }
 
+        let d = &mut self.diagnostics;
+        d.retention_days = match d.retention_days {
+            0..=10 => 7,
+            11..=21 => 14,
+            _ => 30,
+        };
+        d.max_total_mb = d.max_total_mb.clamp(10, 1000);
+        d.log_dir = d
+            .log_dir
+            .take()
+            .map(|p| p.trim().to_owned())
+            .filter(|p| !p.is_empty() && !p.contains(' '));
+
         let u = &mut self.ui;
         u.sidebar_width = u.sidebar_width.clamp(160, 640);
         u.sftp_width = u.sftp_width.clamp(220, 1200);
@@ -249,15 +301,32 @@ impl Settings {
 pub struct SettingsStore {
     path: PathBuf,
     current: Mutex<Settings>,
+    issues: Vec<ConfigIssue>,
 }
 
 impl SettingsStore {
+    /// Never fails because of file contents: each invalid field falls back to
+    /// its default while every valid field is kept (see `merge_lenient`).
     pub fn open(path: PathBuf) -> AppResult<Self> {
-        let settings: Settings = load_json_or_default(&path)?;
+        let mut issues = Vec::new();
+        let settings = match load_json_value(&path, &mut issues) {
+            Some(value) => {
+                let before = issues.len();
+                let settings: Settings = merge_lenient(value, &path, &mut issues);
+                super::atomic::ensure_backup(&path, &mut issues, before);
+                settings
+            }
+            None => Settings::default(),
+        };
         Ok(Self {
             path,
             current: Mutex::new(settings.normalized()),
+            issues,
         })
+    }
+
+    pub fn issues(&self) -> &[ConfigIssue] {
+        &self.issues
     }
 
     pub fn get(&self) -> AppResult<Settings> {

@@ -30,7 +30,13 @@ serde_json = "1.0.154"
 thiserror = "2.0.21"
 uuid = { version = "1.29", features = ["v4", "serde"] }
 tokio = { version = "1.54", features = ["sync", "rt-multi-thread", "macros", "time"] }
-log = "0.4"
+dirs = "7"
+tracing = "0.1.44"
+tracing-log = { version = "0.2", default-features = false, features = ["std"] }
+# Registry + reload only: our own allowlist layer formats events, so the fmt
+# machinery (and its Debug-printing of arbitrary fields) is deliberately absent.
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["registry", "std", "tracing-log"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 zeroize = { version = "1.9", features = ["zeroize_derive"] }
 sha2 = "0.11"
 # SSH transport (Phase 2) and SFTP (Phase 3). Pulled in now to validate that the

@@ -3,20 +3,29 @@
 Compilation success does **not** prove runtime compatibility. This file tracks
 what has actually been verified, by whom, and how.
 
-| Check                                     | Windows 11 / windows-2025                  | Linux (ubuntu-24.04)  | macOS (macos-15)                  |
-| ----------------------------------------- | ------------------------------------------ | --------------------- | --------------------------------- |
-| `cargo clippy -D warnings`                | ✅ local + CI                              | ✅ CI                 | ✅ CI (arm64)                     |
-| `cargo test` (46 unit tests)              | ✅ local + CI                              | ✅ CI                 | ✅ CI (arm64)                     |
-| Frontend format/lint/typecheck/tests (21) | ✅ local + CI                              | ✅ CI                 | – (platform-neutral)              |
-| Release build + installers                | ✅ CI (NSIS, MSI)                          | ✅ CI (deb, AppImage) | ✅ CI (dmg arm64 + x64, unsigned) |
-| GUI launched and inspected manually       | ✅ local (debug exe, WebView2, real IPC)   | ❌ not yet            | ❌ not yet                        |
-| Credential store against real OS keychain | 🟡 probe only (backend reported available) | ❌ not yet            | ❌ not yet                        |
-| SSH/SFTP runtime tests                    | n/a (Phase 2)                              | n/a                   | n/a                               |
-| X11 / Wayland                             | –                                          | ❌ not yet            | –                                 |
+| Check                                                         | Windows 11 / windows-2025                                              | Linux (ubuntu-24.04)        | macOS (macos-15)                  |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------- | --------------------------------- |
+| `cargo clippy -D warnings`                                    | ✅ local + CI                                                          | ✅ CI                       | ✅ CI (arm64)                     |
+| `cargo test`                                                  | ✅ local + CI                                                          | ✅ CI                       | ✅ CI (arm64)                     |
+| Frontend format/lint/typecheck/tests                          | ✅ local + CI                                                          | ✅ CI                       | – (platform-neutral)              |
+| Release build + installers                                    | ✅ local + CI (NSIS; MSI in CI)                                        | ✅ CI (deb, AppImage)       | ✅ CI (dmg arm64 + x64, unsigned) |
+| Packaged app launched and exercised (real WebView2, real IPC) | ✅ local: portable exe and NSIS-installed exe, 31 scripted checks each | ❌ not yet                  | ❌ not yet                        |
+| Install / uninstall (NSIS, per-user, silent)                  | ✅ local: clean uninstall, no registry or file leftovers               | n/a                         | n/a                               |
+| Credential store against real OS keychain                     | ✅ Credential Manager: set/clear exercised via the packaged app        | ❌ not yet (Secret Service) | ❌ not yet (Keychain)             |
+| Native "Save as" dialog + diagnostic export                   | ✅ local (archive written and inspected)                               | ❌ not yet                  | ❌ not yet                        |
+| Log directory resolution (`dirs`)                             | ✅ `%LOCALAPPDATA%\PeachTerm\logs`, `%APPDATA%\PeachTerm`              | 🟡 unit-tested shape only   | 🟡 unit-tested shape only         |
+| SSH/SFTP runtime tests                                        | n/a (Phase 2)                                                          | n/a                         | n/a                               |
+| X11 / Wayland                                                 | –                                                                      | ❌ not yet                  | –                                 |
 
-First cross-platform CI run: commit `016032e`,
-https://github.com/endlessnights/peachterm/actions/runs/45026854567 — all 8 jobs passed.
+CI history (all jobs: frontend, Rust ×3 OS, app build ×4 targets):
+
+| Run                                                                                | Commit    | Result                                                                                                               |
+| ---------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------- |
+| [45026854567](https://github.com/endlessnights/peachterm/actions/runs/45026854567) | `016032e` | ✅ 8/8 jobs; Node 20 deprecation warnings on three actions                                                           |
+| [45028846755](https://github.com/endlessnights/peachterm/actions/runs/45028846755) | `bc779d9` | ✅ 8/8 jobs after bumping actions to v7 (Node 24); only a GitHub notice about macOS arm64 runner queue times remains |
+
 CI success proves compilation, unit tests and packaging only, not runtime behaviour.
+Only the Windows column has had the application actually run.
 
 ## Linux build dependencies (Debian/Ubuntu)
 

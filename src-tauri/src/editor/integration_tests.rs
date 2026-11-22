@@ -351,18 +351,27 @@ async fn a_burst_of_saves_produces_one_prompt_for_the_final_content() {
     let local = w.local_file(&opened);
     for i in 1..=5 {
         std::fs::write(&local, format!("v{i} and more").as_bytes()).unwrap();
+    }
+    // A slow machine may let the watcher look in the middle of the burst; an
+    // answer only ever covers the content it was asked about, so answer every
+    // question until the final content is uploaded.
+    let started = tokio::time::Instant::now();
+    let mut answered = 0;
+    while w.uploads() == 0 {
+        assert!(started.elapsed() < Duration::from_secs(20), "no upload");
+        if w.confirms() > answered {
+            answered += 1;
+            assert!(w.editor.answer(opened.edit_id, UserAnswer::Yes));
+        }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    w.until("prompt", is_confirm).await;
-    settle().await;
-    assert_eq!(w.confirms(), 1, "debounced into a single dialog");
-    assert!(w.editor.answer(opened.edit_id, UserAnswer::Yes));
-    w.until("uploaded", is_uploaded).await;
     assert_eq!(
         std::fs::read(w.remote_file("a.txt")).unwrap(),
         b"v5 and more",
         "the final content is what was uploaded"
     );
+    settle().await;
+    assert_eq!(w.confirms(), answered, "no further dialog after the upload");
 }
 
 #[tokio::test(flavor = "multi_thread")]

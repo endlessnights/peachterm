@@ -85,7 +85,8 @@ impl Rgb {
         Some(Self(byte(0)?, byte(2)?, byte(4)?))
     }
 
-    /// Windows `COLORREF` layout: `0x00BBGGRR`.
+    /// Windows `COLORREF` layout: `0x00BBGGRR` (only the Windows leaf calls it).
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn colorref(self) -> u32 {
         u32::from(self.0) | (u32::from(self.1) << 8) | (u32::from(self.2) << 16)
     }

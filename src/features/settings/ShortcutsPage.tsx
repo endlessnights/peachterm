@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useState } from 'react';
 import definitions from '../../shared/shortcutDefaults.json';
 import {

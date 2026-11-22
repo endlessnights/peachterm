@@ -1,7 +1,11 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // The integrated SFTP browser of one tab. It uses the tab's SSH session (no
 // separate login). If the server has no SFTP subsystem the panel says so and
 // the terminal keeps working.
 
+import { useActivity } from '../exit/activity';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Icon } from '../../components/Icon';
@@ -126,6 +130,12 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
     setSort((s) => (s.key === key ? { key, ascending: !s.ascending } : { key, ascending: true }));
 
   // ---- transfers -------------------------------------------------------------
+  // Exiting asks first while a transfer is running.
+  const running = transfers.filter((t) => t.state === 'running').length;
+  useEffect(() => {
+    useActivity.getState().setTransfers(tab.id, running);
+    return () => useActivity.getState().setTransfers(tab.id, 0);
+  }, [running, tab.id]);
   const onTransfer = useCallback((event: TransferEvent) => {
     setTransfers((list) => {
       switch (event.kind) {

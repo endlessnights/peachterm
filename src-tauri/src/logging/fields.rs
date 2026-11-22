@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! The allowlist of fields that may ever appear in a log line.
 //!
 //! This is the primary protection against leaking secrets: a field that is not
@@ -160,6 +163,7 @@ pub const IDENT_VOCABULARY: &[&str] = &[
     "remote_changed",
     "local_io",
     "pending",
+    "rejected_answer",
     "yes_to_all",
     "too_large",
     "launch_failed",
@@ -169,6 +173,9 @@ pub const IDENT_VOCABULARY: &[&str] = &[
     "rename",
     "delete",
     "always_ask",
+    // local terminals
+    "local",
+    "wsl",
 ];
 
 /// Every event name that may be logged: the documented log schema. A new event
@@ -183,6 +190,7 @@ pub const EVENTS: &[&str] = &[
     "lock.password_removed",
     "window.theme_applied",
     "window.scale_applied",
+    "credentials.clear_refused",
     "app.shutdown",
     "app.panic",
     "app.init_failed",
@@ -237,6 +245,10 @@ pub const EVENTS: &[&str] = &[
     "editor.upload_failed",
     "editor.conflict_detected",
     "editor.policy_reset",
+    // local terminals
+    "local.started",
+    "local.ended",
+    "local.start_failed",
 ];
 
 fn event_registered(value: &str) -> bool {

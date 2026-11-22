@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Pure selection helpers for the sidebar list (Ctrl/Shift click, Ctrl+A,
 // arrow keys). Selections are lists of row keys (`c:<id>` / `f:<id>`).
 

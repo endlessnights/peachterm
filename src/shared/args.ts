@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Quote-aware conversion between an argument list and a single text field.
 // Only used for display/editing; Rust receives the argv array and never runs
 // a shell, so quoting here has no security meaning.

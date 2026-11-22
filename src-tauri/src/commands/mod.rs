@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Thin IPC adapters. No business logic lives here: commands deserialize,
 //! call a service and map errors. Every command is `async` so it runs on the
 //! async runtime instead of blocking the main (UI) thread.
@@ -5,6 +8,7 @@
 pub mod app;
 pub mod connections;
 pub mod editor;
+pub mod local;
 pub mod lock;
 pub mod logging;
 pub mod security;

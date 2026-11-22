@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { readFileSync } from 'node:fs';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -31,9 +34,14 @@ const recorder = () => {
 describe('palette', () => {
   it('equals the CSS theme tokens it mirrors', () => {
     const css = readFileSync('src/styles/theme.css', 'utf8');
-    const split = css.indexOf(":root[data-theme='light'] {");
-    const blocks = { dark: css.slice(0, split), light: css.slice(split) };
-    for (const theme of ['dark', 'light'] as const) {
+    const light = css.indexOf(":root[data-theme='light'] {");
+    const olive = css.indexOf(":root[data-theme='olive'] {");
+    const blocks = {
+      dark: css.slice(0, light),
+      light: css.slice(light, olive),
+      olive: css.slice(olive),
+    };
+    for (const theme of ['dark', 'light', 'olive'] as const) {
       const p = TITLE_BAR_PALETTE[theme];
       expect(blocks[theme]).toContain(`--surface-1: ${p.caption}`);
       expect(blocks[theme]).toContain(`--text-1: ${p.text}`);

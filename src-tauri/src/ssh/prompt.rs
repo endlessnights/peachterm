@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Questions the SSH layer must ask the user while connecting: "do you trust
 //! this host key?" and credential prompts (password, key passphrase,
 //! keyboard-interactive). Each question is an event for the renderer plus a

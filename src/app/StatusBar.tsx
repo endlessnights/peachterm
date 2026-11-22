@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { useCredentialStatus } from '../features/connections/useCredentialStatus';
 import { useConnections } from '../features/connections/store';
 import { useTabs } from '../features/sessions/store';

@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Smoke tests against a REAL OpenSSH server (the CI job starts a throw-away
 //! `openssh-server` container; see `.github/workflows/ci.yml`). They are
 //! `#[ignore]`d so a normal `cargo test` never touches the network:

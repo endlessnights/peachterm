@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Background log writer: bounded queue, daily + size-based rotation and
 //! age/size retention.
 //!

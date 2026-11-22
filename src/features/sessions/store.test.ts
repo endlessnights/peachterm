@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Connection } from '../../shared/types';
 import { useTabs } from './store';

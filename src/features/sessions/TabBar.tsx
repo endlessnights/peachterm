@@ -1,15 +1,9 @@
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import { restrictToHorizontalAxisModifier } from './dndModifiers';
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Icon } from '../../components/Icon';
 import {
@@ -19,19 +13,25 @@ import {
   closeTabsToTheRight,
   duplicateTab,
   renameTabDialog,
+  tabColorsDialog,
   requestCloseTab,
   tabsForSameConnection,
 } from '../../app/actions';
+import { notify } from '../../components/Toasts';
 import { useShortcutLabel } from '../settings/shortcutState';
+import { shownTabs } from './layout';
+import { moveToNewPane, splitFocused } from './splitActions';
 import { useSettings } from '../settings/store';
+import { defaultProfile, useProfiles } from '../terminal/profilesStore';
+import { openLocalShell } from '../../app/actions';
 import { useTabs, type Tab } from './store';
 
 export function TabBar() {
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
   const activate = useTabs((s) => s.activate);
-  const moveTab = useTabs((s) => s.moveTab);
-  const split = useTabs((s) => s.split);
+  const layout = useTabs((s) => s.layout);
+  const visible = new Set(shownTabs(layout));
   const [menu, setMenu] = useState<{ x: number; y: number; entries: MenuEntry[] } | null>(null);
 
   const openMenu = (tab: Tab, x: number, y: number) => {
@@ -41,6 +41,11 @@ export function TabBar() {
     const entries: MenuEntry[] = [
       { kind: 'item', label: 'Rename Tab…', icon: 'edit', onSelect: () => renameTabDialog(tab.id) },
       { kind: 'item', label: 'Duplicate Tab', icon: 'copy', onSelect: () => duplicateTab(tab.id) },
+      {
+        kind: 'item',
+        label: 'Terminal Colors…',
+        onSelect: () => tabColorsDialog(tab.id),
+      },
       { kind: 'separator' },
       {
         kind: 'item',
@@ -48,7 +53,7 @@ export function TabBar() {
         icon: 'splitHorizontal',
         onSelect: () => {
           useTabs.getState().activate(tab.id);
-          useTabs.getState().startSplit('horizontal');
+          splitFocused('horizontal');
         },
       },
       {
@@ -57,7 +62,49 @@ export function TabBar() {
         icon: 'splitVertical',
         onSelect: () => {
           useTabs.getState().activate(tab.id);
-          useTabs.getState().startSplit('vertical');
+          splitFocused('vertical');
+        },
+      },
+      {
+        kind: 'item',
+        label: 'Show in New Pane: Left',
+        onSelect: () => moveToNewPane(tab.id, 'left'),
+      },
+      {
+        kind: 'item',
+        label: 'Show in New Pane: Right',
+        onSelect: () => moveToNewPane(tab.id, 'right'),
+      },
+      {
+        kind: 'item',
+        label: 'Show in New Pane: Above',
+        onSelect: () => moveToNewPane(tab.id, 'top'),
+      },
+      {
+        kind: 'item',
+        label: 'Show in New Pane: Below',
+        onSelect: () => moveToNewPane(tab.id, 'bottom'),
+      },
+      {
+        kind: 'item',
+        label: 'Remove from Split',
+        disabled: !visible.has(tab.id) || !layout,
+        onSelect: () => {
+          const leaf =
+            layout &&
+            [
+              ...(function* walk(
+                n: typeof layout,
+              ): Generator<{ id: string; tabId: string | null }> {
+                if (n.kind === 'leaf') yield n;
+                else {
+                  yield* walk(n.a);
+                  yield* walk(n.b);
+                }
+              })(layout),
+            ].find((l) => l.tabId === tab.id);
+          if (leaf) useTabs.getState().removePane(leaf.id);
+          else notify('That tab is not shown in a split.');
         },
       },
       { kind: 'separator' },
@@ -90,19 +137,49 @@ export function TabBar() {
     ];
     setMenu({ x, y, entries });
   };
+  const profilesLoaded = useProfiles((s) => s.loaded);
+  const refreshProfiles = useProfiles((s) => s.refresh);
+  useEffect(() => {
+    if (!profilesLoaded) void refreshProfiles();
+  }, [profilesLoaded, refreshProfiles]);
+
+  const startDefault = async () => {
+    if (!useProfiles.getState().loaded) await useProfiles.getState().refresh();
+    const profile = defaultProfile();
+    if (profile) openLocalShell(profile);
+    else notify('No local shell was found on this computer.');
+  };
+  const profileMenu = (x: number, y: number) => {
+    const { profiles, defaultId } = useProfiles.getState();
+    const entries: MenuEntry[] = profiles.map((p) => ({
+      kind: 'item' as const,
+      label: p.id === defaultId ? `${p.name} (default)` : p.name,
+      icon: 'terminal' as const,
+      onSelect: () => openLocalShell(p),
+    }));
+    if (entries.length === 0) {
+      entries.push({
+        kind: 'item',
+        label: 'No local shells found',
+        disabled: true,
+        onSelect: () => {},
+      });
+    }
+    entries.push(
+      { kind: 'separator' },
+      {
+        kind: 'item',
+        label: 'Refresh Profiles',
+        icon: 'refresh',
+        onSelect: () => void refreshProfiles(),
+      },
+    );
+    setMenu({ x, y, entries });
+  };
   const sidebarLabel = useShortcutLabel('toggleSidebar');
   const sidebarVisible = useSettings((s) => s.settings.ui.sidebarVisible);
   const setUi = useSettings((s) => s.setUi);
   const persistUi = useSettings((s) => s.persistUi);
-
-  // A small activation distance keeps plain clicks from starting a drag.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
-  const onDragEnd = (event: DragEndEvent) => {
-    if (event.over && event.active.id !== event.over.id) {
-      moveTab(String(event.active.id), String(event.over.id));
-    }
-  };
 
   return (
     <div className="tabbar">
@@ -120,12 +197,7 @@ export function TabBar() {
           <Icon name="sidebar" />
         </button>
       </div>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        modifiers={[restrictToHorizontalAxisModifier]}
-        onDragEnd={onDragEnd}
-      >
+      <div className="tabs-wrap">
         <SortableContext items={tabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
           <div className="tabs" role="tablist" aria-label="Sessions">
             {tabs.map((tab) => (
@@ -133,14 +205,33 @@ export function TabBar() {
                 key={tab.id}
                 tab={tab}
                 active={tab.id === activeId}
-                pane={split ? split.panes.indexOf(tab.id) : -1}
+                shown={visible.has(tab.id)}
                 onActivate={activate}
                 onMenu={openMenu}
               />
             ))}
           </div>
         </SortableContext>
-      </DndContext>
+        <button
+          className="icon-btn tabs-add"
+          aria-label="New local terminal"
+          title="New local terminal (right-click to choose a shell)"
+          onClick={() => void startDefault()}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            profileMenu(e.clientX, e.clientY);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+              e.preventDefault();
+              const r = e.currentTarget.getBoundingClientRect();
+              profileMenu(r.left, r.bottom);
+            }
+          }}
+        >
+          <Icon name="plus" />
+        </button>
+      </div>
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} entries={menu.entries} onClose={() => setMenu(null)} />
       )}
@@ -151,14 +242,14 @@ export function TabBar() {
 function SortableTab({
   tab,
   active,
-  pane,
+  shown,
   onActivate,
   onMenu,
 }: {
   tab: Tab;
   active: boolean;
-  /** 0 / 1 when the tab is shown in a split pane, -1 otherwise. */
-  pane: number;
+  /** The tab is visible in a pane of a split. */
+  shown: boolean;
   onActivate: (id: string) => void;
   onMenu: (tab: Tab, x: number, y: number) => void;
 }) {
@@ -175,7 +266,7 @@ function SortableTab({
       role="tab"
       aria-selected={active}
       data-dragging={isDragging || undefined}
-      data-pane={pane >= 0 ? pane : undefined}
+      data-pane={shown ? '' : undefined}
       title={`${tab.subtitle}${tab.customTitle ? ` (${tab.defaultTitle})` : ''}`}
       onContextMenu={(e) => {
         e.preventDefault();

@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! A string that is wiped from memory on drop and never printed.
 
 use serde::{Deserialize, Deserializer};

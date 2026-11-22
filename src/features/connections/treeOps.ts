@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Pure structural operations on the connection tree. The Rust backend is
 // authoritative (and re-validates everything); this mirror gives instant drop
 // feedback in the sidebar and powers the in-memory dev backend and tests.

@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! `tracing` layer that renders events as one-line JSON using only allowlisted
 //! fields (see `fields.rs`).
 //!

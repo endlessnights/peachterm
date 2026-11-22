@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Optional application lock, enforced in Rust.
 //!
 //! * The lock state lives here ([`LockFlag`]); the renderer overlay is only a
@@ -39,7 +42,7 @@ impl LockFlag {
     pub fn is_locked(&self) -> bool {
         self.0.load(Ordering::SeqCst)
     }
-    fn set(&self, locked: bool) {
+    pub(crate) fn set(&self, locked: bool) {
         self.0.store(locked, Ordering::SeqCst);
     }
     /// For other services: refuse while locked.

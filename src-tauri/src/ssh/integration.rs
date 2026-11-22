@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Integration tests: the real client against an in-process SSH server.
 
 use super::client::{Deps, SshError, Target, connect};

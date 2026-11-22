@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! User-visible uploads and downloads with progress and cancellation.
 //!
 //! Local paths never come from the renderer: a native dialog opened by Rust

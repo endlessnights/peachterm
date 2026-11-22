@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Questions the SSH layer asks while connecting (host keys, credentials).
 // They arrive as backend events and are answered through IPC. Answers (which
 // can be passwords) are passed straight to Rust and never stored here.

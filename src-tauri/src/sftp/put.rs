@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Writing a remote file safely.
 //!
 //! Content is first written to a temporary file in the **same directory**

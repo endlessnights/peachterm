@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! SFTP against the in-process test server (real SSH transport, real SFTP
 //! protocol, a temporary directory as the remote file system).
 

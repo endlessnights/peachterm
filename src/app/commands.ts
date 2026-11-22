@@ -1,9 +1,13 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // What each keyboard-shortcut action does. Shortcuts, menus and buttons all go
 // through `runAction`, so a binding can be changed without touching the UI.
 
 import { notify } from '../components/Toasts';
 import { useConnections } from '../features/connections/store';
 import { useTabs } from '../features/sessions/store';
+import { splitFocused } from '../features/sessions/splitActions';
 import { requestTerminalSearch } from '../features/terminal/events';
 import { useSettings } from '../features/settings/store';
 import type { ActionId } from '../shared/shortcuts';
@@ -95,9 +99,9 @@ export function runAction(id: ActionId) {
       return active ? duplicateTab(active) : undefined;
     }
     case 'splitVertical':
-      return useTabs.getState().startSplit('vertical');
+      return void splitFocused('vertical');
     case 'splitHorizontal':
-      return useTabs.getState().startSplit('horizontal');
+      return void splitFocused('horizontal');
     case 'toggleSplitOrientation':
       return useTabs.getState().toggleOrientation();
     case 'focusNextPane':

@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Workspace layout and recent-session history (`workspace.json`).
 //!
 //! Only metadata is stored: which saved connection each tab belongs to, an
@@ -18,9 +21,8 @@ use uuid::Uuid;
 pub const MAX_TABS: usize = 100;
 pub const MAX_RECENT: usize = 20;
 pub const MAX_TITLE_CHARS: usize = 128;
-pub const MIN_RATIO: f64 = 0.15;
-pub const MAX_RATIO: f64 = 0.85;
 
+/// The old two-pane split (read for upgrading; never written any more).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum Orientation {
@@ -31,12 +33,32 @@ pub enum Orientation {
     Horizontal,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum TabKind {
+    #[default]
+    Ssh,
+    Local,
+    Wsl,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SavedTab {
-    pub connection_id: Uuid,
-    /// Custom title only; `None` follows the saved connection's name.
+    #[serde(default)]
+    pub kind: TabKind,
+    /// The saved connection (SSH tabs).
+    #[serde(default)]
+    pub connection_id: Option<Uuid>,
+    /// The shell profile (local and WSL tabs): an id, never a command line.
+    #[serde(default)]
+    pub profile_id: Option<String>,
+    /// Custom title only; `None` follows the default name.
     pub title: Option<String>,
+    /// Terminal palette chosen for this tab only (a built-in preset id);
+    /// `None` follows the global setting. Appearance only, nothing sensitive.
+    #[serde(default)]
+    pub colors: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -49,12 +71,42 @@ pub struct SavedSplit {
     pub focus: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Dir {
+    /// Side by side.
+    Row,
+    /// Stacked.
+    Column,
+}
+
+/// The split tree: at most [`MAX_PANES`] panes, each showing one tab.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum SavedNode {
+    Leaf {
+        /// Index into `tabs`.
+        tab: usize,
+    },
+    Branch {
+        dir: Dir,
+        ratio: f64,
+        a: Box<SavedNode>,
+        b: Box<SavedNode>,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Layout {
     pub tabs: Vec<SavedTab>,
     pub active: Option<usize>,
+    /// Legacy two-pane split from older versions; converted to `tree`.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub split: Option<SavedSplit>,
+    pub tree: Option<SavedNode>,
+    /// The tab shown in the focused pane.
+    pub focus: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,29 +134,135 @@ pub fn clean_title(title: &str) -> Option<String> {
     (!trimmed.is_empty()).then_some(trimmed)
 }
 
+pub const MAX_PANES: usize = 6;
+const MAX_DEPTH: usize = 6;
+pub const MIN_NODE_RATIO: f64 = 0.1;
+pub const MAX_NODE_RATIO: f64 = 0.9;
+
+fn profile_id_ok(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | ':' | '-'))
+}
+
+fn collect_tabs(node: &SavedNode, out: &mut Vec<usize>) {
+    match node {
+        SavedNode::Leaf { tab } => out.push(*tab),
+        SavedNode::Branch { a, b, .. } => {
+            collect_tabs(a, out);
+            collect_tabs(b, out);
+        }
+    }
+}
+
+fn depth(node: &SavedNode) -> usize {
+    match node {
+        SavedNode::Leaf { .. } => 1,
+        SavedNode::Branch { a, b, .. } => 1 + depth(a).max(depth(b)),
+    }
+}
+
+fn clamp_ratios(node: SavedNode) -> SavedNode {
+    match node {
+        SavedNode::Leaf { .. } => node,
+        SavedNode::Branch { dir, ratio, a, b } => SavedNode::Branch {
+            dir,
+            ratio: if ratio.is_finite() {
+                ratio.clamp(MIN_NODE_RATIO, MAX_NODE_RATIO)
+            } else {
+                0.5
+            },
+            a: Box::new(clamp_ratios(*a)),
+            b: Box::new(clamp_ratios(*b)),
+        },
+    }
+}
+
 /// Make any layout safe to store and to restore: bounded, consistent indexes,
-/// clamped ratio, cleaned titles.
+/// clamped ratios, cleaned titles, valid tab descriptions.
 pub fn sanitize_layout(mut layout: Layout) -> Layout {
     layout.tabs.truncate(MAX_TABS);
     for tab in &mut layout.tabs {
         tab.title = tab.title.as_deref().and_then(clean_title);
+        tab.colors = tab
+            .colors
+            .take()
+            .filter(|id| crate::storage::settings::is_terminal_preset(id));
+        match tab.kind {
+            TabKind::Ssh => tab.profile_id = None,
+            TabKind::Local | TabKind::Wsl => {
+                tab.connection_id = None;
+                if !tab.profile_id.as_deref().is_some_and(profile_id_ok) {
+                    tab.profile_id = None;
+                }
+            }
+        }
     }
     let count = layout.tabs.len();
     layout.active = layout.active.filter(|&i| i < count);
-    layout.split = layout.split.and_then(|mut s| {
-        let valid = s.panes[0] < count && s.panes[1] < count && s.panes[0] != s.panes[1];
-        if !valid {
-            return None;
-        }
-        s.ratio = if s.ratio.is_finite() {
-            s.ratio.clamp(MIN_RATIO, MAX_RATIO)
-        } else {
-            0.5
-        };
-        s.focus = s.focus.min(1);
-        Some(s)
+    layout.focus = layout.focus.filter(|&i| i < count);
+
+    // upgrade the old two-pane split
+    if layout.tree.is_none()
+        && let Some(split) = layout.split.take()
+        && split.panes[0] < count
+        && split.panes[1] < count
+        && split.panes[0] != split.panes[1]
+    {
+        layout.tree = Some(SavedNode::Branch {
+            dir: match split.orientation {
+                Orientation::Vertical => Dir::Row,
+                Orientation::Horizontal => Dir::Column,
+            },
+            ratio: split.ratio,
+            a: Box::new(SavedNode::Leaf {
+                tab: split.panes[0],
+            }),
+            b: Box::new(SavedNode::Leaf {
+                tab: split.panes[1],
+            }),
+        });
+        layout.focus = Some(split.panes[split.focus.min(1)]);
+    }
+    layout.split = None;
+
+    layout.tree = layout.tree.take().and_then(|tree| {
+        let mut tabs = Vec::new();
+        collect_tabs(&tree, &mut tabs);
+        let unique = tabs.iter().collect::<HashSet<_>>().len() == tabs.len();
+        let valid = tabs.len() >= 2
+            && tabs.len() <= MAX_PANES
+            && unique
+            && tabs.iter().all(|&t| t < count)
+            && depth(&tree) <= MAX_DEPTH;
+        valid.then(|| clamp_ratios(tree))
     });
+    if layout.tree.is_none() {
+        layout.focus = None;
+    }
     layout
+}
+
+fn prune(node: SavedNode, map: &[Option<usize>]) -> Option<SavedNode> {
+    match node {
+        SavedNode::Leaf { tab } => map
+            .get(tab)
+            .copied()
+            .flatten()
+            .map(|tab| SavedNode::Leaf { tab }),
+        SavedNode::Branch { dir, ratio, a, b } => match (prune(*a, map), prune(*b, map)) {
+            (Some(a), Some(b)) => Some(SavedNode::Branch {
+                dir,
+                ratio,
+                a: Box::new(a),
+                b: Box::new(b),
+            }),
+            (Some(only), None) | (None, Some(only)) => Some(only),
+            (None, None) => None,
+        },
+    }
 }
 
 /// What may be stored: the layout when tab restoration is on, otherwise
@@ -117,25 +275,36 @@ pub fn layout_to_keep(restore_tabs: bool, layout: Layout) -> Layout {
     }
 }
 
-/// Keep only tabs whose saved connection still exists, remapping the indexes
-/// (a split whose pane disappeared is dropped).
+/// Keep only tabs that can still be restored: SSH tabs whose saved connection
+/// exists, and every local or WSL tab. Indexes are remapped; a pane whose tab
+/// disappeared collapses (a tree reduced to one pane is no split).
 pub fn retain_existing(layout: Layout, exists: &HashSet<Uuid>) -> Layout {
     let mut map = vec![None; layout.tabs.len()];
     let mut tabs = Vec::new();
     for (old, tab) in layout.tabs.into_iter().enumerate() {
-        if exists.contains(&tab.connection_id) {
+        let keep = match tab.kind {
+            TabKind::Ssh => tab.connection_id.is_some_and(|id| exists.contains(&id)),
+            TabKind::Local | TabKind::Wsl => tab.profile_id.is_some(),
+        };
+        if keep {
             map[old] = Some(tabs.len());
             tabs.push(tab);
         }
     }
+    let tree = layout.tree.and_then(|t| prune(t, &map)).filter(|t| {
+        let mut shown = Vec::new();
+        collect_tabs(t, &mut shown);
+        shown.len() >= 2
+    });
     Layout {
         active: layout.active.and_then(|i| map[i]),
-        split: layout.split.and_then(|s| {
-            Some(SavedSplit {
-                panes: [map[s.panes[0]]?, map[s.panes[1]]?],
-                ..s
-            })
-        }),
+        focus: if tree.is_some() {
+            layout.focus.and_then(|i| map[i])
+        } else {
+            None
+        },
+        split: None,
+        tree,
         tabs,
     }
 }
@@ -281,34 +450,56 @@ mod tests {
         ids.iter().map(|n| id(*n)).collect()
     }
 
+    fn ssh(n: u128, title: Option<&str>) -> SavedTab {
+        SavedTab {
+            kind: TabKind::Ssh,
+            connection_id: Some(id(n)),
+            profile_id: None,
+            title: title.map(str::to_owned),
+            colors: None,
+        }
+    }
+
+    fn local(profile: &str) -> SavedTab {
+        SavedTab {
+            kind: TabKind::Local,
+            connection_id: None,
+            profile_id: Some(profile.into()),
+            title: None,
+            colors: None,
+        }
+    }
+
+    fn leaf(tab: usize) -> Box<SavedNode> {
+        Box::new(SavedNode::Leaf { tab })
+    }
+
+    fn branch(dir: Dir, ratio: f64, a: Box<SavedNode>, b: Box<SavedNode>) -> Box<SavedNode> {
+        Box::new(SavedNode::Branch { dir, ratio, a, b })
+    }
+
+    /// ┌───┬───┐
+    /// │ 0 │ 1 │   a mixed, nested layout of three panes
+    /// │   ├───┤
+    /// │   │ 2 │
+    /// └───┴───┘
     fn layout() -> Layout {
         Layout {
-            tabs: vec![
-                SavedTab {
-                    connection_id: id(1),
-                    title: Some("prod web".into()),
-                },
-                SavedTab {
-                    connection_id: id(2),
-                    title: None,
-                },
-                SavedTab {
-                    connection_id: id(1),
-                    title: None,
-                },
-            ],
+            tabs: vec![ssh(1, Some("prod web")), ssh(2, None), local("pwsh")],
             active: Some(2),
-            split: Some(SavedSplit {
-                orientation: Orientation::Horizontal,
-                ratio: 0.3,
-                panes: [0, 2],
-                focus: 1,
-            }),
+            split: None,
+            tree: Some(*branch(
+                Dir::Row,
+                0.4,
+                leaf(0),
+                branch(Dir::Column, 0.3, leaf(1), leaf(2)),
+            )),
+            focus: Some(1),
         }
     }
 
     #[test]
-    fn layout_round_trips_through_the_file() {
+    fn a_nested_layout_round_trips_through_the_file() {
         let (dir, s) = store();
         s.save_layout(layout()).unwrap();
         let reopened = WorkspaceStore::open(dir.path().join("workspace.json")).unwrap();
@@ -322,7 +513,7 @@ mod tests {
         s.record_recent(id(1), 5).unwrap();
         let text = std::fs::read_to_string(dir.path().join("workspace.json")).unwrap();
         for forbidden in [
-            "password", "secret", "token", "session", "policy", "yes", "ask",
+            "password", "secret", "token", "session", "policy", "command", "yes",
         ] {
             assert!(
                 !text.to_lowercase().contains(forbidden),
@@ -333,68 +524,149 @@ mod tests {
         let mut keys: Vec<_> = value.as_object().unwrap().keys().cloned().collect();
         keys.sort();
         assert_eq!(keys, ["layout", "recent", "version"]);
+        assert!(
+            value["layout"].get("split").is_none(),
+            "the legacy field is not written"
+        );
     }
 
     #[test]
-    fn hostile_layouts_are_made_safe() {
+    fn up_to_six_panes_are_kept_and_more_are_refused() {
+        let six = |n: usize| {
+            let mut node = leaf(0);
+            for i in 1..n {
+                node = branch(Dir::Row, 0.5, node, leaf(i));
+            }
+            Layout {
+                tabs: (0..n).map(|i| ssh(i as u128 + 1, None)).collect(),
+                tree: Some(*node),
+                ..Default::default()
+            }
+        };
+        for n in 2..=6 {
+            assert!(sanitize_layout(six(n)).tree.is_some(), "{n} panes");
+        }
+        assert!(
+            sanitize_layout(six(7)).tree.is_none(),
+            "7 panes are refused"
+        );
+        assert!(
+            sanitize_layout(six(1)).tree.is_none(),
+            "one pane is no split"
+        );
+    }
+
+    #[test]
+    fn invalid_trees_are_dropped_not_repaired_into_something_else() {
+        let mut l = layout();
+        l.tree = Some(*branch(Dir::Row, 0.5, leaf(0), leaf(0))); // same tab twice
+        assert!(sanitize_layout(l).tree.is_none());
+        let mut l = layout();
+        l.tree = Some(*branch(Dir::Row, 0.5, leaf(0), leaf(9))); // out of range
+        assert!(sanitize_layout(l).tree.is_none());
+        let mut l = layout();
+        l.tree = Some(*branch(Dir::Row, f64::NAN, leaf(0), leaf(1)));
+        let fixed = sanitize_layout(l).tree.unwrap();
+        assert!(matches!(fixed, SavedNode::Branch { ratio, .. } if ratio == 0.5));
+        let mut l = layout();
+        l.tree = Some(*branch(Dir::Row, 0.99, leaf(0), leaf(1)));
+        assert!(
+            matches!(sanitize_layout(l).tree, Some(SavedNode::Branch { ratio, .. }) if ratio == MAX_NODE_RATIO)
+        );
+        // depth bomb: a chain of 40 splits
+        let mut deep = leaf(0);
+        for _ in 0..40 {
+            deep = branch(Dir::Column, 0.5, deep, leaf(1));
+        }
+        let l = Layout {
+            tabs: vec![ssh(1, None), ssh(2, None)],
+            tree: Some(*deep),
+            ..Default::default()
+        };
+        assert!(sanitize_layout(l).tree.is_none());
+    }
+
+    #[test]
+    fn hostile_titles_profiles_and_indexes_are_made_safe() {
         let mut l = layout();
         l.tabs[0].title = Some(format!("a\nb\u{7}{}", "x".repeat(500)));
+        l.tabs[2].profile_id = Some("rm -rf /; echo".into()); // not an id
         l.active = Some(99);
-        l.split = Some(SavedSplit {
-            orientation: Orientation::Vertical,
-            ratio: f64::NAN,
-            panes: [0, 1],
-            focus: 7,
-        });
+        l.focus = Some(77);
         let safe = sanitize_layout(l);
         let title = safe.tabs[0].title.clone().unwrap();
         assert!(title.starts_with("a b "));
         assert_eq!(title.chars().count(), MAX_TITLE_CHARS);
-        assert_eq!(safe.active, None);
-        let split = safe.split.unwrap();
-        assert_eq!((split.ratio, split.focus), (0.5, 1));
-
-        let mut l = layout();
-        l.split.as_mut().unwrap().panes = [1, 1]; // the same tab twice
-        assert!(sanitize_layout(l).split.is_none());
-        let mut l = layout();
-        l.split.as_mut().unwrap().panes = [0, 9];
-        assert!(sanitize_layout(l).split.is_none());
-        let mut l = layout();
-        l.split.as_mut().unwrap().ratio = 0.99;
-        assert_eq!(sanitize_layout(l).split.unwrap().ratio, MAX_RATIO);
-
+        assert_eq!(safe.tabs[2].profile_id, None);
+        assert_eq!((safe.active, safe.focus), (None, None));
         let many = Layout {
-            tabs: (0..500)
-                .map(|n| SavedTab {
-                    connection_id: id(n),
-                    title: None,
-                })
-                .collect(),
+            tabs: (0..500).map(|n| ssh(n, None)).collect(),
             ..Default::default()
         };
         assert_eq!(sanitize_layout(many).tabs.len(), MAX_TABS);
+        // an SSH tab cannot smuggle a profile and a local tab cannot name a server
+        let mut l = layout();
+        l.tabs[0].profile_id = Some("pwsh".into());
+        l.tabs[2].connection_id = Some(id(5));
+        let safe = sanitize_layout(l);
+        assert_eq!(safe.tabs[0].profile_id, None);
+        assert_eq!(safe.tabs[2].connection_id, None);
     }
 
     #[test]
-    fn deleted_connections_drop_out_of_a_restored_layout() {
-        let restored = retain_existing(layout(), &all(&[1])); // connection 2 was deleted
-        assert_eq!(restored.tabs.len(), 2);
-        assert_eq!(restored.active, Some(1));
-        assert_eq!(restored.split.unwrap().panes, [0, 1]);
-        let without_first = retain_existing(layout(), &all(&[2]));
-        assert_eq!(without_first.tabs.len(), 1);
-        assert!(
-            without_first.split.is_none(),
-            "a split that lost a pane is dropped"
+    fn the_old_two_pane_split_is_upgraded() {
+        let legacy = Layout {
+            tabs: vec![ssh(1, None), ssh(2, None)],
+            active: Some(1),
+            split: Some(SavedSplit {
+                orientation: Orientation::Horizontal,
+                ratio: 0.3,
+                panes: [0, 1],
+                focus: 1,
+            }),
+            tree: None,
+            focus: None,
+        };
+        let upgraded = sanitize_layout(legacy);
+        assert_eq!(upgraded.split, None);
+        assert_eq!(
+            upgraded.tree,
+            Some(*branch(Dir::Column, 0.3, leaf(0), leaf(1)))
         );
-        assert_eq!(without_first.active, None);
+        assert_eq!(upgraded.focus, Some(1));
+
+        // and straight from an old file
+        let old = r#"{"tabs":[{"connectionId":"00000000-0000-0000-0000-000000000001","title":null},
+            {"connectionId":"00000000-0000-0000-0000-000000000002","title":"two"}],
+            "active":0,"split":{"orientation":"vertical","ratio":0.5,"panes":[0,1],"focus":0}}"#;
+        let parsed: Layout = serde_json::from_str(old).unwrap();
+        let upgraded = sanitize_layout(parsed);
+        assert!(upgraded.tree.is_some());
+        assert_eq!(upgraded.tabs[0].kind, TabKind::Ssh);
+        assert_eq!(upgraded.tabs[1].title.as_deref(), Some("two"));
+    }
+
+    #[test]
+    fn tabs_that_cannot_be_restored_drop_out_and_the_tree_collapses() {
+        // connection 2 was deleted: its pane goes, the others stay side by side
+        let restored = retain_existing(layout(), &all(&[1]));
+        assert_eq!(restored.tabs.len(), 2); // ssh(1) and the local shell
+        assert_eq!(restored.active, Some(1));
+        assert_eq!(
+            restored.tree,
+            Some(*branch(Dir::Row, 0.4, leaf(0), leaf(1)))
+        );
+        assert_eq!(restored.focus, None, "the focused tab was deleted");
+        // only one pane left: no split
+        let one = retain_existing(layout(), &all(&[]));
+        assert_eq!(one.tabs.len(), 1);
+        assert!(one.tree.is_none());
+        assert_eq!(one.focus, None);
     }
 
     #[test]
     fn recent_sessions_are_ordered_newest_first_without_duplicates() {
         let (_dir, s) = store();
-        // pve1, pve2, pve1, pve1, pve3
         for (n, who) in [1u128, 2, 1, 1, 3].into_iter().enumerate() {
             s.record_recent(id(who), n as u64).unwrap();
         }
@@ -425,7 +697,6 @@ mod tests {
             s.record_recent(id(who), 0).unwrap();
         }
         assert_eq!(s.recent(10, &all(&[1, 3])).unwrap(), [id(3), id(1)]);
-        // gone from the file as well, not only hidden
         let reopened = WorkspaceStore::open(dir.path().join("workspace.json")).unwrap();
         assert_eq!(
             reopened.recent(10, &all(&[1, 2, 3])).unwrap(),

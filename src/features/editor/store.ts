@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // State of the external-editor round trip. Content never passes through here:
 // only names and the questions Rust asks ("upload this edit?", "the remote
 // file changed"). Answers go to Rust, which alone decides what is uploaded.

@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Small inline SVG icon set (original, stroke-based, 16px grid).
 
 const paths = {

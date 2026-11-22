@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::AppState;
 use crate::editor::policy::UserAnswer;
 use crate::editor::service::{ConflictChoice, OpenParams, OpenedEdit};

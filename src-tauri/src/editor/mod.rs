@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! External-editor integration.
 //!
 //! Launch configuration, per-OS presets, the remote-write policy (`policy`),

@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Types mirrored from the Rust backend (src-tauri/src). Keep in sync with docs/ipc.md.
 
 export type Uuid = string;
@@ -78,11 +81,48 @@ export interface ConnectionTree {
   connections: Connection[];
 }
 
-export type ThemeMode = 'dark' | 'light' | 'system';
+export type ThemeMode = 'dark' | 'light' | 'olive' | 'gray' | 'system';
 export type Accent = 'peach' | 'teal' | 'violet' | 'blue';
 export type PanelSide = 'left' | 'right';
 export type SplitOrientation = 'vertical' | 'horizontal';
 export type StartupBehavior = 'empty' | 'restoreTabs';
+
+/** Manual colour overrides (validated `#rrggbb` values only). */
+export interface CustomTerminalColors {
+  background: string | null;
+  foreground: string | null;
+  cursor: string | null;
+  selectionBackground: string | null;
+  /** Exactly 16 colours (normal 0-7, bright 8-15) or null. */
+  ansi: string[] | null;
+}
+
+export interface TerminalColors {
+  /** Follow the application theme (the default). */
+  linked: boolean;
+  /** The palette used while not linked. */
+  preset: string;
+  /** Custom colours imply independent mode. */
+  custom: CustomTerminalColors | null;
+}
+
+/** A user-defined local shell: an absolute executable and fixed arguments. */
+export interface CustomShell {
+  id: string;
+  name: string;
+  program: string;
+  args: string[];
+}
+
+export interface TerminalSettings {
+  /** Profile id a plain click on "+" starts; null = the platform default. */
+  defaultProfile: string | null;
+  /** Preferred WSL distribution. */
+  wslDistro: string | null;
+  /** Directory new local shells start in; null = the home directory. */
+  startDir: string | null;
+  customProfiles: CustomShell[];
+}
 
 export interface Settings {
   general: {
@@ -92,6 +132,8 @@ export interface Settings {
     language: string;
     /** How many recent saved connections the home screen lists (3-20). */
     recentSessionsLimit: number;
+    /** The bottom status bar (connection tracking and logging do not depend on it). */
+    showStatusBar: boolean;
   };
   appearance: {
     theme: ThemeMode;
@@ -102,6 +144,8 @@ export interface Settings {
     scrollback: number;
     /** Whole-interface zoom in percent: 70-150, steps of 10. */
     interfaceScale: number;
+    /** Terminal palette and how it follows the application theme. */
+    terminalColors: TerminalColors;
   };
   ssh: {
     connectTimeoutSecs: number;
@@ -120,6 +164,7 @@ export interface Settings {
     args: string[];
     tempDir: string | null;
   };
+  terminal: TerminalSettings;
   diagnostics: {
     fileLogging: boolean;
     level: LogLevel;
@@ -238,6 +283,7 @@ export const DEFAULT_SETTINGS: Settings = {
     autoReconnectRestored: false,
     language: 'en',
     recentSessionsLimit: 3,
+    showStatusBar: true,
   },
   appearance: {
     theme: 'dark',
@@ -248,6 +294,7 @@ export const DEFAULT_SETTINGS: Settings = {
     terminalLineHeight: 1.2,
     scrollback: 10000,
     interfaceScale: 100,
+    terminalColors: { linked: true, preset: 'peachDark', custom: null },
   },
   ssh: {
     connectTimeoutSecs: 15,
@@ -257,6 +304,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   sftp: { defaultPosition: 'right', defaultVisible: true, confirmDelete: true, showHidden: false },
   editor: { program: null, args: ['{file}'], tempDir: null },
+  terminal: { defaultProfile: null, wslDistro: null, startDir: null, customProfiles: [] },
   diagnostics: {
     fileLogging: true,
     level: 'info',
@@ -410,16 +458,42 @@ export type EditorEvent =
 
 // ---- Workspace layout and recent sessions ---------------------------------------
 
+/** A shell that can be started locally (never a command line, only an id). */
+export interface LocalProfile {
+  id: string;
+  name: string;
+  kind: 'local' | 'wsl';
+  /** Where it comes from, e.g. the executable or the WSL distribution. */
+  detail: string;
+}
+
+/** What `local_profiles` returns. */
+export interface LocalProfileList {
+  profiles: LocalProfile[];
+  /** The profile a plain click on "+" starts. */
+  default: string | null;
+}
+
+export type SavedNode =
+  | { kind: 'leaf'; tab: number }
+  | { kind: 'branch'; dir: 'row' | 'column'; ratio: number; a: SavedNode; b: SavedNode };
+
 /** What is remembered about open tabs: metadata only, never a session or a secret. */
 export interface WorkspaceLayout {
-  tabs: { connectionId: Uuid; /** custom title only */ title: string | null }[];
+  tabs: {
+    kind: 'ssh' | 'local' | 'wsl';
+    connectionId: Uuid | null;
+    profileId: string | null;
+    /** custom title only */
+    title: string | null;
+    /** Terminal palette chosen for this tab only (a built-in preset id). */
+    colors: string | null;
+  }[];
   active: number | null;
-  split: {
-    orientation: SplitOrientation;
-    ratio: number;
-    panes: [number, number];
-    focus: number;
-  } | null;
+  /** The split tree (2 to 6 panes), `null` when there is no split. */
+  tree: SavedNode | null;
+  /** Index of the tab shown in the focused pane. */
+  focus: number | null;
 }
 
 export const INTERFACE_SCALES = [70, 80, 90, 100, 110, 120, 130, 140, 150] as const;

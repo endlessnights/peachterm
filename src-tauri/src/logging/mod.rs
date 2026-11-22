@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Structured, allowlisted diagnostic logging (see docs/logging.md).
 //!
 //! How to log from any module — same pattern in every phase:

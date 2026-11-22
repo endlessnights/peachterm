@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // User-level actions shared by menus, shortcuts and double-clicks.
 
 import { reportError } from '../components/Toasts';
@@ -32,9 +35,14 @@ export function requestCloseTabs(ids: string[]) {
     confirmAction({
       title: single ? 'Close active session?' : `Close ${tabs.length} tabs?`,
       message: single
-        ? `"${tabs[0]!.title}" is still connected. Closing the tab ends the SSH session.`
-        : `${active.length} active SSH session${active.length === 1 ? '' : 's'} will be disconnected` +
-          (tabs.length > active.length ? ` (${tabs.length} tabs in total).` : '.'),
+        ? tabs[0]!.kind === 'ssh'
+          ? `"${tabs[0]!.title}" is still connected. Closing the tab ends the SSH session.`
+          : `"${tabs[0]!.title}" is a running local shell. Closing the tab ends it and the programs started in it.`
+        : active.every((t) => t.kind === 'ssh')
+          ? `${active.length} active SSH session${active.length === 1 ? '' : 's'} will be disconnected` +
+            (tabs.length > active.length ? ` (${tabs.length} tabs in total).` : '.')
+          : `${active.length} active session${active.length === 1 ? '' : 's'} will be ended` +
+            (tabs.length > active.length ? ` (${tabs.length} tabs in total).` : '.'),
       confirmLabel: single ? 'Close tab' : `Close ${tabs.length} tabs`,
       danger: true,
       onConfirm: close,
@@ -64,7 +72,10 @@ export function closeTabsToTheRight(tabId: string) {
 export const tabsForSameConnection = (tabId: string) => {
   const { tabs } = useTabs.getState();
   const tab = tabs.find((t) => t.id === tabId);
-  return tab ? tabs.filter((t) => t.connectionId === tab.connectionId) : [];
+  if (!tab) return [];
+  // local shells belong to no saved connection: "the same host" is just themselves
+  if (tab.kind !== 'ssh') return [tab];
+  return tabs.filter((t) => t.kind === 'ssh' && t.connectionId === tab.connectionId);
 };
 
 export function closeOtherTabsForHost(tabId: string) {
@@ -79,8 +90,17 @@ export function closeAllTabsForHost(tabId: string) {
   requestCloseTabs(tabsForSameConnection(tabId).map((t) => t.id));
 }
 
+/** Open a new local terminal (a shell by profile id; the backend decides how it starts). */
+export function openLocalShell(profile: { id: string; name: string; kind: 'local' | 'wsl' }) {
+  return useTabs.getState().openLocal(profile);
+}
+
 export function duplicateTab(tabId: string) {
   useTabs.getState().duplicateTab(tabId);
+}
+
+export function tabColorsDialog(tabId: string) {
+  useDialogs.getState().open({ kind: 'tabColors', tabId });
 }
 
 export function renameTabDialog(tabId: string) {

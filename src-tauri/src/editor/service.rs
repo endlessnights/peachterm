@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! The external-editor round trip.
 //!
 //! open remote file → managed private copy → editor → watch the copy →

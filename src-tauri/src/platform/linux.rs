@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Linux-only leaf: executable name resolution and editor presets.
 
 use crate::editor::EditorPreset;

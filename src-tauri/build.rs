@@ -1,8 +1,13 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 /// Every IPC command the renderer may call. Declaring them here makes Tauri
 /// generate an `allow-<command>` permission for each one, so a command that is
 /// not listed in `permissions/app-commands.toml` cannot be invoked at all.
 const COMMANDS: &[&str] = &[
     "app_info",
+    "app_quit",
+    "app_open_link",
     "connections_load",
     "connections_save",
     "connections_delete",
@@ -21,6 +26,8 @@ const COMMANDS: &[&str] = &[
     "credentials_set_password",
     "credentials_clear",
     "credentials_clear_all",
+    "credentials_clear_begin",
+    "credentials_clear_cancel",
     "known_hosts_list",
     "known_hosts_remove",
     "editor_presets",
@@ -32,6 +39,12 @@ const COMMANDS: &[&str] = &[
     "ssh_close",
     "ssh_answer_host_key",
     "ssh_answer_auth",
+    "local_profiles",
+    "local_open",
+    "local_write",
+    "local_resize",
+    "local_ack",
+    "local_close",
     "sftp_status",
     "sftp_list",
     "sftp_mkdir",

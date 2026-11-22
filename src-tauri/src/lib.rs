@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! PeachTerm backend.
 //!
 //! Rust owns SSH/SFTP, credentials, host keys, temp files, file watching,
@@ -6,6 +9,7 @@
 mod commands;
 mod editor;
 mod error;
+mod local;
 mod lock;
 mod logging;
 #[cfg(test)]
@@ -42,6 +46,7 @@ pub struct AppState {
     pub connections: ConnectionStore,
     pub settings: SettingsStore,
     pub known_hosts: Arc<KnownHostsStore>,
+    pub credential_clear: security::clear::ClearGuard,
     pub workspace: Arc<storage::workspace::WorkspaceStore>,
     pub credentials: Arc<dyn CredentialStore>,
     #[allow(dead_code)] // driven by the SSH service (Phase 2)
@@ -51,6 +56,7 @@ pub struct AppState {
     pub logging: Arc<LogController>,
     pub lock: Arc<lock::LockService>,
     pub ssh: ssh::session::SshManager,
+    pub local: local::session::LocalManager,
     pub prompts: ssh::prompt::Prompts,
     pub sftp: sftp::transfer::Hub,
     /// Set once the Tauri app exists; prompts are delivered through it. (A
@@ -168,6 +174,7 @@ impl AppState {
             connections,
             settings,
             known_hosts,
+            credential_clear: security::clear::ClearGuard::default(),
             workspace,
             credentials,
             sessions,
@@ -176,6 +183,7 @@ impl AppState {
             logging,
             lock,
             ssh: ssh::session::SshManager::default(),
+            local: local::session::LocalManager::default(),
             sftp: sftp::transfer::Hub::default(),
             prompts,
             prompt_emitter,
@@ -223,6 +231,8 @@ fn apply_startup_title_bar(app: &tauri::App, state: &AppState) {
     };
     let theme = match state.settings.get().map(|s| s.appearance.theme) {
         Ok(ThemeMode::Light) => WindowTheme::Light,
+        Ok(ThemeMode::Olive) => WindowTheme::Olive,
+        Ok(ThemeMode::Gray) => WindowTheme::Gray,
         Ok(ThemeMode::System) => match window.theme() {
             Ok(tauri::Theme::Light) => WindowTheme::Light,
             _ => WindowTheme::Dark,
@@ -271,6 +281,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app::app_info,
+            commands::app::app_quit,
+            commands::app::app_open_link,
             commands::app::editor_presets,
             commands::connections::connections_load,
             commands::connections::connections_save,
@@ -294,6 +306,12 @@ pub fn run() {
             commands::ssh::ssh_close,
             commands::ssh::ssh_answer_host_key,
             commands::ssh::ssh_answer_auth,
+            commands::local::local_profiles,
+            commands::local::local_open,
+            commands::local::local_write,
+            commands::local::local_resize,
+            commands::local::local_ack,
+            commands::local::local_close,
             commands::sftp::sftp_status,
             commands::sftp::sftp_list,
             commands::sftp::sftp_mkdir,
@@ -324,6 +342,8 @@ pub fn run() {
             commands::security::credentials_set_password,
             commands::security::credentials_clear,
             commands::security::credentials_clear_all,
+            commands::security::credentials_clear_begin,
+            commands::security::credentials_clear_cancel,
             commands::security::known_hosts_list,
             commands::security::known_hosts_remove,
             commands::logging::logging_status,
@@ -339,6 +359,7 @@ pub fn run() {
         if let tauri::RunEvent::Exit = event
             && let Some(state) = handle.try_state::<Arc<AppState>>()
         {
+            state.local.close_all();
             state.logging.shutdown();
         }
     });
@@ -580,6 +601,7 @@ mod tests {
             "lock_now",           // idempotent; locking while locked is harmless
             "lock_touch",         // no-op while locked
             "app_info",           // withholds start-up notes while locked
+            "app_quit",           // quitting exposes nothing
             "window_apply_theme", // cosmetic, reveals nothing
             "window_apply_scale", // cosmetic zoom, reveals nothing
             "editor_presets",     // static list of editor names

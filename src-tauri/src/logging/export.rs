@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Diagnostic export: a zip with sanitised copies of the log files.
 //!
 //! Nothing is uploaded; the user picks where the archive is saved, can inspect

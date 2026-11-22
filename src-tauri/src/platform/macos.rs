@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! macOS-only leaf: executable name resolution and editor presets.
 //!
 //! macOS GUI editors are launched through `open -a <App>`, which hands the file

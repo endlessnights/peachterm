@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Minimal UTC calendar helpers (no chrono/time dependency).
 //!
 //! Log files are named by UTC date so rotation and retention are independent

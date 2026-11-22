@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::AppState;
 use crate::error::AppResult;
 use crate::lock::{LockStatus, UnlockOutcome};

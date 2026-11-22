@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { useState } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { notify, reportError } from '../../components/Toasts';

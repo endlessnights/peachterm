@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { Dialog } from '../../components/Dialog';
 import { formatSize } from '../sftp/model';
 import { useEditor, type EditorQuestion } from './store';

@@ -1,5 +1,9 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::AppState;
 use crate::error::{AppError, AppResult};
+use crate::security::clear::{Refusal, clear_all};
 use crate::security::credentials::{CredentialStatus, connection_account};
 use crate::security::known_hosts::KnownHost;
 use crate::security::secret::SecretString;
@@ -61,34 +65,107 @@ pub async fn credentials_clear(state: AppStateRef<'_>, connection_id: Uuid) -> A
 }
 
 #[derive(Serialize)]
-pub struct ClearedCount {
-    cleared: usize,
+#[serde(rename_all = "camelCase")]
+pub struct ClearChallenge {
+    token: Uuid,
+    question: String,
+    expires_in_secs: u64,
+    /// Saved passwords / key passphrases that would be deleted.
+    count: usize,
 }
 
+/// Stage 2 of "clear all saved passwords": Rust creates a short-lived,
+/// single-use confirmation (token + small arithmetic question). Nothing is
+/// deleted here.
 #[tauri::command]
-pub async fn credentials_clear_all(state: AppStateRef<'_>) -> AppResult<ClearedCount> {
+pub async fn credentials_clear_begin(state: AppStateRef<'_>) -> AppResult<ClearChallenge> {
     state.lock.guard()?;
-    let tree = state.connections.load()?;
-    let ids: Vec<Uuid> = tree
+    let count = state
+        .connections
+        .load()?
         .connections
         .iter()
         .filter(|c| c.has_stored_secret)
-        .map(|c| c.id)
+        .count();
+    let challenge = state.credential_clear.begin();
+    Ok(ClearChallenge {
+        token: challenge.token,
+        question: challenge.question,
+        expires_in_secs: challenge.expires_in_secs,
+        count,
+    })
+}
+
+#[tauri::command]
+pub async fn credentials_clear_cancel(state: AppStateRef<'_>) -> AppResult<()> {
+    state.lock.guard()?;
+    state.credential_clear.cancel();
+    Ok(())
+}
+
+/// Deletes PeachTerm's saved passwords and passphrases, but only with a valid
+/// confirmation from [`credentials_clear_begin`] and the right answer; the
+/// renderer cannot skip that check. Every entry is attempted, failures are
+/// counted, nothing but counts is logged.
+#[tauri::command]
+pub async fn credentials_clear_all(
+    state: AppStateRef<'_>,
+    token: Uuid,
+    answer: i64,
+) -> AppResult<ClearedCount> {
+    state.lock.guard()?;
+    state.credential_clear.verify(token, answer).map_err(|r| {
+        tracing::warn!(
+            event = "credentials.clear_refused",
+            reason = match r {
+                Refusal::Expired => "timeout",
+                Refusal::TooManyAttempts | Refusal::WrongAnswer => "rejected",
+                Refusal::Unknown => "invalid",
+            }
+        );
+        AppError::Validation(
+            match r {
+                Refusal::WrongAnswer => "That is not the right answer. Nothing was deleted.",
+                Refusal::Expired => "The confirmation expired. Nothing was deleted.",
+                Refusal::TooManyAttempts => {
+                    "Too many wrong answers. Nothing was deleted; start again."
+                }
+                Refusal::Unknown => "There is no pending confirmation. Nothing was deleted.",
+            }
+            .into(),
+        )
+    })?;
+    let tree = state.connections.load()?;
+    let entries: Vec<(Uuid, bool)> = tree
+        .connections
+        .iter()
+        .map(|c| (c.id, c.has_stored_secret))
         .collect();
     let app = Arc::clone(&state);
-    let cleared = super::blocking(move || {
-        // Attempt every entry, also those without the flag, in case the flag
-        // and the keychain drifted apart.
-        for connection in &tree.connections {
-            app.credentials
-                .delete(&connection_account(&connection.id))?;
+    let outcome = super::blocking(move || {
+        let mut deleted = Vec::new();
+        let outcome = clear_all(app.credentials.as_ref(), &entries, |id| deleted.push(id));
+        for id in deleted {
+            app.connections.set_has_stored_secret(id, false)?;
         }
-        Ok(ids.len())
+        Ok(outcome)
     })
     .await?;
-    state.connections.clear_all_secret_flags()?;
-    tracing::info!(event = "credentials.cleared_all", count = cleared as u64);
-    Ok(ClearedCount { cleared })
+    tracing::info!(
+        event = "credentials.cleared_all",
+        count = outcome.deleted as u64,
+        files = outcome.failed as u64,
+    );
+    Ok(ClearedCount {
+        deleted: outcome.deleted,
+        failed: outcome.failed,
+    })
+}
+
+#[derive(Serialize)]
+pub struct ClearedCount {
+    deleted: usize,
+    failed: usize,
 }
 
 #[tauri::command]

@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useRef, useState } from 'react';
 import { Logo } from '../../components/Icon';
 import { toAppError } from '../../shared/ipc';

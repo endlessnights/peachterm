@@ -1,9 +1,13 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // The only module allowed to call Tauri's `invoke` (enforced by ESLint).
 // Every backend command is wrapped in a typed function here.
 
 import { Channel, invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type {
+  LocalProfileList,
   AppError,
   AppInfo,
   Connection,
@@ -113,7 +117,7 @@ export const ipc = {
 
   /** Colour the native title bar like the application theme. */
   windowApplyTheme: (
-    theme: 'dark' | 'light',
+    theme: 'dark' | 'light' | 'olive' | 'gray',
     colors: { caption: string; text: string; border: string },
   ) => call<'colored' | 'themeOnly'>('window_apply_theme', { theme, ...colors }),
 
@@ -135,7 +139,15 @@ export const ipc = {
   credentialsSetPassword: (connectionId: Uuid, secret: string) =>
     call<void>('credentials_set_password', { connectionId, secret }),
   credentialsClear: (connectionId: Uuid) => call<void>('credentials_clear', { connectionId }),
-  credentialsClearAll: () => call<{ cleared: number }>('credentials_clear_all'),
+  /** Stage 2: Rust creates a short-lived confirmation (token + small sum). Nothing is deleted. */
+  credentialsClearBegin: () =>
+    call<{ token: string; question: string; expiresInSecs: number; count: number }>(
+      'credentials_clear_begin',
+    ),
+  credentialsClearCancel: () => call<void>('credentials_clear_cancel'),
+  /** Deletes PeachTerm's saved secrets; Rust checks the token and the answer. */
+  credentialsClearAll: (token: string, answer: number) =>
+    call<{ deleted: number; failed: number }>('credentials_clear_all', { token, answer }),
 
   knownHostsList: () => call<KnownHost[]>('known_hosts_list'),
   knownHostsRemove: (host: string, port: number) =>
@@ -167,6 +179,31 @@ export const ipc = {
   /** Flow control: the terminal has rendered `bytes` of output. */
   sshAck: (sessionId: Uuid, bytes: number) => call<void>('ssh_ack', { sessionId, bytes }),
   sshClose: (sessionId: Uuid) => call<void>('ssh_close', { sessionId }),
+  /** Open one of the fixed project links (by key) in the default browser. */
+  openLink: (link: 'github' | 'telegram' | 'repository' | 'notices' | 'license') =>
+    call<void>('app_open_link', { link }),
+  /** Close the application (ends every session first). */
+  appQuit: () => call<void>('app_quit'),
+  // ---- local terminals ----
+  localProfiles: () => call<LocalProfileList>('local_profiles'),
+  /** Start a local shell by profile id (never a command line). */
+  localOpen: (
+    profileId: string,
+    cols: number,
+    rows: number,
+    onEvent: (event: TerminalEvent) => void,
+  ) =>
+    call<{ sessionId: Uuid }>('local_open', {
+      profileId,
+      cols,
+      rows,
+      onEvent: makeChannel(onEvent),
+    }),
+  localWrite: (sessionId: Uuid, data: string) => call<void>('local_write', { sessionId, data }),
+  localResize: (sessionId: Uuid, cols: number, rows: number) =>
+    call<void>('local_resize', { sessionId, cols, rows }),
+  localAck: (sessionId: Uuid, bytes: number) => call<void>('local_ack', { sessionId, bytes }),
+  localClose: (sessionId: Uuid) => call<void>('local_close', { sessionId }),
   sshAnswerHostKey: (promptId: Uuid, decision: HostKeyDecision) =>
     call<void>('ssh_answer_host_key', { promptId, decision }),
   /** `answers: null` cancels. Answers go straight to Rust and are never stored. */

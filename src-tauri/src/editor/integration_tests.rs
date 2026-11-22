@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! The external-editor round trip end to end: a real SSH transport, a real SFTP
 //! server over a temporary directory, the real service, and a "user" that edits
 //! the local copy by writing to it.

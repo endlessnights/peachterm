@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::error::{AppError, AppResult};
 use crate::platform::{self, Rgb, TitleBarColors, TitleBarOutcome, WindowTheme};
 
@@ -30,6 +33,8 @@ pub async fn window_apply_theme(
     let theme = match theme.as_str() {
         "dark" => WindowTheme::Dark,
         "light" => WindowTheme::Light,
+        "olive" => WindowTheme::Olive,
+        "gray" => WindowTheme::Gray,
         _ => return Err(AppError::Validation("Unknown window theme".into())),
     };
     let color = |value: &str| {

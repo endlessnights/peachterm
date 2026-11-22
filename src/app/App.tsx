@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useState } from 'react';
 import { ConfirmDialog, PromptDialog } from '../components/Dialog';
 import { ResizeHandle } from '../components/ResizeHandle';
@@ -8,12 +11,14 @@ import { MoveDialog } from '../features/connections/MoveDialog';
 import { Sidebar } from '../features/connections/Sidebar';
 import { useConnections } from '../features/connections/store';
 import { TabBar } from '../features/sessions/TabBar';
+import { WorkspaceDnd } from '../features/sessions/WorkspaceDnd';
 import { useTabs } from '../features/sessions/store';
 import { describeReason } from '../features/settings/DiagnosticsPage';
 import { EditorPromptHost } from '../features/editor/EditorDialogs';
 import { listenForEditor } from '../features/editor/store';
 import { SshPromptHost } from '../features/ssh/PromptDialogs';
 import { listenForPrompts } from '../features/ssh/promptStore';
+import { TabColorsDialog } from '../features/sessions/TabColorsDialog';
 import { RenameTabDialog } from '../features/sessions/RenameTabDialog';
 import { SettingsDialog } from '../features/settings/SettingsDialog';
 import { useSettings } from '../features/settings/store';
@@ -24,6 +29,8 @@ import { useActivityTouch } from '../features/lock/useActivityTouch';
 import { ipc, isTauri, toAppError } from '../shared/ipc';
 import { restoreWorkspace, startWorkspacePersistence } from '../features/sessions/persistence';
 import { useRecent } from '../features/sessions/recentStore';
+import { ExitDialog } from '../features/exit/ExitDialog';
+import { installCloseHandler } from '../features/exit/exit';
 import { useDialogs } from './dialogs';
 import { useInterfaceScale } from './useInterfaceScale';
 import { StatusBar } from './StatusBar';
@@ -53,6 +60,7 @@ export function App() {
   useActivityTouch();
   useInterfaceScale(settingsLoaded ? (preview ?? settings.appearance).interfaceScale : undefined);
   useEffect(() => startWorkspacePersistence(), []);
+  useEffect(() => installCloseHandler(), []);
 
   const bootstrap = async () => {
     try {
@@ -158,6 +166,7 @@ export function App() {
           but is inert and invisible: no input, no focus, nothing to read. */}
       <div
         className="app"
+        data-statusbar={settings.general.showStatusBar ? 'on' : 'off'}
         data-locked={locked || undefined}
         inert={locked}
         aria-hidden={locked || undefined}
@@ -178,17 +187,20 @@ export function App() {
             </>
           )}
           <main className="workspace">
-            <TabBar />
-            <TerminalWorkspace />
+            <WorkspaceDnd>
+              <TabBar />
+              <TerminalWorkspace />
+            </WorkspaceDnd>
           </main>
         </div>
-        <StatusBar version={version} />
+        {settings.general.showStatusBar && <StatusBar version={version} />}
         {!locked && <DialogHost />}
         {!locked && <SshPromptHost />}
         {!locked && <EditorPromptHost />}
         {!locked && <Toasts />}
       </div>
       {locked && <LockScreen />}
+      <ExitDialog />
     </>
   );
 }
@@ -212,6 +224,8 @@ function DialogHost() {
       return <DeleteItemsDialog items={dialog.items} onClose={close} />;
     case 'renameTab':
       return <RenameTabDialog tabId={dialog.tabId} onClose={close} />;
+    case 'tabColors':
+      return <TabColorsDialog tabId={dialog.tabId} onClose={close} />;
     case 'settings':
       return <SettingsDialog onClose={close} initialPage={dialog.page} />;
     case 'confirm':

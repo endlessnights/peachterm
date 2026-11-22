@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! One running SSH terminal session and the set of all of them.
 //!
 //! Data path (see docs/architecture.md): russh channel → coalescing task →
@@ -52,7 +55,7 @@ pub fn decode(text: &str) -> Option<Vec<u8>> {
 #[derive(Default)]
 pub struct Credits {
     outstanding: AtomicUsize,
-    wake: Notify,
+    pub(crate) wake: Notify,
 }
 
 impl Credits {
@@ -74,7 +77,7 @@ impl Credits {
     pub fn outstanding(&self) -> usize {
         self.outstanding.load(Ordering::SeqCst)
     }
-    fn has_room(&self) -> bool {
+    pub(crate) fn has_room(&self) -> bool {
         self.outstanding() < MAX_OUTSTANDING
     }
 }

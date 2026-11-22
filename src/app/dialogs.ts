@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // App-level dialog state, so shortcuts, menus and the sidebar can all open
 // the same dialogs without prop drilling.
 
@@ -5,7 +8,15 @@ import { create } from 'zustand';
 import type { Connection, ItemRef, Uuid } from '../shared/types';
 
 export type SettingsPage =
-  'general' | 'appearance' | 'shortcuts' | 'ssh' | 'sftp' | 'security' | 'diagnostics';
+  | 'general'
+  | 'appearance'
+  | 'terminal'
+  | 'shortcuts'
+  | 'ssh'
+  | 'sftp'
+  | 'security'
+  | 'diagnostics'
+  | 'about';
 
 export type DialogState =
   | { kind: 'connection'; connection: Connection | null; folderId: Uuid | null }
@@ -13,6 +24,7 @@ export type DialogState =
   | { kind: 'move'; items: ItemRef[] }
   | { kind: 'deleteItems'; items: ItemRef[] }
   | { kind: 'renameTab'; tabId: string }
+  | { kind: 'tabColors'; tabId: string }
   | {
       kind: 'confirm';
       title: string;

@@ -1,3 +1,6 @@
+/* Copyright 2026 Bakhti Baymukhamedov
+   SPDX-License-Identifier: Apache-2.0 */
+
 /* Theme tokens. Dark is the default; light overrides via [data-theme='light'].
    Accent colours are layered on top via [data-accent]. Components only ever
    reference these variables. */
@@ -120,4 +123,78 @@
   --accent-text: #ffffff;
   --accent-soft: rgba(47, 111, 196, 0.12);
   --accent-line: rgba(47, 111, 196, 0.45);
+}
+
+/* Industrial Olive: an original, utilitarian desktop look (muted olive and grey
+   panels, thin rectangular borders, small radii, subtle bevels, mustard
+   highlight). It owns its accent: the accent colour setting does not apply. */
+:root[data-theme='olive'] {
+  color-scheme: dark;
+  --surface-0: #343d2d; /* window */
+  --surface-1: #46513d; /* sidebar, tab bar, title bar, status bar, dialogs */
+  --surface-2: #3b4634; /* secondary panels, inputs */
+  --surface-3: #4f5a43; /* hover */
+  --surface-4: #57624a; /* selection / pressed */
+  --line: #2a3124;
+  --line-strong: #7a8566;
+  --text-1: #e0e1d2;
+  --text-2: #c2c6ae;
+  --text-3: #a4ac8e;
+  --ok: #a9d17f;
+  --warn: #e0c14e;
+  --danger: #f08a70;
+  --danger-dim: rgba(240, 138, 112, 0.18);
+  --info: #9cc1d6;
+  --shadow-pop: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 0 1px #2a3124;
+  --backdrop: rgba(20, 24, 16, 0.55);
+  --radius-s: 1px;
+  --radius-m: 2px;
+  --radius-l: 2px;
+  --row-h: 24px;
+  --tab-h: 30px;
+  --status-h: 22px;
+  --accent: #b6a63b;
+  --accent-hover: #cbbb4d;
+  --accent-text: #0b0c05;
+  --accent-soft: rgba(182, 166, 59, 0.2);
+  --accent-line: rgba(182, 166, 59, 0.6);
+  --primary-border: #6f6522;
+}
+
+/* Source Gray: an original look inspired by early-2000s game-engine desktop
+   UIs (neutral grey panels, thin rectangular borders, compact controls, small
+   radii, subtle bevels). It shares its component rules with Industrial Olive
+   (olive.css) and owns its accent, like Olive. Surfaces are a little darker
+   than a plain mid-grey so light text keeps WCAG contrast. */
+:root[data-theme='gray'] {
+  color-scheme: dark;
+  --surface-0: #4d5052; /* window */
+  --surface-1: #585b5d; /* sidebar, tab bar, title bar, status bar, dialogs */
+  --surface-2: #424447; /* secondary panels, inputs */
+  --surface-3: #63666a; /* hover, raised */
+  --surface-4: #686c6f; /* selection / pressed */
+  --line: #35373a;
+  --line-strong: #9a9ea0;
+  --text-1: #f2f3f3;
+  --text-2: #dadcdc;
+  --text-3: #bfc2c3;
+  --ok: #a9cf9c;
+  --warn: #dccb82;
+  --danger: #f4a399;
+  --danger-dim: rgba(244, 163, 153, 0.2);
+  --info: #a3c4da;
+  --shadow-pop: 0 1px 0 rgba(0, 0, 0, 0.4), 0 0 0 1px #35373a;
+  --backdrop: rgba(24, 25, 26, 0.5);
+  --radius-s: 1px;
+  --radius-m: 2px;
+  --radius-l: 2px;
+  --row-h: 24px;
+  --tab-h: 30px;
+  --status-h: 22px;
+  --primary-border: #8a9195;
+  --accent: #b7bfc2;
+  --accent-hover: #cdd3d6;
+  --accent-text: #1c1e1f;
+  --accent-soft: rgba(183, 191, 194, 0.18);
+  --accent-line: rgba(183, 191, 194, 0.55);
 }

@@ -1,57 +1,32 @@
-// xterm colours follow the application theme (CSS variables on <html>).
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
+// xterm colours: a palette (see palettes.ts) chosen from the settings, the
+// application theme and an optional per-tab override. Only the base colours and
+// the indexed ANSI palette are provided here; programs that print their own
+// 256-colour or RGB sequences keep exactly those colours.
 
 import type { ITheme } from '@xterm/xterm';
+import type { Settings } from '../../shared/types';
+import { useSettings } from '../settings/store';
+import { buildTheme, effectivePreset } from './palettes';
 
-const css = (name: string, fallback: string) =>
-  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+const accentColor = () =>
+  getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#f6a07a';
 
-const DARK_ANSI = {
-  black: '#1d1c1a',
-  red: '#e06c5f',
-  green: '#86c08f',
-  yellow: '#e9be6e',
-  blue: '#7fb3e6',
-  magenta: '#c79bd9',
-  cyan: '#6fcbc4',
-  white: '#d8d2ca',
-  brightBlack: '#6f6962',
-  brightRed: '#f28b7d',
-  brightGreen: '#a2d6aa',
-  brightYellow: '#f3d08d',
-  brightBlue: '#9cc6ee',
-  brightMagenta: '#dab4e8',
-  brightCyan: '#8fdcd5',
-  brightWhite: '#f6f2ec',
-};
-
-const LIGHT_ANSI = {
-  black: '#23201d',
-  red: '#b83a2a',
-  green: '#2f7d3d',
-  yellow: '#8d5f00',
-  blue: '#265f9e',
-  magenta: '#8a4a9e',
-  cyan: '#1e7f78',
-  white: '#8d867e',
-  brightBlack: '#5b554e',
-  brightRed: '#d24a38',
-  brightGreen: '#3b9a4c',
-  brightYellow: '#a87400',
-  brightBlue: '#3478c0',
-  brightMagenta: '#a65fba',
-  brightCyan: '#2a9a92',
-  brightWhite: '#bdb6ac',
-};
-
-export function terminalTheme(): ITheme {
-  const light = document.documentElement.dataset.theme === 'light';
-  const accent = css('--accent', '#f6a07a');
-  return {
-    ...(light ? LIGHT_ANSI : DARK_ANSI),
-    background: css('--surface-0', light ? '#fbfaf8' : '#121212'),
-    foreground: css('--text-1', light ? '#23201d' : '#f1ede8'),
-    cursor: accent,
-    cursorAccent: css('--surface-0', light ? '#fbfaf8' : '#121212'),
-    selectionBackground: light ? 'rgba(38, 95, 158, 0.28)' : 'rgba(127, 179, 230, 0.32)',
-  };
+/**
+ * The theme for one terminal. `appearance` defaults to what is shown right now
+ * (the Settings preview while it is open, else the saved settings);
+ * `sessionPreset` is the tab's own palette, if it has one.
+ */
+export function terminalTheme(
+  appearance?: Settings['appearance'],
+  sessionPreset: string | null = null,
+): ITheme {
+  const state = useSettings.getState();
+  const a = appearance ?? state.preview ?? state.settings.appearance;
+  const id = effectivePreset(a, sessionPreset);
+  // Custom colours belong to the global palette; a tab with its own preset ignores them.
+  const custom = sessionPreset ? null : a.terminalColors.custom;
+  return buildTheme(id, custom, accentColor());
 }

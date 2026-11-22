@@ -1,8 +1,10 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useMemo, useState } from 'react';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import type { SettingsPage } from '../../app/dialogs';
 import { Dialog } from '../../components/Dialog';
-import { notify, reportError } from '../../components/Toasts';
 import { formatArgs, parseArgs } from '../../shared/args';
 import { ipc, isTauri, toAppError } from '../../shared/ipc';
 import { checkBindings } from '../../shared/shortcuts';
@@ -13,27 +15,33 @@ import {
   type Accent,
   type AuthMethod,
   type EditorPreset,
-  type KnownHost,
   type Settings,
 } from '../../shared/types';
 import { useRecent } from '../sessions/recentStore';
-import { useConnections } from '../connections/store';
 import { useLock } from '../lock/store';
 import { Field, Segmented, numberInput, type PageProps } from './controls';
 import { ApplicationLockSection } from './ApplicationLockSection';
+import { ClearPasswordsFlow } from './ClearPasswordsFlow';
+import { FontPicker } from './FontPicker';
+import { TerminalColorsSection } from './TerminalColorsSection';
+import { AboutPage } from './AboutPage';
+import { LocalShellPage } from './LocalShellPage';
 import { DiagnosticsPage } from './DiagnosticsPage';
 import { ShortcutsPage } from './ShortcutsPage';
 import { useCredentialStatus } from '../connections/useCredentialStatus';
+import { useActivity } from '../exit/activity';
 import { useSettings } from './store';
 
 const PAGES: { id: SettingsPage; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'appearance', label: 'Appearance' },
+  { id: 'terminal', label: 'Terminal' },
   { id: 'shortcuts', label: 'Keyboard Shortcuts' },
   { id: 'ssh', label: 'SSH' },
   { id: 'sftp', label: 'SFTP & editor' },
   { id: 'security', label: 'Security' },
   { id: 'diagnostics', label: 'Diagnostics' },
+  { id: 'about', label: 'About' },
 ];
 
 const ACCENTS: { id: Accent; color: string }[] = [
@@ -76,6 +84,11 @@ export function SettingsDialog({
 
   const dirty = comparable(draft) !== comparable(baseline);
   const problems = useMemo(() => checkBindings(draft.shortcuts), [draft.shortcuts]);
+  // Exiting asks first while this dialog holds changes that were not applied.
+  useEffect(() => {
+    useActivity.getState().setUnsaved('settings', dirty);
+    return () => useActivity.getState().setUnsaved('settings', false);
+  }, [dirty]);
 
   // Live preview of theme/accent while editing. Cancel (or any close) removes
   // it again; only Apply/OK persist anything.
@@ -172,12 +185,14 @@ export function SettingsDialog({
           {page === 'appearance' && (
             <AppearancePage draft={draft} patch={patch} replace={replace} />
           )}
+          {page === 'terminal' && <LocalShellPage draft={draft} patch={patch} replace={replace} />}
           {page === 'shortcuts' && (
             <ShortcutsPage draft={draft} patch={patch} replace={replace} problems={problems} />
           )}
           {page === 'ssh' && <SshPage draft={draft} patch={patch} replace={replace} />}
           {page === 'sftp' && <SftpPage draft={draft} patch={patch} replace={replace} />}
           {page === 'security' && <SecurityPage draft={draft} patch={patch} replace={replace} />}
+          {page === 'about' && <AboutPage />}
           {page === 'diagnostics' && (
             <DiagnosticsPage draft={draft} patch={patch} replace={replace} appliedTick={applied} />
           )}
@@ -235,6 +250,15 @@ function GeneralPage({ draft, patch }: PageProps) {
         </select>
       </Field>
       <ClearHistory />
+      <h3>Window</h3>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={g.showStatusBar}
+          onChange={(e) => patch('general', { showStatusBar: e.target.checked })}
+        />
+        Show status bar
+      </label>
       <h3>Tabs</h3>
       <label className="check">
         <input
@@ -258,7 +282,7 @@ function GeneralPage({ draft, patch }: PageProps) {
   );
 }
 
-function AppearancePage({ draft, patch }: PageProps) {
+function AppearancePage({ draft, patch, replace }: PageProps) {
   const a = draft.appearance;
   return (
     <>
@@ -268,11 +292,22 @@ function AppearancePage({ draft, patch }: PageProps) {
         options={[
           { value: 'dark', label: 'Dark' },
           { value: 'light', label: 'Light' },
+          { value: 'olive', label: 'Industrial Olive' },
+          { value: 'gray', label: 'Source Gray' },
           { value: 'system', label: 'System' },
         ]}
         onChange={(theme) => patch('appearance', { theme })}
       />
-      <Field label="Accent colour">
+      <Field
+        label="Accent colour"
+        hint={
+          a.theme === 'olive'
+            ? 'Industrial Olive uses its own mustard accent. Your accent choice is kept for the other themes.'
+            : a.theme === 'gray'
+              ? 'Source Gray uses its own grey accent. Your accent choice is kept for the other themes.'
+              : undefined
+        }
+      >
         <div className="swatches">
           {ACCENTS.map((accent) => (
             <button
@@ -315,12 +350,13 @@ function AppearancePage({ draft, patch }: PageProps) {
         </div>
       </Field>
       <h3>Terminal</h3>
-      <Field label="Font family" hint="CSS font list; the first installed font is used.">
-        <input
-          className="input"
+      <Field
+        label="Font"
+        hint="Only fonts that are really available are listed. The terminal font is separate from the interface scale."
+      >
+        <FontPicker
           value={a.terminalFontFamily}
-          onChange={(e) => patch('appearance', { terminalFontFamily: e.target.value })}
-          spellCheck={false}
+          onChange={(terminalFontFamily) => patch('appearance', { terminalFontFamily })}
         />
       </Field>
       <div className="settings-grid">
@@ -346,6 +382,7 @@ function AppearancePage({ draft, patch }: PageProps) {
       >
         root@server:~# htop — 0Oo 1lI |{'{}'}[]
       </div>
+      <TerminalColorsSection draft={draft} patch={patch} replace={replace} />
     </>
   );
 }
@@ -539,23 +576,7 @@ function ArgsInput({ args, onChange }: { args: string[]; onChange: (args: string
 
 function SecurityPage({ draft, patch, replace }: PageProps) {
   const credentials = useCredentialStatus();
-  const refreshConnections = useConnections((s) => s.refresh);
-  const [hosts, setHosts] = useState<KnownHost[] | null>(null);
-
-  const reload = () => ipc.knownHostsList().then(setHosts).catch(reportError);
-  useEffect(() => {
-    void reload();
-  }, []);
-
-  const clearAll = async () => {
-    try {
-      const { cleared } = await ipc.credentialsClearAll();
-      await refreshConnections();
-      notify(`Removed ${cleared} saved password${cleared === 1 ? '' : 's'}.`);
-    } catch (e) {
-      reportError(e);
-    }
-  };
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   return (
     <>
@@ -572,57 +593,15 @@ function SecurityPage({ draft, patch, replace }: PageProps) {
         <div className="hint">Checking…</div>
       )}
       <div>
-        <button className="btn" onClick={() => void clearAll()} disabled={!credentials?.available}>
-          Clear all saved passwords
+        <button
+          className="btn"
+          onClick={() => setConfirmingClear(true)}
+          disabled={!credentials?.available}
+        >
+          Clear all saved passwords…
         </button>
       </div>
-
-      <h3>Known host keys</h3>
-      {hosts === null ? (
-        <div className="hint">Loading…</div>
-      ) : hosts.length === 0 ? (
-        <div className="hint">No host keys trusted yet.</div>
-      ) : (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Host</th>
-              <th>Key</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {hosts.map((h) => (
-              <tr key={`${h.host}:${h.port}:${h.algorithm}`}>
-                <td>
-                  {h.host}:{h.port}
-                </td>
-                <td className="mono">
-                  {h.algorithm}
-                  <br />
-                  {h.fingerprint}
-                </td>
-                <td>
-                  <button
-                    className="btn"
-                    onClick={() =>
-                      ipc.knownHostsRemove(h.host, h.port).then(reload).catch(reportError)
-                    }
-                  >
-                    Forget
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      <h3>Session security</h3>
-      <div className="notice">
-        Remote-file uploads from external editors require confirmation in every new connection
-        session. This is enforced by the backend and has no global off switch.
-      </div>
+      {confirmingClear && <ClearPasswordsFlow onClose={() => setConfirmingClear(false)} />}
     </>
   );
 }

@@ -1,0 +1,125 @@
+/* Copyright 2026 Bakhti Baymukhamedov
+   SPDX-License-Identifier: Apache-2.0 */
+
+/* Industrial Olive and Source Gray (shared): component details that tokens alone cannot express.
+   Thin rectangular borders and a subtle bevel; no gradients, no big shadows. */
+:root:is([data-theme='olive'], [data-theme='gray']) .btn,
+:root:is([data-theme='olive'], [data-theme='gray']) .input,
+:root:is([data-theme='olive'], [data-theme='gray']) .select,
+:root:is([data-theme='olive'], [data-theme='gray']) .icon-btn,
+:root:is([data-theme='olive'], [data-theme='gray']) .menu,
+:root:is([data-theme='olive'], [data-theme='gray']) .dialog,
+:root:is([data-theme='olive'], [data-theme='gray']) .tab {
+  border-radius: var(--radius-s);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .btn {
+  border: 1px solid var(--line);
+  background: var(--surface-3);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.12),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.28);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .btn:hover {
+  background: var(--surface-4);
+  border-color: var(--line-strong);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .btn:active {
+  box-shadow:
+    inset 1px 1px 0 rgba(0, 0, 0, 0.28),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.1);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--primary-border);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .btn-primary:hover {
+  background: var(--accent-hover);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .btn:disabled,
+:root:is([data-theme='olive'], [data-theme='gray']) .btn[disabled] {
+  color: var(--text-3);
+  opacity: 0.75;
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .input,
+:root:is([data-theme='olive'], [data-theme='gray']) .select {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.3);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .input:focus,
+:root:is([data-theme='olive'], [data-theme='gray']) .select:focus {
+  border-color: var(--accent);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .dialog,
+:root:is([data-theme='olive'], [data-theme='gray']) .menu {
+  border: 1px solid var(--line);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.08),
+    var(--shadow-pop);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .dialog-header,
+:root:is([data-theme='olive'], [data-theme='gray']) .dialog-footer {
+  background: var(--surface-1);
+  border-color: var(--line);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .tab {
+  border: 1px solid transparent;
+  border-bottom: 0;
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .tab[aria-selected='true'] {
+  background: var(--surface-0);
+  border-color: var(--line);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .sidebar,
+:root:is([data-theme='olive'], [data-theme='gray']) .sftp-panel,
+:root:is([data-theme='olive'], [data-theme='gray']) .statusbar {
+  border-color: var(--line);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .statusbar {
+  border-top: 1px solid var(--line);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .split-divider::after {
+  background: var(--line);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .split-divider:hover::after,
+:root:is([data-theme='olive'], [data-theme='gray']) .split-divider:focus-visible::after {
+  background: var(--accent);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .recent-row:hover {
+  background: var(--surface-3);
+}
+:root:is([data-theme='olive'], [data-theme='gray']) :focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+:root:is([data-theme='olive'], [data-theme='gray']) .menu-item:hover,
+:root:is([data-theme='olive'], [data-theme='gray']) .menu-item:focus-visible {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+/* Source Gray only: flat rectangular tabs with a light top edge, desaturated selection. */
+:root[data-theme='gray'] .tab[aria-selected='true'] {
+  box-shadow: inset 0 1px 0 var(--line-strong);
+  border-color: var(--line-strong);
+  border-bottom-color: var(--surface-0);
+}
+:root[data-theme='gray'] .tab:hover:not([aria-selected='true']) {
+  background: var(--surface-3);
+}
+:root[data-theme='gray'] .menu-item:hover,
+:root[data-theme='gray'] .menu-item:focus-visible {
+  background: var(--surface-4);
+  color: var(--text-1);
+  outline: 1px solid var(--line-strong);
+  outline-offset: -1px;
+}
+:root[data-theme='gray'] .split-divider:hover::after,
+:root[data-theme='gray'] .split-divider:focus-visible::after {
+  background: var(--line-strong);
+}

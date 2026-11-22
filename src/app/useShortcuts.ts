@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect } from 'react';
 import { useRecording } from '../features/settings/shortcutState';
 import { useSettings } from '../features/settings/store';

@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! User preferences. Non-sensitive by construction.
 //!
 //! SECURITY: there is intentionally no field that disables the remote-write
@@ -19,6 +22,10 @@ pub enum ThemeMode {
     #[default]
     Dark,
     Light,
+    /// "Industrial Olive".
+    Olive,
+    /// "Source Gray": neutral grey, early-2000s desktop controls.
+    Gray,
     System,
 }
 
@@ -66,6 +73,8 @@ pub struct GeneralSettings {
     pub language: String,
     /// How many recent saved connections the home screen lists (3-20).
     pub recent_sessions_limit: u32,
+    /// Show the bottom status bar.
+    pub show_status_bar: bool,
 }
 
 impl Default for GeneralSettings {
@@ -76,6 +85,99 @@ impl Default for GeneralSettings {
             auto_reconnect_restored: false,
             language: "en".into(),
             recent_sessions_limit: 3,
+            show_status_bar: true,
+        }
+    }
+}
+
+/// Built-in terminal palettes (their colours live in the renderer; Rust only
+/// accepts known ids so nothing else can be stored).
+pub const TERMINAL_PRESETS: &[&str] = &[
+    "peachDark",
+    "peachLight",
+    "oliveConsole",
+    "grayConsole",
+    "classicDark",
+    "greenPhosphor",
+    "amberPhosphor",
+    "oneDark",
+    "nord",
+    "solarizedDark",
+];
+
+pub fn is_terminal_preset(id: &str) -> bool {
+    TERMINAL_PRESETS.contains(&id)
+}
+
+/// `#rrggbb` (lower-cased) or nothing: no other CSS value is ever stored.
+pub fn clean_hex(value: &str) -> Option<String> {
+    let v = value.trim();
+    let digits = v.strip_prefix('#')?;
+    (digits.len() == 6 && digits.bytes().all(|b| b.is_ascii_hexdigit()))
+        .then(|| v.to_ascii_lowercase())
+}
+
+/// Manual colour overrides on top of a palette.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CustomColors {
+    pub background: Option<String>,
+    pub foreground: Option<String>,
+    pub cursor: Option<String>,
+    pub selection_background: Option<String>,
+    /// Exactly 16 colours (normal 0-7, bright 8-15) or none.
+    pub ansi: Option<Vec<String>>,
+}
+
+impl CustomColors {
+    fn normalize(mut self) -> Option<Self> {
+        let one = |v: Option<String>| v.as_deref().and_then(clean_hex);
+        self.background = one(self.background.take());
+        self.foreground = one(self.foreground.take());
+        self.cursor = one(self.cursor.take());
+        self.selection_background = one(self.selection_background.take());
+        self.ansi = self.ansi.take().and_then(|list| {
+            let cleaned: Vec<String> = list.iter().filter_map(|c| clean_hex(c)).collect();
+            (list.len() == 16 && cleaned.len() == 16).then_some(cleaned)
+        });
+        let empty = self.background.is_none()
+            && self.foreground.is_none()
+            && self.cursor.is_none()
+            && self.selection_background.is_none()
+            && self.ansi.is_none();
+        (!empty).then_some(self)
+    }
+}
+
+/// How terminals are coloured. `linked` = follow the application theme; a
+/// manual palette or custom colours switch to independent mode (never both).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TerminalColors {
+    pub linked: bool,
+    /// The palette used while not linked.
+    pub preset: String,
+    pub custom: Option<CustomColors>,
+}
+
+impl Default for TerminalColors {
+    fn default() -> Self {
+        Self {
+            linked: true,
+            preset: "peachDark".into(),
+            custom: None,
+        }
+    }
+}
+
+impl TerminalColors {
+    fn normalize(&mut self) {
+        if !is_terminal_preset(&self.preset) {
+            self.preset = "peachDark".into();
+        }
+        self.custom = self.custom.take().and_then(CustomColors::normalize);
+        if self.custom.is_some() {
+            self.linked = false; // custom colours are an explicit choice
         }
     }
 }
@@ -92,6 +194,8 @@ pub struct AppearanceSettings {
     /// Whole-interface zoom in percent: 70-150 in steps of 10. The terminal font
     /// size is independent of it.
     pub interface_scale: u32,
+    /// Terminal palette and its link to the application theme.
+    pub terminal_colors: TerminalColors,
 }
 
 impl Default for AppearanceSettings {
@@ -106,6 +210,7 @@ impl Default for AppearanceSettings {
             terminal_line_height: 1.2,
             scrollback: 10_000,
             interface_scale: 100,
+            terminal_colors: TerminalColors::default(),
         }
     }
 }
@@ -249,6 +354,67 @@ impl Default for UiState {
     }
 }
 
+/// A user-defined local shell: an absolute executable plus fixed arguments.
+/// Never run through another shell; arguments are passed as a vector.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CustomShell {
+    pub id: String,
+    pub name: String,
+    pub program: String,
+    pub args: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TerminalSettings {
+    /// Profile id of the shell a plain click on `+` starts (None = platform default).
+    pub default_profile: Option<String>,
+    /// Preferred WSL distribution.
+    pub wsl_distro: Option<String>,
+    /// Directory new local shells start in (None = home).
+    pub start_dir: Option<String>,
+    pub custom_profiles: Vec<CustomShell>,
+}
+
+/// Plain identifier characters only: ids end up in profile ids and logs.
+fn clean_id(id: &str) -> String {
+    id.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
+        .take(32)
+        .collect()
+}
+
+impl TerminalSettings {
+    fn normalize(&mut self) {
+        let trim = |v: Option<String>, max: usize| {
+            v.map(|p| p.trim().chars().take(max).collect::<String>())
+                .filter(|p| !p.is_empty())
+        };
+        self.default_profile = trim(self.default_profile.take(), 80);
+        self.wsl_distro = trim(self.wsl_distro.take(), 64).filter(|d| {
+            d.chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+        });
+        self.start_dir = trim(self.start_dir.take(), 1024);
+        let mut seen = std::collections::HashSet::new();
+        self.custom_profiles.truncate(16);
+        self.custom_profiles.retain_mut(|c| {
+            c.id = clean_id(&c.id);
+            c.name = c.name.trim().chars().take(64).collect();
+            c.program = c.program.trim().chars().take(1024).collect();
+            c.args.truncate(32);
+            for a in &mut c.args {
+                *a = a.chars().take(512).collect();
+            }
+            !c.id.is_empty()
+                && !c.name.is_empty()
+                && !c.program.is_empty()
+                && seen.insert(c.id.clone())
+        });
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -256,6 +422,7 @@ pub struct Settings {
     pub appearance: AppearanceSettings,
     pub ssh: SshSettings,
     pub sftp: SftpSettings,
+    pub terminal: TerminalSettings,
     pub editor: EditorSettings,
     pub diagnostics: DiagnosticsSettings,
     pub security: SecuritySettings,
@@ -282,6 +449,7 @@ impl Settings {
         };
         a.scrollback = a.scrollback.clamp(500, 200_000);
         a.interface_scale = normalize_scale(a.interface_scale);
+        a.terminal_colors.normalize();
         self.general.recent_sessions_limit = self.general.recent_sessions_limit.clamp(3, 20);
         a.terminal_font_family = a.terminal_font_family.trim().chars().take(512).collect();
         if a.terminal_font_family.is_empty() {
@@ -292,6 +460,8 @@ impl Settings {
         s.connect_timeout_secs = s.connect_timeout_secs.clamp(1, 300);
         s.keepalive_secs = s.keepalive_secs.min(3600);
         s.default_username = s.default_username.trim().chars().take(256).collect();
+
+        self.terminal.normalize();
 
         let e = &mut self.editor;
         e.program = e
@@ -405,6 +575,60 @@ impl SettingsStore {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn terminal_settings_are_cleaned_and_bounded() {
+        let mut s = Settings::default();
+        s.terminal.default_profile = Some("  pwsh ".into());
+        s.terminal.wsl_distro = Some("Ubuntu; calc".into()); // not a plain distribution name
+        s.terminal.start_dir = Some("   ".into());
+        s.terminal.custom_profiles = (0..30)
+            .map(|i| CustomShell {
+                id: format!("id {i}!"),
+                name: " Shell ".into(),
+                program: " /usr/bin/fish ".into(),
+                args: (0..50).map(|n| n.to_string()).collect(),
+            })
+            .chain([CustomShell::default()])
+            .collect();
+        let s = s.normalized();
+        assert_eq!(s.terminal.default_profile.as_deref(), Some("pwsh"));
+        assert_eq!(s.terminal.wsl_distro, None);
+        assert_eq!(s.terminal.start_dir, None);
+        // ids keep plain characters only, duplicates are dropped, the list is capped
+        assert!(s.terminal.custom_profiles.len() <= 16);
+        let ids: Vec<_> = s
+            .terminal
+            .custom_profiles
+            .iter()
+            .map(|c| c.id.as_str())
+            .collect();
+        assert!(ids.iter().all(|i| {
+            i.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        }));
+        assert_eq!(
+            ids.len(),
+            ids.iter().collect::<std::collections::HashSet<_>>().len()
+        );
+        assert!(
+            s.terminal
+                .custom_profiles
+                .iter()
+                .all(|c| c.args.len() <= 32 && c.program == "/usr/bin/fish")
+        );
+    }
+
+    #[test]
+    fn terminal_settings_survive_a_round_trip_and_unknown_fields_are_dropped() {
+        let json = r#"{"terminal":{"defaultProfile":"cmd","startDir":"/srv","customProfiles":[{"id":"nu","name":"Nu","program":"/bin/nu","args":["-l"],"runAsAdmin":true}],"autoRun":"rm -rf /"}}"#;
+        let s: Settings = serde_json::from_str(json).unwrap();
+        let s = s.normalized();
+        assert_eq!(s.terminal.default_profile.as_deref(), Some("cmd"));
+        let text = serde_json::to_string(&s).unwrap();
+        assert!(!text.contains("autoRun") && !text.contains("runAsAdmin"));
+        assert!(text.contains("\"customProfiles\""));
+    }
     use super::normalize_scale;
 
     #[test]
@@ -589,6 +813,87 @@ mod tests {
                 s.clone().normalized().security.app_lock.inactivity_minutes,
                 expected
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod terminal_color_tests {
+    use super::*;
+
+    #[test]
+    fn old_settings_files_get_linked_defaults_and_keep_their_theme() {
+        let s: Settings =
+            serde_json::from_str(r#"{"appearance":{"theme":"olive","accent":"teal"}}"#).unwrap();
+        let s = s.normalized();
+        assert_eq!(s.appearance.theme, ThemeMode::Olive);
+        assert!(s.appearance.terminal_colors.linked);
+        assert_eq!(s.appearance.terminal_colors.custom, None);
+        let g: Settings = serde_json::from_str(r#"{"appearance":{"theme":"gray"}}"#).unwrap();
+        assert_eq!(g.appearance.theme, ThemeMode::Gray);
+    }
+
+    #[test]
+    fn only_plain_hex_colours_are_stored() {
+        for bad in [
+            "red",
+            "#fff",
+            "#12345g",
+            "rgb(1,2,3)",
+            "#112233; background:url(x)",
+            "url(javascript:1)",
+            "",
+            "#1234567",
+        ] {
+            assert_eq!(clean_hex(bad), None, "{bad}");
+        }
+        assert_eq!(clean_hex(" #AABBCC ").as_deref(), Some("#aabbcc"));
+        let mut s = Settings::default();
+        s.appearance.terminal_colors.custom = Some(CustomColors {
+            background: Some("#101010".into()),
+            foreground: Some("expression(alert(1))".into()),
+            cursor: Some("#ABCDEF".into()),
+            selection_background: Some("#12".into()),
+            ansi: Some(vec!["#000000".into(); 15]), // one short: dropped as a whole
+        });
+        let c = s.normalized().appearance.terminal_colors;
+        let custom = c.custom.unwrap();
+        assert_eq!(custom.background.as_deref(), Some("#101010"));
+        assert_eq!(custom.foreground, None);
+        assert_eq!(custom.cursor.as_deref(), Some("#abcdef"));
+        assert_eq!(custom.selection_background, None);
+        assert_eq!(custom.ansi, None);
+        assert!(!c.linked, "custom colours switch to independent mode");
+    }
+
+    #[test]
+    fn a_full_ansi_list_survives_and_empty_custom_colours_vanish() {
+        let mut s = Settings::default();
+        let ansi: Vec<String> = (0..16).map(|i| format!("#{i:02x}{i:02x}{i:02x}")).collect();
+        s.appearance.terminal_colors.custom = Some(CustomColors {
+            ansi: Some(ansi.clone()),
+            ..Default::default()
+        });
+        let c = s.clone().normalized().appearance.terminal_colors;
+        assert_eq!(c.custom.unwrap().ansi, Some(ansi));
+        s.appearance.terminal_colors.custom = Some(CustomColors::default());
+        let c = s.normalized().appearance.terminal_colors;
+        assert_eq!(c.custom, None);
+        assert!(c.linked, "nothing custom: still linked");
+    }
+
+    #[test]
+    fn unknown_palettes_fall_back_and_every_preset_is_accepted() {
+        let mut s = Settings::default();
+        s.appearance.terminal_colors.preset = "<script>".into();
+        assert_eq!(
+            s.normalized().appearance.terminal_colors.preset,
+            "peachDark"
+        );
+        for id in TERMINAL_PRESETS {
+            let mut s = Settings::default();
+            s.appearance.terminal_colors.preset = (*id).into();
+            assert_eq!(&s.normalized().appearance.terminal_colors.preset, id);
         }
     }
 }

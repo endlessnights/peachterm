@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // One SFTP panel for the whole workspace, placed beside the terminals (left or
 // right), resizable and collapsible. Side, width and visibility are remembered
 // in the settings.
@@ -35,7 +38,10 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
     void persistUi().catch(reportError);
   };
 
-  const panel = visible ? (
+  // SFTP belongs to SSH sessions only: a local shell has no panel and no toggle.
+  const sftpAvailable = !active || active.kind === 'ssh';
+
+  const panel = !sftpAvailable ? null : visible ? (
     <>
       {side === 'right' && (
         <ResizeHandle
@@ -88,16 +94,18 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
           </div>
         )}
         <div className="sftp-slots">
-          {tabs.map((tab) => (
-            <div
-              key={tab.id}
-              className="sftp-slot"
-              hidden={tab.id !== activeId}
-              aria-label={`Files of ${tab.title}`}
-            >
-              <SftpPanel tab={tab} />
-            </div>
-          ))}
+          {tabs
+            .filter((tab) => tab.kind === 'ssh')
+            .map((tab) => (
+              <div
+                key={tab.id}
+                className="sftp-slot"
+                hidden={tab.id !== activeId}
+                aria-label={`Files of ${tab.title}`}
+              >
+                <SftpPanel tab={tab} />
+              </div>
+            ))}
         </div>
       </aside>
       {side === 'left' && (

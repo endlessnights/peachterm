@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Keyboard shortcut model: accelerator parsing, event matching, formatting and
 // validation. Actions, defaults and reserved combinations live in
 // shortcutDefaults.json, which the Rust backend reads too (it re-validates

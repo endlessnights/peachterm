@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Browsing and file operations over an SFTP client.
 //!
 //! Paths coming from the renderer are validated here (no NUL / control

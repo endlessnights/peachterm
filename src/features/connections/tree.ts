@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Pure helpers that turn the flat folder/connection lists into a sorted tree
 // and apply sidebar search. Kept free of React so they are cheap to test.
 

@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Platform integration points.
 //!
 //! Shared code receives plain `PathBuf`s from [`AppPaths`]; it never builds
@@ -111,6 +114,10 @@ impl Rgb {
 pub enum WindowTheme {
     Dark,
     Light,
+    /// Industrial Olive (a dark theme with its own colours).
+    Olive,
+    /// Source Gray (a mid-grey theme with light text).
+    Gray,
 }
 
 /// Title bar colours matching the application theme (`src/styles/theme.css`:
@@ -135,6 +142,16 @@ impl WindowTheme {
                 text: Rgb(0x23, 0x20, 0x1d),
                 border: Rgb(0xe1, 0xdd, 0xd7),
             },
+            WindowTheme::Olive => TitleBarColors {
+                caption: Rgb(0x46, 0x51, 0x3d),
+                text: Rgb(0xe0, 0xe1, 0xd2),
+                border: Rgb(0x2a, 0x31, 0x24),
+            },
+            WindowTheme::Gray => TitleBarColors {
+                caption: Rgb(0x58, 0x5b, 0x5d),
+                text: Rgb(0xf2, 0xf3, 0xf3),
+                border: Rgb(0x35, 0x37, 0x3a),
+            },
         }
     }
 }
@@ -157,7 +174,7 @@ pub fn apply_window_theme(
 ) -> Result<TitleBarOutcome, String> {
     window
         .set_theme(Some(match theme {
-            WindowTheme::Dark => tauri::Theme::Dark,
+            WindowTheme::Dark | WindowTheme::Olive | WindowTheme::Gray => tauri::Theme::Dark,
             WindowTheme::Light => tauri::Theme::Light,
         }))
         .map_err(|e| e.to_string())?;
@@ -168,6 +185,12 @@ pub fn apply_window_theme(
 /// state (never straight from the renderer).
 pub fn open_folder(path: &Path) -> std::io::Result<()> {
     current::open_folder(path)
+}
+
+/// Open a link in the default browser. Only called with fixed addresses chosen
+/// in Rust (`commands::app::app_open_link`), never with renderer-supplied text.
+pub fn open_url(url: &str) -> std::io::Result<()> {
+    current::open_folder(Path::new(url))
 }
 
 /// Short OS identifier exposed to the renderer (for shortcut labels etc.).
@@ -255,14 +278,24 @@ mod tests {
     fn title_bar_palette_matches_the_css_theme_tokens() {
         let css = include_str!("../../../src/styles/theme.css");
         let hex = |c: Rgb| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2);
-        // Dark tokens live in `:root`, light ones in `:root[data-theme='light']`.
-        let split = css
+        // Dark tokens live in `:root`, light and olive ones in their own blocks.
+        let light_at = css
             .find(":root[data-theme='light'] {")
             .expect("light theme block");
-        let (dark_css, light_css) = css.split_at(split);
+        let olive_at = css
+            .find(":root[data-theme='olive'] {")
+            .expect("olive theme block");
+        let gray_at = css
+            .find(":root[data-theme='gray'] {")
+            .expect("gray theme block");
+        let (dark_css, rest) = css.split_at(light_at);
+        let (light_css, rest) = rest.split_at(olive_at - light_at);
+        let (olive_css, gray_css) = rest.split_at(gray_at - olive_at);
         for (theme, block) in [
             (WindowTheme::Dark, dark_css),
             (WindowTheme::Light, light_css),
+            (WindowTheme::Olive, olive_css),
+            (WindowTheme::Gray, gray_css),
         ] {
             let p = theme.palette();
             for (token, color) in [

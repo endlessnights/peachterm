@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Recent successful connections, newest first. The list itself lives in Rust
 // (it is recorded after a successful login); this store only mirrors it. Ids
 // are saved-connection ids, so renames show up automatically and deleted

@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Application error type shared by services and IPC commands.
 //!
 //! Messages are composed from fixed strings plus non-sensitive context

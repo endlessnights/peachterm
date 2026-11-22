@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! A small SFTP server over a directory, for tests. Paths are virtual: `/`
 //! is the root directory handed to [`FsHandler::new`], and nothing outside it
 //! can be reached. Knobs on [`SftpOpts`] let tests simulate servers without

@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! In-process SSH server for integration tests: real sockets, real key
 //! exchange, real authentication, a PTY-ish echo shell and (optionally) an SFTP
 //! subsystem. Nothing here touches the network beyond 127.0.0.1.

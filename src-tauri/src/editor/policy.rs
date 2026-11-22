@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Remote-write confirmation policy for external-editor uploads.
 //!
 //! INVARIANTS (security-critical, covered by tests below and in `sessions`):

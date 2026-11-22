@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect } from 'react';
 import { ipc } from '../shared/ipc';
 import { titleBarColors, type ResolvedTheme } from '../shared/titleBar';

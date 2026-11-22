@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // One interactive SSH terminal. The xterm instance lives as long as its tab:
 // the pane is only hidden when another tab is active, so scrollback and the
 // running remote program are untouched by tab switches.
@@ -68,12 +71,33 @@ const encoder = new TextEncoder();
 
 type Ref<T> = { current: T };
 
+/** The IPC calls that differ between session types (SSH, local PTY, WSL PTY). */
+interface SessionApi {
+  write: (id: string, data: string) => Promise<void>;
+  resize: (id: string, cols: number, rows: number) => Promise<void>;
+  ack: (id: string, bytes: number) => Promise<void>;
+  close: (id: string) => Promise<void>;
+}
+const SSH_API: SessionApi = {
+  write: ipc.sshWrite,
+  resize: ipc.sshResize,
+  ack: ipc.sshAck,
+  close: ipc.sshClose,
+};
+const LOCAL_API: SessionApi = {
+  write: ipc.localWrite,
+  resize: ipc.localResize,
+  ack: ipc.localAck,
+  close: ipc.localClose,
+};
+
 /**
  * Tell Rust how many output bytes were rendered. On failure (for instance
  * while the application is locked) the credit is kept and retried, otherwise
  * the remote end would stay throttled forever.
  */
 function flushCredits(
+  api: SessionApi,
   session: Ref<string | null>,
   unacked: Ref<number>,
   timer: Ref<number | null>,
@@ -86,10 +110,10 @@ function flushCredits(
   if (!id || unacked.current === 0) return;
   const bytes = unacked.current;
   unacked.current = 0;
-  void ipc.sshAck(id, bytes).catch(() => {
+  void api.ack(id, bytes).catch(() => {
     unacked.current += bytes;
     if (timer.current === null) {
-      timer.current = window.setTimeout(() => flushCredits(session, unacked, timer), 500);
+      timer.current = window.setTimeout(() => flushCredits(api, session, unacked, timer), 500);
     }
   });
 }
@@ -105,6 +129,8 @@ export function TerminalView({ tab, active }: Props) {
   const fitRef = useRef<FitAddon | null>(null);
   const searchRef = useRef<SearchAddon | null>(null);
   const sessionRef = useRef<string | null>(null);
+  // The tab's own palette (read by the observers created once per tab).
+  const colorsRef = useRef<string | null>(tab.colors);
   const generation = useRef(0);
   const attempt = useRef(0);
   const unacked = useRef(0);
@@ -118,8 +144,11 @@ export function TerminalView({ tab, active }: Props) {
   const settings = useSettings((s) => s.preview ?? s.settings.appearance);
   const tabId = tab.id;
   const connectionId = tab.connectionId;
+  const profileId = tab.profileId;
+  const isSsh = tab.kind === 'ssh';
+  const api = isSsh ? SSH_API : LOCAL_API;
 
-  const flushAck = useCallback(() => flushCredits(sessionRef, unacked, ackTimer), []);
+  const flushAck = useCallback(() => flushCredits(api, sessionRef, unacked, ackTimer), [api]);
 
   const ack = useCallback(
     (bytes: number) => {
@@ -132,16 +161,19 @@ export function TerminalView({ tab, active }: Props) {
     [flushAck],
   );
 
-  const endSession = useCallback((closeBackend: boolean) => {
-    const id = sessionRef.current;
-    sessionRef.current = null;
-    unacked.current = 0;
-    if (id) {
-      usePrompts.getState().dropSession(id);
-      useEditor.getState().dropSession(id);
-      if (closeBackend) void ipc.sshClose(id).catch(() => undefined);
-    }
-  }, []);
+  const endSession = useCallback(
+    (closeBackend: boolean) => {
+      const id = sessionRef.current;
+      sessionRef.current = null;
+      unacked.current = 0;
+      if (id) {
+        usePrompts.getState().dropSession(id);
+        useEditor.getState().dropSession(id);
+        if (closeBackend) void api.close(id).catch(() => undefined);
+      }
+    },
+    [api],
+  );
 
   const connect = useCallback(() => {
     const term = termRef.current;
@@ -162,7 +194,7 @@ export function TerminalView({ tab, active }: Props) {
         useTabs.getState().setSftp(tabId, event.state);
       } else if (event.kind === 'status') {
         useTabs.getState().setStatus(tabId, STATUS[event.state]);
-        if (event.state === 'connected') void useRecent.getState().refresh();
+        if (event.state === 'connected' && isSsh) void useRecent.getState().refresh();
       } else {
         const text = event.reason ? (REASONS[event.reason] ?? 'The connection failed.') : null;
         setReason(text);
@@ -174,11 +206,15 @@ export function TerminalView({ tab, active }: Props) {
     };
     const tries = attempt.current;
     attempt.current += 1;
-    ipc
-      .sshOpen(connectionId, term.cols, term.rows, onEvent, tries)
+    const opening = isSsh
+      ? ipc.sshOpen(connectionId, term.cols, term.rows, onEvent, tries)
+      : profileId
+        ? ipc.localOpen(profileId, term.cols, term.rows, onEvent)
+        : Promise.reject(new Error('This tab has no shell profile.'));
+    opening
       .then(({ sessionId }) => {
         if (generation.current !== mine) {
-          void ipc.sshClose(sessionId).catch(() => undefined);
+          void api.close(sessionId).catch(() => undefined);
           return;
         }
         sessionRef.current = sessionId;
@@ -193,7 +229,7 @@ export function TerminalView({ tab, active }: Props) {
         useTabs.getState().setStatus(tabId, 'failed');
         reportError(error);
       });
-  }, [ack, connectionId, endSession, flushAck, tabId]);
+  }, [ack, api, connectionId, endSession, flushAck, isSsh, profileId, tabId]);
 
   // Create the terminal once per tab.
   useEffect(() => {
@@ -208,7 +244,7 @@ export function TerminalView({ tab, active }: Props) {
       scrollback: s.scrollback,
       cursorBlink: true,
       allowProposedApi: true,
-      theme: terminalTheme(),
+      theme: terminalTheme(undefined, colorsRef.current),
     });
     const fit = new FitAddon();
     const search = new SearchAddon();
@@ -221,7 +257,7 @@ export function TerminalView({ tab, active }: Props) {
 
     const send = (bytes: Uint8Array) => {
       const id = sessionRef.current;
-      if (id && bytes.length > 0) void ipc.sshWrite(id, toBase64(bytes)).catch(() => undefined);
+      if (id && bytes.length > 0) void api.write(id, toBase64(bytes)).catch(() => undefined);
     };
     const subs = [
       term.onData((text) => send(encoder.encode(text))),
@@ -229,7 +265,7 @@ export function TerminalView({ tab, active }: Props) {
       term.onBinary((text) => send(Uint8Array.from(text, (c) => c.charCodeAt(0) & 0xff))),
       term.onResize(({ cols, rows }) => {
         const id = sessionRef.current;
-        if (id) void ipc.sshResize(id, cols, rows).catch(() => undefined);
+        if (id) void api.resize(id, cols, rows).catch(() => undefined);
       }),
     ];
 
@@ -286,7 +322,7 @@ export function TerminalView({ tab, active }: Props) {
 
     // Re-theme when the application theme changes.
     const themeObserver = new MutationObserver(() => {
-      term.options.theme = terminalTheme();
+      term.options.theme = terminalTheme(undefined, colorsRef.current);
     });
     themeObserver.observe(document.documentElement, {
       attributes: true,
@@ -328,6 +364,9 @@ export function TerminalView({ tab, active }: Props) {
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
+    // Colours only: no remount, reconnect or scrollback reset.
+    colorsRef.current = tab.colors;
+    term.options.theme = terminalTheme(settings, tab.colors);
     term.options.fontFamily = settings.terminalFontFamily;
     term.options.fontSize = effectiveFontSize(settings);
     term.options.lineHeight = settings.terminalLineHeight;
@@ -337,7 +376,7 @@ export function TerminalView({ tab, active }: Props) {
     } catch {
       /* hidden */
     }
-  }, [settings]);
+  }, [settings, tab.colors]);
 
   // Fit and focus when this tab is shown.
   useEffect(() => {
@@ -419,7 +458,9 @@ export function TerminalView({ tab, active }: Props) {
       )}
       {waiting && (
         <div className="terminal-ended" role="status">
-          <span>Restored tab — not connected yet.</span>
+          <span>
+            {isSsh ? 'Restored tab — not connected yet.' : 'Restored tab — shell not started yet.'}
+          </span>
           <button
             className="btn btn-primary"
             onClick={() => {
@@ -428,17 +469,21 @@ export function TerminalView({ tab, active }: Props) {
             }}
             data-autofocus
           >
-            <Icon name="plug" /> Connect
+            <Icon name={isSsh ? 'plug' : 'terminal'} /> {isSsh ? 'Connect' : 'Start shell'}
           </button>
         </div>
       )}
       {ended && (
         <div className="terminal-ended" role="status">
           <span>
-            {tab.status === 'failed' ? (reason ?? 'The connection failed.') : 'Disconnected.'}
+            {tab.status === 'failed'
+              ? (reason ?? (isSsh ? 'The connection failed.' : 'The shell could not be started.'))
+              : isSsh
+                ? 'Disconnected.'
+                : 'The shell has ended.'}
           </span>
           <button className="btn btn-primary" onClick={connect} data-autofocus>
-            <Icon name="refresh" /> Reconnect
+            <Icon name="refresh" /> {isSsh ? 'Reconnect' : 'Restart shell'}
           </button>
         </div>
       )}

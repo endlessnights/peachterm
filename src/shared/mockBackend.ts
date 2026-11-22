@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // In-memory stand-in for the Rust backend, used ONLY for browser-based UI
 // development (`npm run dev` outside Tauri) and tests. It is loaded through a
 // dynamic import guarded by `import.meta.env.DEV`, so it never ships.
@@ -19,7 +22,9 @@ import type {
   FolderDeleteMode,
   FolderInput,
   ItemRef,
+  LocalProfile,
   LoggingStatus,
+  SavedNode,
   Settings,
   TerminalEvent,
   TransferEvent,
@@ -40,9 +45,28 @@ export interface MockSsh {
   resizes: { sessionId: string; cols: number; rows: number }[];
   acks: { sessionId: string; bytes: number }[];
   closes: string[];
+  clears: {
+    begins: number;
+    cancels: number;
+    deleted: number;
+    attempts: { token: string; answer: number }[];
+  };
   /** Interface scales that were applied, in order. */
   scales: number[];
   workspaceSaves: WorkspaceLayout[];
+  /** Local terminal traffic (the shells themselves are not simulated). */
+  local: {
+    opens: { sessionId: string; profileId: string; cols: number; rows: number }[];
+    writes: { sessionId: string; text: string }[];
+    resizes: { sessionId: string; cols: number; rows: number }[];
+    acks: { sessionId: string; bytes: number }[];
+    closes: string[];
+    profileLoads: number;
+  };
+  /** How many times the application was asked to quit. */
+  quits: number;
+  /** Project links opened from the About page. */
+  links: string[];
   hostKeyAnswers: { promptId: string; decision: string }[];
   authAnswers: { promptId: string; answers: string[] | null }[];
   emit: (sessionId: string, event: TerminalEvent) => void;
@@ -90,12 +114,18 @@ export interface MockOptions {
   lockEnabled?: boolean;
   /** Pretend the server has no SFTP subsystem. */
   noSftp?: boolean;
+  /** How many saved passwords "fail to delete" in clear-all (partial failure). */
+  clearFailures?: number;
   /** Saved connections whose SSH login fails (they never enter the recent list). */
   sshFails?: string[];
   /** A layout left by the previous run; also switches "restore tabs" on. */
   restoreLayout?: WorkspaceLayout;
   /** Recent connection ids from earlier runs (newest first). */
   recent?: string[];
+  /** Shells `local_profiles` reports (default: Windows PowerShell and Command Prompt). */
+  localProfiles?: LocalProfile[];
+  /** Profile ids whose shell fails to start. */
+  localFails?: string[];
   /** Change the stored settings before the app starts. */
   settings?: (s: Settings) => Settings;
 }
@@ -117,16 +147,23 @@ export function createMockBackend(
   let locked = !!options.startLocked && lockPassword !== null;
   let failed = 0;
   const channels = new Map<string, (event: TerminalEvent) => void>();
-  let layout: WorkspaceLayout = options.restoreLayout ?? { tabs: [], active: null, split: null };
+  const emptyLayout = (): WorkspaceLayout => ({ tabs: [], active: null, tree: null, focus: null });
+  let layout: WorkspaceLayout = options.restoreLayout ?? emptyLayout();
   let recent: string[] = options.recent ?? [];
+  let pendingClear: { token: string; wrong: number } | null = null;
+  let clearCounter = 0;
   const ssh: MockSsh = {
     opens: [],
     writes: [],
     resizes: [],
     acks: [],
     closes: [],
+    clears: { begins: 0, cancels: 0, deleted: 0, attempts: [] },
     scales: [],
     workspaceSaves: [],
+    local: { opens: [], writes: [], resizes: [], acks: [], closes: [], profileLoads: 0 },
+    quits: 0,
+    links: [],
     hostKeyAnswers: [],
     authAnswers: [],
     emit: (sessionId, event) => channels.get(sessionId)?.(event),
@@ -369,10 +406,40 @@ export function createMockBackend(
     credentials_clear: ({ connectionId }) => {
       findConnection(connectionId).hasStoredSecret = false;
     },
-    credentials_clear_all: () => {
-      const cleared = tree.connections.filter((c) => c.hasStoredSecret).length;
-      tree.connections.forEach((c) => (c.hasStoredSecret = false));
-      return { cleared };
+    credentials_clear_begin: () => {
+      pendingClear = { token: `clear-${++clearCounter}`, wrong: 0 };
+      ssh.clears.begins += 1;
+      return {
+        token: pendingClear.token,
+        question: '7 + 5',
+        expiresInSecs: 60,
+        count: tree.connections.filter((c) => c.hasStoredSecret).length,
+      };
+    },
+    credentials_clear_cancel: () => {
+      ssh.clears.cancels += 1;
+      pendingClear = null;
+    },
+    // like Rust: refuses without the matching token and the right answer
+    credentials_clear_all: (args) => {
+      ssh.clears.attempts.push({ token: String(args.token), answer: Number(args.answer) });
+      if (!pendingClear || pendingClear.token !== args.token) {
+        throw {
+          code: 'validation',
+          message: 'There is no pending confirmation. Nothing was deleted.',
+        };
+      }
+      if (Number(args.answer) !== 12) {
+        pendingClear.wrong += 1;
+        if (pendingClear.wrong >= 3) pendingClear = null;
+        throw { code: 'validation', message: 'That is not the right answer. Nothing was deleted.' };
+      }
+      pendingClear = null;
+      const flagged = tree.connections.filter((c) => c.hasStoredSecret);
+      const failed = Math.min(options.clearFailures ?? 0, flagged.length);
+      flagged.slice(failed).forEach((c) => (c.hasStoredSecret = false));
+      ssh.clears.deleted += flagged.length - failed;
+      return { deleted: flagged.length - failed, failed };
     },
     window_apply_theme: () => 'themeOnly',
     logging_status: (): LoggingStatus => {
@@ -433,6 +500,64 @@ export function createMockBackend(
       });
       return { sessionId };
     },
+    app_open_link: (args) => {
+      ssh.links.push(String(args.link));
+    },
+    app_quit: () => {
+      ssh.quits += 1;
+    },
+    local_profiles: () => {
+      ssh.local.profileLoads += 1;
+      const profiles = options.localProfiles ?? [
+        { id: 'powershell', name: 'Windows PowerShell', kind: 'local', detail: 'powershell.exe' },
+        { id: 'cmd', name: 'Command Prompt', kind: 'local', detail: 'cmd.exe' },
+      ];
+      const wanted = settings.terminal.defaultProfile;
+      const fallback = profiles[0]?.id ?? null;
+      return {
+        profiles,
+        default: profiles.some((p) => p.id === wanted) ? wanted : fallback,
+      };
+    },
+    local_open: (args) => {
+      const sessionId = uuid();
+      const channel = args.onEvent as { onmessage: ((event: TerminalEvent) => void) | null };
+      const profileId = String(args.profileId);
+      if (options.localFails?.includes(profileId)) {
+        throw { code: 'validation', message: 'The shell could not be started.' };
+      }
+      ssh.local.opens.push({
+        sessionId,
+        profileId,
+        cols: Number(args.cols),
+        rows: Number(args.rows),
+      });
+      if (channel.onmessage) channels.set(sessionId, channel.onmessage);
+      queueMicrotask(() => {
+        ssh.emit(sessionId, { kind: 'status', state: 'connected' });
+        ssh.emit(sessionId, {
+          kind: 'data',
+          data: btoa('mock local shell ready' + String.fromCharCode(13, 10)),
+        });
+      });
+      return { sessionId };
+    },
+    local_write: (args) => {
+      ssh.local.writes.push({ sessionId: String(args.sessionId), text: atob(String(args.data)) });
+    },
+    local_resize: (args) => {
+      ssh.local.resizes.push({
+        sessionId: String(args.sessionId),
+        cols: Number(args.cols),
+        rows: Number(args.rows),
+      });
+    },
+    local_ack: (args) => {
+      ssh.local.acks.push({ sessionId: String(args.sessionId), bytes: Number(args.bytes) });
+    },
+    local_close: (args) => {
+      ssh.local.closes.push(String(args.sessionId));
+    },
     ssh_write: (args) => {
       ssh.writes.push({ sessionId: String(args.sessionId), text: atob(String(args.data)) });
     },
@@ -485,33 +610,37 @@ export function createMockBackend(
       ssh.editor.stops.push(String(args.editId));
     },
     workspace_load: () => {
-      if (settings.general.startup !== 'restoreTabs')
-        return { tabs: [], active: null, split: null };
+      if (settings.general.startup !== 'restoreTabs') return emptyLayout();
       const exists = new Set(tree.connections.map((c) => c.id));
       const map: (number | null)[] = [];
       const tabs: WorkspaceLayout['tabs'] = [];
       layout.tabs.forEach((t) => {
-        map.push(exists.has(t.connectionId) ? tabs.length : null);
-        if (exists.has(t.connectionId)) tabs.push(t);
+        const keep =
+          t.kind === 'ssh' ? !!t.connectionId && exists.has(t.connectionId) : !!t.profileId;
+        map.push(keep ? tabs.length : null);
+        if (keep) tabs.push(t);
       });
-      const a = layout.split ? map[layout.split.panes[0]] : null;
-      const b = layout.split ? map[layout.split.panes[1]] : null;
+      const prune = (n: SavedNode): SavedNode | null => {
+        if (n.kind === 'leaf')
+          return map[n.tab] == null ? null : { kind: 'leaf', tab: map[n.tab]! };
+        const a = prune(n.a);
+        const b = prune(n.b);
+        return a && b ? { ...n, a, b } : (a ?? b);
+      };
+      const count = (n: SavedNode): number => (n.kind === 'leaf' ? 1 : count(n.a) + count(n.b));
+      let pruned = layout.tree ? prune(layout.tree) : null;
+      if (pruned && count(pruned) < 2) pruned = null;
       return {
         tabs,
         active: layout.active === null ? null : (map[layout.active] ?? null),
-        split:
-          layout.split && a !== null && b !== null && a !== undefined && b !== undefined
-            ? { ...layout.split, panes: [a, b] }
-            : null,
-      };
+        tree: pruned,
+        focus: pruned && layout.focus !== null ? (map[layout.focus] ?? null) : null,
+      } satisfies WorkspaceLayout;
     },
     workspace_save: (args) => {
       const next = args.layout as WorkspaceLayout;
       ssh.workspaceSaves.push(structuredClone(next));
-      layout =
-        settings.general.startup === 'restoreTabs'
-          ? structuredClone(next)
-          : { tabs: [], active: null, split: null };
+      layout = settings.general.startup === 'restoreTabs' ? structuredClone(next) : emptyLayout();
     },
     recent_list: () => {
       const exists = new Set(tree.connections.map((c) => c.id));

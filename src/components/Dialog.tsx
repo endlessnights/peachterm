@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon';
 

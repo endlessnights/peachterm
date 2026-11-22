@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Crash-safe JSON persistence and forgiving loading.
 //!
 //! Writes go to a sibling temp file, are flushed to disk, then renamed over

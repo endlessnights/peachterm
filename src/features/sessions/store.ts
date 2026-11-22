@@ -1,28 +1,68 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Tab and workspace-layout metadata only. Terminal output never flows through
-// this store; each tab's xterm instance receives bytes directly from a Tauri
-// Channel.
+// this store; each tab's terminal receives bytes directly from the backend.
 //
 // Identity model (kept strictly apart):
 //   * `connectionId` — the SAVED connection (stable, shared by every tab opened
 //     from it; this is what "tabs for this host" means).
-//   * `id`          — this tab / terminal slot; unique, never reused.
-//   * `sessionId`   — the backend SSH session of the current connection attempt;
-//     a reconnect inside the same tab gets a new one.
+//   * `id`          — this tab; unique, never reused.
+//   * `sessionId`   — the backend session of the current attempt; a reconnect
+//     inside the same tab gets a new one.
+//   * `kind`        — what the session is (SSH, or a local / WSL shell).
+//
+// The workspace layout is a split tree (see layout.ts) whose leaves REFERENCE
+// tabs. Changing the layout never touches a session.
 
 import { create } from 'zustand';
 import type { Connection, SftpState, Uuid } from '../../shared/types';
+import {
+  MAX_LEAVES,
+  countLeaves,
+  findLeaf,
+  findLeafByTab,
+  flip,
+  leaves,
+  makeBranch,
+  makeLeaf,
+  parentOf,
+  place,
+  removeLeaf,
+  roomToSplit,
+  setLeafTab,
+  setRatio,
+  shownTabs,
+  splitLeaf,
+  zoneDir,
+  clampRatio,
+  ratioLimits,
+  type Dir,
+  type Node,
+  type Zone,
+} from './layout';
 
 export type TabStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'failed';
 
+/** What runs behind a tab. */
+export type SessionKind = 'ssh' | 'local' | 'wsl';
+
 export interface Tab {
   id: string;
+  /** Explicit session type: SFTP exists only for `ssh`. */
+  kind: SessionKind;
+  /** The SAVED connection (SSH tabs); empty for local shells. */
   connectionId: Uuid;
-  /** What the tab shows: the user's own name, else the saved connection's name. */
+  /** For local tabs: which shell profile to start (see the local-shell settings). */
+  profileId: string | null;
+  /** What the tab shows: the user's own name, else the default name. */
   title: string;
-  /** The saved connection's name (kept in sync when the connection is renamed). */
+  /** The saved connection's name / the shell's name (kept in sync). */
   defaultTitle: string;
-  /** Set by the user ("Rename tab"); `null` = follow the saved connection. */
+  /** Set by the user ("Rename tab"); `null` = follow the default. */
   customTitle: string | null;
+  /** Terminal palette for this tab only (preset id); `null` = follow the global setting. */
+  colors: string | null;
   subtitle: string;
   status: TabStatus;
   /** Set by Rust when a connection attempt starts; new on every reconnect. */
@@ -35,30 +75,29 @@ export interface Tab {
 
 export type SplitOrientation = 'vertical' | 'horizontal';
 
-/**
- * Two terminal panes at most (no nesting). `panes[1] === null` means the second
- * pane is still waiting for the user to pick a tab or start a new session.
- */
-export interface Split {
-  orientation: SplitOrientation;
-  /** Share of the space taken by the first pane (0.15 – 0.85). */
-  ratio: number;
-  panes: [string, string | null];
-  /** Which pane has the focus. */
-  focus: 0 | 1;
-}
+/** Why a layout change was refused (the UI explains it). */
+export type SplitResult = 'ok' | 'limit' | 'space' | 'none';
 
-export const MIN_RATIO = 0.15;
-export const MAX_RATIO = 0.85;
-export const clampRatio = (r: number) =>
-  Number.isFinite(r) ? Math.min(MAX_RATIO, Math.max(MIN_RATIO, r)) : 0.5;
+export const SPLIT_REFUSAL: Record<Exclude<SplitResult, 'ok' | 'none'>, string> = {
+  limit: `A workspace shows at most ${MAX_LEAVES} panes. Close or hide one first; no session is closed.`,
+  space:
+    'There is not enough room to split this pane: every pane needs a usable size. Enlarge the window or hide the sidebar. No session is affected.',
+};
 
 interface TabsState {
   tabs: Tab[];
   activeId: string | null;
-  split: Split | null;
+  /** The split tree; `null` = a single terminal (the active tab). */
+  layout: Node | null;
+  /** The focused pane of the layout. */
+  focusLeaf: string | null;
+  /** Size of the terminal area in CSS pixels (for minimum pane sizes). */
+  area: { w: number; h: number };
+
   openTab: (connection: Connection) => string;
-  /** New independent session for the same saved connection, next to `id`. */
+  /** A new tab for a local or WSL shell profile. */
+  openLocal: (profile: { id: string; name: string; kind: 'local' | 'wsl' }) => string;
+  /** New independent session for the same saved connection / profile, next to `id`. */
   duplicateTab: (id: string) => string | null;
   closeTab: (id: string) => void;
   /** Close several tabs at once (one state change). */
@@ -66,8 +105,10 @@ interface TabsState {
   activate: (id: string) => void;
   activateNext: (direction: 1 | -1) => void;
   moveTab: (fromId: string, toId: string) => void;
-  /** `null` or blank resets to the saved connection's name. */
+  /** `null` or blank resets to the default name. */
   renameTab: (id: string, title: string | null) => void;
+  /** Per-tab terminal palette; `null` follows the global setting. Touches nothing else. */
+  setTabColors: (id: string, colors: string | null) => void;
   setStatus: (id: string, status: TabStatus) => void;
   setSession: (id: string, sessionId: string | null) => void;
   setSftp: (id: string, sftp: Tab['sftp']) => void;
@@ -77,20 +118,33 @@ interface TabsState {
   syncConnections: (connections: Connection[]) => void;
 
   // ---- split view ------------------------------------------------------------
-  /** Split the active tab; the second pane waits for a choice. */
-  startSplit: (orientation: SplitOrientation) => void;
-  /** Put an existing tab (not the first pane's) into the second pane. */
-  setSecondPane: (tabId: string) => void;
-  /** Open a new session of the first pane's saved connection in the second pane. */
-  splitWithNewSession: () => string | null;
+  /** Split the focused pane; the new pane waits for a choice (picker). */
+  startSplit: (orientation: SplitOrientation) => SplitResult;
+  /** Show an existing tab in a pane (moves it if it is shown elsewhere). */
+  fillLeaf: (leafId: string, tabId: string) => void;
+  /** Start a NEW session (like the picker's source) in a waiting pane. */
+  fillLeafWithNewSession: (leafId: string) => string | null;
+  /** Drop a tab on a pane: split towards `zone` (or offer targets for `center`). */
+  dropTab: (tabId: string, leafId: string, zone: Exclude<Zone, 'center'>) => SplitResult;
+  /** Menu command: show `tabId` in a new pane beside the focused pane. */
+  moveTabToNewPane: (tabId: string, side: Exclude<Zone, 'center'>) => SplitResult;
+  /** Remove a pane (its tab stays open); the neighbour takes its space. */
+  removePane: (leafId: string) => void;
+  /** Back to a single terminal. Sessions stay open. */
   unsplit: () => void;
   toggleOrientation: () => void;
-  setRatio: (ratio: number) => void;
-  focusPane: (index: 0 | 1) => void;
+  setBranchRatio: (branchId: string, ratio: number) => void;
+  focusPane: (leafId: string) => void;
   focusNextPane: () => void;
+  setArea: (w: number, h: number) => void;
 
   /** Replace the whole layout (restoring a saved workspace). */
-  restore: (tabs: Tab[], activeId: string | null, split: Split | null) => void;
+  restore: (
+    tabs: Tab[],
+    activeId: string | null,
+    layout: Node | null,
+    focusLeaf: string | null,
+  ) => void;
 }
 
 let counter = 0;
@@ -111,12 +165,21 @@ const cleanTitle = (title: string | null): string | null => {
   return t ? t.slice(0, MAX_TITLE) : null;
 };
 
-const newTab = (connectionId: Uuid, defaultTitle: string, subtitle: string): Tab => ({
+const newTab = (
+  kind: SessionKind,
+  connectionId: Uuid,
+  defaultTitle: string,
+  subtitle: string,
+  profileId: string | null = null,
+): Tab => ({
   id: newTabId(),
+  kind,
   connectionId,
+  profileId,
   title: defaultTitle,
   defaultTitle,
   customTitle: null,
+  colors: null,
   subtitle,
   status: 'idle',
   sessionId: null,
@@ -138,21 +201,55 @@ function neighbourAfterRemoval(tabs: Tab[], removed: Set<string>, oldIndex: numb
   return remaining[Math.min(before, remaining.length - 1)]!.id;
 }
 
-const activeFromSplit = (split: Split): string => split.panes[split.focus] ?? split.panes[0];
+type Slice = Pick<TabsState, 'layout' | 'focusLeaf' | 'activeId'>;
+
+/** A tree with one leaf is no split: the layout becomes `null`. */
+function normalize(
+  layout: Node | null,
+  focusLeaf: string | null,
+  fallbackActive: string | null,
+): Slice {
+  if (!layout) return { layout: null, focusLeaf: null, activeId: fallbackActive };
+  if (layout.kind === 'leaf') {
+    return { layout: null, focusLeaf: null, activeId: layout.tabId ?? fallbackActive };
+  }
+  const all = leaves(layout);
+  const focus = all.find((l) => l.id === focusLeaf) ?? all.find((l) => l.tabId) ?? all[0] ?? null;
+  return {
+    layout,
+    focusLeaf: focus?.id ?? null,
+    activeId: focus?.tabId ?? fallbackActive,
+  };
+}
+
+/** Put a freshly created tab where the user is looking. */
+function placeNew(s: TabsState, tabId: string): Slice {
+  const layout = s.layout;
+  if (!layout) return { layout: null, focusLeaf: null, activeId: tabId };
+  const all = leaves(layout);
+  const waiting = all.find((l) => l.tabId === null);
+  const target = waiting ?? all.find((l) => l.id === s.focusLeaf) ?? all[0]!;
+  return normalize(setLeafTab(layout, target.id, tabId), target.id, tabId);
+}
 
 export const useTabs = create<TabsState>((set, get) => ({
   tabs: [],
   activeId: null,
-  split: null,
+  layout: null,
+  focusLeaf: null,
+  area: { w: 0, h: 0 },
 
   openTab: (connection) => {
     // Always a NEW tab and session, also when the same saved connection is
     // already open: any number of independent sessions per saved connection.
-    const tab = newTab(connection.id, connection.name, describe(connection));
-    set((s) => {
-      // A pending second pane (the "pick a tab" state) takes the new tab.
-      return { tabs: [...s.tabs, tab], ...place(s, tab.id) };
-    });
+    const tab = newTab('ssh', connection.id, connection.name, describe(connection));
+    set((s) => ({ tabs: [...s.tabs, tab], ...placeNew(s, tab.id) }));
+    return tab.id;
+  },
+
+  openLocal: (profile) => {
+    const tab = newTab(profile.kind, '', profile.name, 'local shell', profile.id);
+    set((s) => ({ tabs: [...s.tabs, tab], ...placeNew(s, tab.id) }));
     return tab.id;
   },
 
@@ -160,11 +257,18 @@ export const useTabs = create<TabsState>((set, get) => ({
     const source = get().tabs.find((t) => t.id === id);
     if (!source) return null;
     const copy: Tab = {
-      ...newTab(source.connectionId, source.defaultTitle, source.subtitle),
+      ...newTab(
+        source.kind,
+        source.connectionId,
+        source.defaultTitle,
+        source.subtitle,
+        source.profileId,
+      ),
       customTitle: source.customTitle,
+      colors: source.colors,
       title: source.title,
     };
-    set((s) => ({ tabs: insertAfter(s.tabs, id, copy), ...place(s, copy.id) }));
+    set((s) => ({ tabs: insertAfter(s.tabs, id, copy), ...placeNew(s, copy.id) }));
     return copy.id;
   },
 
@@ -175,41 +279,37 @@ export const useTabs = create<TabsState>((set, get) => ({
       const removed = new Set(ids.filter((id) => s.tabs.some((t) => t.id === id)));
       if (removed.size === 0) return s;
       const tabs = s.tabs.filter((t) => !removed.has(t.id));
-      let split = s.split;
-      let activeId = s.activeId;
-      if (split) {
-        const [first, second] = split.panes;
-        const firstGone = removed.has(first);
-        const secondGone = second !== null && removed.has(second);
-        if (firstGone || secondGone) {
-          // The split ends; the surviving pane's tab stays open and active.
-          const survivor = firstGone ? (second && !secondGone ? second : null) : first;
-          split = null;
-          if (survivor) activeId = survivor;
-        } else {
-          activeId = activeFromSplit(split);
+      let layout = s.layout;
+      if (layout) {
+        // A pane whose tab is closed disappears; its neighbour takes the space.
+        for (const leaf of leaves(layout)) {
+          if (leaf.tabId && removed.has(leaf.tabId)) layout = layout && removeLeaf(layout, leaf.id);
         }
       }
-      if (!activeId || removed.has(activeId) || !tabs.some((t) => t.id === activeId)) {
+      let fallback = s.activeId;
+      if (!fallback || removed.has(fallback)) {
         const oldIndex = s.tabs.findIndex((t) => t.id === s.activeId);
-        activeId = neighbourAfterRemoval(s.tabs, removed, oldIndex);
+        fallback = neighbourAfterRemoval(s.tabs, removed, oldIndex);
       }
-      return { tabs, activeId, split };
+      const next = normalize(layout, s.focusLeaf, fallback);
+      let activeId = next.activeId;
+      if (!activeId || removed.has(activeId) || !tabs.some((t) => t.id === activeId)) {
+        activeId =
+          fallback && tabs.some((t) => t.id === fallback) ? fallback : (tabs[0]?.id ?? null);
+      }
+      return { tabs, ...next, activeId };
     }),
 
   activate: (id) => {
     const s = get();
     if (!s.tabs.some((t) => t.id === id)) return;
-    const split = s.split;
-    if (!split) return set({ activeId: id });
-    const index = split.panes.indexOf(id);
-    if (index === 0 || index === 1) {
-      return set({ split: { ...split, focus: index as 0 | 1 }, activeId: id });
-    }
+    const layout = s.layout;
+    if (!layout) return set({ activeId: id });
+    const shown = findLeafByTab(layout, id);
+    if (shown) return set({ focusLeaf: shown.id, activeId: id });
     // A tab that is not shown takes over the focused pane (sessions keep running).
-    const panes: [string, string | null] = [...split.panes];
-    panes[split.focus] = id;
-    set({ split: { ...split, panes }, activeId: id });
+    const target = findLeaf(layout, s.focusLeaf ?? '') ?? leaves(layout)[0]!;
+    set({ layout: setLeafTab(layout, target.id, id), focusLeaf: target.id, activeId: id });
   },
 
   activateNext: (direction) => {
@@ -230,6 +330,9 @@ export const useTabs = create<TabsState>((set, get) => ({
       tabs.splice(to, 0, moved!);
       return { tabs };
     }),
+
+  setTabColors: (id, colors) =>
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, colors } : t)) })),
 
   renameTab: (id, title) =>
     set((s) => ({
@@ -257,6 +360,7 @@ export const useTabs = create<TabsState>((set, get) => ({
       const byId = new Map(connections.map((c) => [c.id, c]));
       let changed = false;
       const tabs = s.tabs.map((t) => {
+        if (t.kind !== 'ssh') return t;
         const c = byId.get(t.connectionId);
         if (!c) return t; // deleted connection: keep the tab, it still works until closed
         const subtitle = describe(c);
@@ -270,107 +374,212 @@ export const useTabs = create<TabsState>((set, get) => ({
 
   // ---- split view ------------------------------------------------------------
 
-  startSplit: (orientation) =>
-    set((s) => {
-      if (!s.activeId) return s;
-      if (s.split) return { split: { ...s.split, orientation } };
-      return { split: { orientation, ratio: 0.5, panes: [s.activeId, null], focus: 0 } };
-    }),
-
-  setSecondPane: (tabId) =>
-    set((s) => {
-      const split = s.split;
-      if (!split || !s.tabs.some((t) => t.id === tabId) || tabId === split.panes[0]) return s;
-      return { split: { ...split, panes: [split.panes[0], tabId], focus: 1 }, activeId: tabId };
-    }),
-
-  splitWithNewSession: () => {
+  startSplit: (orientation) => {
     const s = get();
-    const first = s.split?.panes[0];
-    const source = s.tabs.find((t) => t.id === first);
-    if (!s.split || !source) return null;
+    if (!s.activeId) return 'none';
+    const dir: Dir = orientation === 'vertical' ? 'row' : 'column';
+    const layout = s.layout;
+    if (!layout) {
+      const first = makeLeaf(s.activeId);
+      const picker = makeLeaf(null, s.activeId);
+      set({
+        layout: makeBranch(dir, first, picker),
+        focusLeaf: first.id,
+        activeId: s.activeId,
+      });
+      return 'ok';
+    }
+    if (countLeaves(layout) >= MAX_LEAVES) return 'limit';
+    const target = findLeaf(layout, s.focusLeaf ?? '') ?? leaves(layout)[0]!;
+    if (!roomToSplit(layout, target.id, dir, s.area)) return 'space';
+    const picker = makeLeaf(null, target.tabId ?? s.activeId);
+    set({ layout: splitLeaf(layout, target.id, dir, picker, 'after') });
+    return 'ok';
+  },
+
+  fillLeaf: (leafId, tabId) =>
+    set((s) => {
+      const layout = s.layout;
+      if (!layout || !s.tabs.some((t) => t.id === tabId) || !findLeaf(layout, leafId)) return s;
+      // A session is shown in one place only: it moves, it is not shown twice.
+      let next: Node | null = layout;
+      const elsewhere = findLeafByTab(layout, tabId);
+      if (elsewhere && elsewhere.id !== leafId) next = removeLeaf(layout, elsewhere.id);
+      if (!next) return s;
+      next = setLeafTab(next, leafId, tabId);
+      return normalize(next, leafId, tabId);
+    }),
+
+  fillLeafWithNewSession: (leafId) => {
+    const s = get();
+    const layout = s.layout;
+    const leaf = layout ? findLeaf(layout, leafId) : null;
+    if (!layout || !leaf) return null;
+    const source =
+      s.tabs.find((t) => t.id === leaf.sourceTabId) ??
+      s.tabs.find((t) => t.id === s.activeId) ??
+      s.tabs[0];
+    if (!source) return null;
     const copy: Tab = {
-      ...newTab(source.connectionId, source.defaultTitle, source.subtitle),
+      ...newTab(
+        source.kind,
+        source.connectionId,
+        source.defaultTitle,
+        source.subtitle,
+        source.profileId,
+      ),
       customTitle: source.customTitle,
       title: source.title,
     };
     set((st) => {
-      const split = st.split;
-      if (!split) return st;
+      const current = st.layout;
+      if (!current) return st;
       return {
-        tabs: insertAfter(st.tabs, split.panes[0], copy),
-        split: { ...split, panes: [split.panes[0], copy.id], focus: 1 },
-        activeId: copy.id,
+        tabs: insertAfter(st.tabs, source.id, copy),
+        ...normalize(setLeafTab(current, leafId, copy.id), leafId, copy.id),
       };
     });
     return copy.id;
   },
 
+  dropTab: (tabId, leafId, zone) => {
+    const s = get();
+    if (!s.tabs.some((t) => t.id === tabId)) return 'none';
+    const dir = zoneDir(zone)!;
+    let layout: Node | null = s.layout;
+    if (!layout) {
+      // No split yet: the pane being dropped on is the active tab.
+      if (!s.activeId || s.activeId === tabId) return 'none';
+      const base = makeLeaf(s.activeId);
+      layout = base;
+      leafId = base.id;
+    }
+    const target = findLeaf(layout, leafId);
+    if (!target) return 'none';
+    if (target.tabId === tabId) return 'none'; // dropping a pane on itself
+    // Moving a visible tab frees its old pane first.
+    const old = findLeafByTab(layout, tabId);
+    let working: Node | null = layout;
+    if (old) working = removeLeaf(layout, old.id);
+    if (!working) return 'none';
+    const targetStillThere = findLeaf(working, target.id);
+    if (!targetStillThere) return 'none';
+    if (countLeaves(working) >= MAX_LEAVES) return 'limit';
+    if (!roomToSplit(working, target.id, dir, s.area)) return 'space';
+    const fresh = makeLeaf(tabId);
+    const next = splitLeaf(
+      working,
+      target.id,
+      dir,
+      fresh,
+      zone === 'left' || zone === 'top' ? 'before' : 'after',
+    );
+    set(normalize(next, fresh.id, tabId));
+    return 'ok';
+  },
+
+  moveTabToNewPane: (tabId, side) => {
+    const s = get();
+    if (!s.tabs.some((t) => t.id === tabId)) return 'none';
+    if (!s.layout) {
+      // A single terminal becomes the first pane; the tab becomes the second.
+      if (!s.activeId || s.activeId === tabId) return 'none';
+      const first = makeLeaf(s.activeId);
+      return get().dropTab(tabId, first.id, side);
+    }
+    const focus = findLeaf(s.layout, s.focusLeaf ?? '') ?? leaves(s.layout)[0]!;
+    if (focus.tabId === tabId) {
+      // the tab is already the focused pane: use another pane as the anchor
+      const other = leaves(s.layout).find((l) => l.id !== focus.id);
+      if (!other) return 'none';
+      return get().dropTab(tabId, other.id, side);
+    }
+    return get().dropTab(tabId, focus.id, side);
+  },
+
+  removePane: (leafId) =>
+    set((s) => {
+      if (!s.layout) return s;
+      const next = removeLeaf(s.layout, leafId);
+      return normalize(next, s.focusLeaf === leafId ? null : s.focusLeaf, s.activeId);
+    }),
+
   unsplit: () =>
     set((s) => {
-      if (!s.split) return s;
-      return { split: null, activeId: activeFromSplit(s.split) };
+      if (!s.layout) return s;
+      const focus = findLeaf(s.layout, s.focusLeaf ?? '');
+      return { layout: null, focusLeaf: null, activeId: focus?.tabId ?? s.activeId };
     }),
 
   toggleOrientation: () =>
-    set((s) =>
-      s.split
-        ? {
-            split: {
-              ...s.split,
-              orientation: s.split.orientation === 'vertical' ? 'horizontal' : 'vertical',
-            },
-          }
-        : s,
-    ),
-
-  setRatio: (ratio) =>
-    set((s) => (s.split ? { split: { ...s.split, ratio: clampRatio(ratio) } } : s)),
-
-  focusPane: (index) =>
     set((s) => {
-      const split = s.split;
-      if (!split || split.focus === index || split.panes[index] === null) return s;
-      return { split: { ...split, focus: index }, activeId: split.panes[index]! };
+      if (!s.layout) return s;
+      const parent =
+        parentOf(s.layout, s.focusLeaf ?? '') ?? (s.layout.kind === 'branch' ? s.layout : null);
+      return parent ? { layout: flip(s.layout, parent.id) } : s;
+    }),
+
+  setBranchRatio: (branchId, ratio) =>
+    set((s) => {
+      if (!s.layout) return s;
+      const placed = place(s.layout);
+      const entry = placed.branches.find((b) => b.branch.id === branchId);
+      if (!entry) return s;
+      const { lo, hi } = ratioLimits(entry.branch, entry.rect, s.area);
+      return { layout: setRatio(s.layout, branchId, clampRatio(ratio, lo, hi)) };
+    }),
+
+  focusPane: (leafId) =>
+    set((s) => {
+      const leaf = s.layout ? findLeaf(s.layout, leafId) : null;
+      if (!leaf || s.focusLeaf === leafId) return s;
+      return { focusLeaf: leafId, activeId: leaf.tabId ?? s.activeId };
     }),
 
   focusNextPane: () => {
-    const { split } = get();
-    if (!split || split.panes[1] === null) return;
-    get().focusPane(split.focus === 0 ? 1 : 0);
+    const { layout, focusLeaf } = get();
+    if (!layout) return;
+    const all = leaves(layout).filter((l) => l.tabId);
+    if (all.length < 2) return;
+    const index = all.findIndex((l) => l.id === focusLeaf);
+    get().focusPane(all[(index + 1) % all.length]!.id);
   },
 
-  restore: (tabs, activeId, split) => set({ tabs, activeId, split }),
+  setArea: (w, h) => set((s) => (s.area.w === w && s.area.h === h ? s : { area: { w, h } })),
+
+  restore: (tabs, activeId, layout, focusLeaf) =>
+    set({ tabs, ...normalize(layout, focusLeaf, activeId ?? tabs[0]?.id ?? null) }),
 }));
 
-/**
- * Where a newly created tab goes: into a waiting second pane if there is one,
- * otherwise it simply becomes the active tab (outside of split view) or takes
- * over the focused pane.
- */
-function place(s: TabsState, tabId: string): Partial<TabsState> {
-  const split = s.split;
-  if (!split) return { activeId: tabId };
-  if (split.panes[1] === null) {
-    return { split: { ...split, panes: [split.panes[0], tabId], focus: 1 }, activeId: tabId };
-  }
-  const panes: [string, string | null] = [...split.panes];
-  panes[split.focus] = tabId;
-  return { split: { ...split, panes }, activeId: tabId };
-}
+export { MAX_LEAVES, shownTabs };
 
 /** Newly created tab objects for restoring a saved workspace. */
 export function restoredTab(
-  connection: Connection,
+  saved: {
+    kind: SessionKind;
+    connectionId: Uuid;
+    profileId: string | null;
+    defaultTitle: string;
+    subtitle: string;
+  },
   customTitle: string | null,
   autoConnect: boolean,
+  colors: string | null = null,
 ): Tab {
-  const tab = newTab(connection.id, connection.name, describe(connection));
+  const tab = newTab(
+    saved.kind,
+    saved.connectionId,
+    saved.defaultTitle,
+    saved.subtitle,
+    saved.profileId,
+  );
   const custom = cleanTitle(customTitle);
   return {
     ...tab,
     customTitle: custom,
-    title: custom ?? connection.name,
-    restored: !autoConnect,
+    colors,
+    title: custom ?? saved.defaultTitle,
+    // Local shells are never started by restoring a workspace on their own.
+    restored: !autoConnect || saved.kind !== 'ssh',
   };
 }

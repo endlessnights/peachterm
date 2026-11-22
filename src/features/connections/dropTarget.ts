@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Where a drag ends up, derived from the pointer position over a row.
 // Pure so the rules are testable without a DOM or a drag library.
 

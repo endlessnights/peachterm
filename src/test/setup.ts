@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 // Global test setup: xterm.js needs a real layout engine, which jsdom lacks, so
 // tests use a small in-memory stand-in that records what the app does to it.
 

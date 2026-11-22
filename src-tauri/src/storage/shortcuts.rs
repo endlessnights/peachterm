@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 //! Keyboard shortcut definitions and validation.
 //!
 //! Actions, defaults and reserved combinations come from

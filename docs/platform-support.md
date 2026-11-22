@@ -3,20 +3,20 @@
 Compilation success does **not** prove runtime compatibility. This file tracks
 what has actually been verified, by whom, and how.
 
-| Check                                               | Windows 11                                 | Linux                | macOS                  |
-| --------------------------------------------------- | ------------------------------------------ | -------------------- | ---------------------- |
-| `cargo check` / `clippy`                            | ✅ local (Win 11 Pro 26200, Rust 1.100.0)  | ⏳ CI (ubuntu-24.04) | ⏳ CI (macos-15 arm64) |
-| `cargo test` (unit)                                 | ✅ local                                   | ⏳ CI                | ⏳ CI                  |
-| Frontend lint/typecheck/tests                       | ✅ local                                   | ⏳ CI                | – (platform-neutral)   |
-| Debug app build (`tauri build --debug --no-bundle`) | ✅ local                                   | ⏳ CI                | ⏳ CI                  |
-| GUI launched and inspected manually                 | ✅ local (debug exe, WebView2, real IPC)   | ❌ not yet           | ❌ not yet             |
-| Credential store against real OS keychain           | 🟡 probe only (backend reported available) | ❌ not yet           | ❌ not yet             |
-| SSH/SFTP runtime tests                              | n/a (Phase 2)                              | n/a                  | n/a                    |
-| X11 / Wayland                                       | –                                          | ❌ not yet           | –                      |
-| Packaging                                           | ❌ Phase 5                                 | ❌ Phase 5           | ❌ Phase 5             |
+| Check                                     | Windows 11 / windows-2025                  | Linux (ubuntu-24.04)  | macOS (macos-15)                  |
+| ----------------------------------------- | ------------------------------------------ | --------------------- | --------------------------------- |
+| `cargo clippy -D warnings`                | ✅ local + CI                              | ✅ CI                 | ✅ CI (arm64)                     |
+| `cargo test` (46 unit tests)              | ✅ local + CI                              | ✅ CI                 | ✅ CI (arm64)                     |
+| Frontend format/lint/typecheck/tests (21) | ✅ local + CI                              | ✅ CI                 | – (platform-neutral)              |
+| Release build + installers                | ✅ CI (NSIS, MSI)                          | ✅ CI (deb, AppImage) | ✅ CI (dmg arm64 + x64, unsigned) |
+| GUI launched and inspected manually       | ✅ local (debug exe, WebView2, real IPC)   | ❌ not yet            | ❌ not yet                        |
+| Credential store against real OS keychain | 🟡 probe only (backend reported available) | ❌ not yet            | ❌ not yet                        |
+| SSH/SFTP runtime tests                    | n/a (Phase 2)                              | n/a                   | n/a                               |
+| X11 / Wayland                             | –                                          | ❌ not yet            | –                                 |
 
-⏳ = configured in `.github/workflows/ci.yml` but the repository has not yet
-been pushed to GitHub, so no CI run exists. Update this table with run links.
+First cross-platform CI run: commit `016032e`,
+https://github.com/endlessnights/peachterm/actions/runs/45026854567 — all 8 jobs passed.
+CI success proves compilation, unit tests and packaging only, not runtime behaviour.
 
 ## Linux build dependencies (Debian/Ubuntu)
 

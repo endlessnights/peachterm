@@ -7,6 +7,7 @@
     { "id": "openSettings", "default": "Mod+," },
     { "id": "toggleSidebar", "default": "Mod+B" },
     { "id": "searchConnections", "default": "Mod+Shift+F" },
+    { "id": "terminalSearch", "default": "Mod+Alt+F" },
     { "id": "rename", "default": "F2" },
     { "id": "lockApp", "default": "Mod+Shift+L" },
     { "id": "nextTab", "default": "Ctrl+Tab" },

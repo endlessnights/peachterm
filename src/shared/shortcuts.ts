@@ -17,6 +17,7 @@ export type ActionId =
   | 'openSettings'
   | 'toggleSidebar'
   | 'searchConnections'
+  | 'terminalSearch'
   | 'rename'
   | 'lockApp'
   | 'nextTab'
@@ -29,6 +30,7 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   openSettings: 'Settings',
   toggleSidebar: 'Toggle sidebar',
   searchConnections: 'Search connections',
+  terminalSearch: 'Search in terminal',
   rename: 'Rename selected connection/folder',
   lockApp: 'Lock application',
   nextTab: 'Next tab',

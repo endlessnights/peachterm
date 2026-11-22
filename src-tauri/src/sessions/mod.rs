@@ -22,6 +22,14 @@ impl SessionId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
+
+    pub fn uuid(&self) -> Uuid {
+        self.0
+    }
+
+    pub fn parse(text: &str) -> Option<Self> {
+        Uuid::parse_str(text).ok().map(Self)
+    }
 }
 
 impl Default for SessionId {

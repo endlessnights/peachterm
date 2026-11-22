@@ -21,13 +21,27 @@ import type {
   ItemRef,
   LoggingStatus,
   Settings,
+  TerminalEvent,
 } from './types';
 import { DEFAULT_SETTINGS } from './types';
 import { checkBindings } from './shortcuts';
 
 type Invoke = (<T>(command: string, args?: Record<string, unknown>) => Promise<T>) & {
   saves?: Settings[];
+  ssh?: MockSsh;
 };
+
+/** Recorded SSH traffic of the mock backend, plus a way to push events. */
+export interface MockSsh {
+  opens: { sessionId: string; connectionId: string; cols: number; rows: number; attempt: number }[];
+  writes: { sessionId: string; text: string }[];
+  resizes: { sessionId: string; cols: number; rows: number }[];
+  acks: { sessionId: string; bytes: number }[];
+  closes: string[];
+  hostKeyAnswers: { promptId: string; decision: string }[];
+  authAnswers: { promptId: string; answers: string[] | null }[];
+  emit: (sessionId: string, event: TerminalEvent) => void;
+}
 
 const uuid = () => globalThis.crypto?.randomUUID?.() ?? `id-${Math.random().toString(36).slice(2)}`;
 
@@ -58,6 +72,17 @@ export function createMockBackend(
   let lockPassword: string | null = options.lockPassword ?? null;
   let locked = !!options.startLocked && lockPassword !== null;
   let failed = 0;
+  const channels = new Map<string, (event: TerminalEvent) => void>();
+  const ssh: MockSsh = {
+    opens: [],
+    writes: [],
+    resizes: [],
+    acks: [],
+    closes: [],
+    hostKeyAnswers: [],
+    authAnswers: [],
+    emit: (sessionId, event) => channels.get(sessionId)?.(event),
+  };
   if (options.startLocked || options.lockEnabled) settings.security.appLock.enabled = true;
   const lockOpen = new Set([
     'lock_status',
@@ -307,6 +332,51 @@ export function createMockBackend(
       archiveBytes: 1024,
     }),
     logging_reveal_export: () => undefined,
+    ssh_open: (args) => {
+      const sessionId = uuid();
+      const channel = args.onEvent as { onmessage: ((event: TerminalEvent) => void) | null };
+      ssh.opens.push({
+        sessionId,
+        connectionId: String(args.connectionId),
+        cols: Number(args.cols),
+        rows: Number(args.rows),
+        attempt: Number(args.attempt ?? 0),
+      });
+      if (channel.onmessage) channels.set(sessionId, channel.onmessage);
+      queueMicrotask(() => {
+        ssh.emit(sessionId, { kind: 'status', state: 'connected' });
+        ssh.emit(sessionId, {
+          kind: 'data',
+          data: btoa('mock shell ready' + String.fromCharCode(13, 10)),
+        });
+      });
+      return { sessionId };
+    },
+    ssh_write: (args) => {
+      ssh.writes.push({ sessionId: String(args.sessionId), text: atob(String(args.data)) });
+    },
+    ssh_resize: (args) => {
+      ssh.resizes.push({
+        sessionId: String(args.sessionId),
+        cols: Number(args.cols),
+        rows: Number(args.rows),
+      });
+    },
+    ssh_ack: (args) => {
+      ssh.acks.push({ sessionId: String(args.sessionId), bytes: Number(args.bytes) });
+    },
+    ssh_close: (args) => {
+      ssh.closes.push(String(args.sessionId));
+    },
+    ssh_answer_host_key: (args) => {
+      ssh.hostKeyAnswers.push({ promptId: String(args.promptId), decision: String(args.decision) });
+    },
+    ssh_answer_auth: (args) => {
+      ssh.authAnswers.push({
+        promptId: String(args.promptId),
+        answers: (args.answers as string[] | null) ?? null,
+      });
+    },
     known_hosts_list: () => [],
     known_hosts_remove: () => undefined,
   };
@@ -318,5 +388,5 @@ export function createMockBackend(
     return handler(args) as T;
   };
   // Test hook: every settings object that was persisted, in order.
-  return Object.assign(invoke, { saves }) as Invoke & { saves: Settings[] };
+  return Object.assign(invoke, { saves, ssh }) as Invoke & { saves: Settings[]; ssh: MockSsh };
 }

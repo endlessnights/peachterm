@@ -26,6 +26,7 @@ interface TabsState {
   activateNext: (direction: 1 | -1) => void;
   moveTab: (fromId: string, toId: string) => void;
   setStatus: (id: string, status: TabStatus) => void;
+  setSession: (id: string, sessionId: string | null) => void;
   /** Keep tab titles in sync when a saved connection is edited or removed. */
   syncConnections: (connections: Connection[]) => void;
 }
@@ -95,6 +96,9 @@ export const useTabs = create<TabsState>((set, get) => ({
 
   setStatus: (id, status) =>
     set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, status } : t)) })),
+
+  setSession: (id, sessionId) =>
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, sessionId } : t)) })),
 
   syncConnections: (connections) =>
     set((s) => {

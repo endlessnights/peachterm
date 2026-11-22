@@ -4,6 +4,7 @@
 import { notify } from '../components/Toasts';
 import { useConnections } from '../features/connections/store';
 import { useTabs } from '../features/sessions/store';
+import { requestTerminalSearch } from '../features/terminal/events';
 import { useSettings } from '../features/settings/store';
 import type { ActionId } from '../shared/shortcuts';
 import { useLock } from '../features/lock/store';
@@ -87,6 +88,8 @@ export function runAction(id: ActionId) {
       return toggleSidebar();
     case 'searchConnections':
       return focusSearch();
+    case 'terminalSearch':
+      return requestTerminalSearch();
     case 'rename':
       return rename();
     case 'lockApp':

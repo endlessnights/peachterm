@@ -268,3 +268,45 @@ export const DEFAULT_SETTINGS: Settings = {
     splitOrientation: 'vertical',
   },
 };
+
+// ---- SSH sessions (Phase 2) ------------------------------------------------
+
+export type SessionState =
+  'connecting' | 'awaitingHostKey' | 'authenticating' | 'connected' | 'disconnected' | 'failed';
+
+/** Streamed from Rust over a Tauri `Channel`. `data` is base64 of raw bytes. */
+export type TerminalEvent =
+  | { kind: 'data'; data: string }
+  | { kind: 'status'; state: SessionState }
+  | { kind: 'closed'; reason: string | null };
+
+export type HostKeyDecision = 'trustOnce' | 'trustAndSave' | 'replace' | 'reject';
+
+export interface AuthPromptLine {
+  text: string;
+  echo: boolean;
+}
+
+/** A question from the SSH layer. Never contains a secret. */
+export type SshPrompt =
+  | {
+      kind: 'hostKey';
+      promptId: Uuid;
+      sessionId: Uuid;
+      host: string;
+      port: number;
+      algorithm: string;
+      fingerprint: string;
+      /** Present when the host key CHANGED since it was trusted. */
+      previousFingerprint: string | null;
+    }
+  | {
+      kind: 'auth';
+      promptId: Uuid;
+      sessionId: Uuid;
+      method: 'password' | 'passphrase' | 'keyboardInteractive';
+      name: string;
+      instructions: string;
+      prompts: AuthPromptLine[];
+      retry: boolean;
+    };

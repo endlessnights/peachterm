@@ -7,7 +7,15 @@
 //!   credential is sent; unknown or changed keys stop the handshake.
 //! * Secrets are fetched from the credential store inside Rust only.
 
-#![allow(dead_code)] // contract types; the service lands in Phase 2
+pub mod client;
+#[cfg(test)]
+mod integration;
+pub mod prompt;
+pub mod session;
+#[cfg(test)]
+pub mod testserver;
+#[cfg(test)]
+pub mod testsftp;
 
 use serde::{Deserialize, Serialize};
 
@@ -44,16 +52,17 @@ pub enum SessionState {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum TerminalEvent {
-    Data { bytes: Vec<u8> },
-    Status { state: SessionState },
-    Closed { reason: Option<String> },
+    /// Base64 of the raw terminal bytes (compact over IPC).
+    Data {
+        data: String,
+    },
+    Status {
+        state: SessionState,
+    },
+    Closed {
+        reason: Option<String>,
+    },
 }
-
-/// Upper bound for one output batch sent to the renderer.
-pub const OUTPUT_BATCH_BYTES: usize = 64 * 1024;
-/// Number of batches that may be in flight before the reader applies
-/// backpressure to the SSH channel.
-pub const OUTPUT_QUEUE_DEPTH: usize = 32;
 
 /// OpenSSH-style SHA-256 fingerprint (`SHA256:<base64, no padding>`).
 pub fn fingerprint_sha256(key: &russh::keys::PublicKey) -> String {

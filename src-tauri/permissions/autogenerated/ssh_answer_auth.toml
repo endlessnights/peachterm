@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ssh-answer-auth"
+description = "Enables the ssh_answer_auth command without any pre-configured scope."
+commands.allow = ["ssh_answer_auth"]
+
+[[permission]]
+identifier = "deny-ssh-answer-auth"
+description = "Denies the ssh_answer_auth command without any pre-configured scope."
+commands.deny = ["ssh_answer_auth"]

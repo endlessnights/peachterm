@@ -10,6 +10,8 @@ import { useConnections } from '../features/connections/store';
 import { TabBar } from '../features/sessions/TabBar';
 import { useTabs } from '../features/sessions/store';
 import { describeReason } from '../features/settings/DiagnosticsPage';
+import { SshPromptHost } from '../features/ssh/PromptDialogs';
+import { listenForPrompts } from '../features/ssh/promptStore';
 import { SettingsDialog } from '../features/settings/SettingsDialog';
 import { useSettings } from '../features/settings/store';
 import { TerminalWorkspace } from '../features/terminal/TerminalWorkspace';
@@ -110,6 +112,9 @@ export function App() {
     }
   }, [locked]);
 
+  // Host-key and credential questions from the SSH layer.
+  useEffect(() => listenForPrompts(), []);
+
   // Tab titles follow edits of their saved connection.
   useEffect(() => {
     useTabs.getState().syncConnections(connections);
@@ -162,6 +167,7 @@ export function App() {
         </div>
         <StatusBar version={version} />
         {!locked && <DialogHost />}
+        {!locked && <SshPromptHost />}
         {!locked && <Toasts />}
       </div>
       {locked && <LockScreen />}

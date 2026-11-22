@@ -20,6 +20,18 @@ const paths = {
   trash: 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5',
   plug: 'M6 2v3M10 2v3M4.5 5h7v2.5a3.5 3.5 0 0 1-7 0zM8 11v3',
   terminal: 'M2.5 3h11v10h-11zM5 6.5l2 1.5-2 1.5M8.5 10H11',
+  chevronUp: 'M4 10l4-4 4 4',
+  chevronDown: 'M4 6l4 4 4-4',
+  refresh: 'M13 8a5 5 0 1 1-1.6-3.7M13 2.5V5h-2.5',
+  upload: 'M8 11V3M5 6l3-3 3 3M3 13h10',
+  download: 'M8 3v8M5 8l3 3 3-3M3 13h10',
+  file: 'M4 2.5h5l3 3v8H4zM9 2.5v3h3',
+  parent: 'M8 13V4M5 7l3-3 3 3',
+  eye: 'M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  panelLeft: 'M2.5 3h11v10h-11zM6.5 3v10',
+  panelRight: 'M2.5 3h11v10h-11zM9.5 3v10',
+  newFolder:
+    'M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5zM8 7v4M6 9h4',
 } as const;
 
 export type IconName = keyof typeof paths;

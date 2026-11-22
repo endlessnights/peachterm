@@ -343,3 +343,90 @@
   width: 22px;
   height: 22px;
 }
+
+/* ---- Terminal -------------------------------------------------------- */
+.terminal-view {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: var(--surface-0);
+}
+.terminal-host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px 0 0 8px;
+  overflow: hidden;
+}
+.terminal-host .xterm {
+  height: 100%;
+}
+.terminal-host .xterm-viewport {
+  background-color: transparent !important;
+}
+.terminal-search {
+  position: absolute;
+  top: 8px;
+  right: 22px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-pop);
+  z-index: 3;
+}
+.terminal-search .input {
+  width: 200px;
+}
+.terminal-ended {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-l);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-pop);
+  color: var(--text-2);
+  z-index: 3;
+}
+
+/* ---- SSH question dialogs ---------------------------------------------- */
+.callout {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--line-strong);
+}
+.callout-danger {
+  border-color: var(--danger);
+  background: var(--danger-dim);
+}
+.fingerprint {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 0;
+  color: var(--text-2);
+}
+.fingerprint dt {
+  color: var(--text-3);
+}
+.fingerprint dd {
+  margin: 0;
+  user-select: text;
+  word-break: break-all;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}

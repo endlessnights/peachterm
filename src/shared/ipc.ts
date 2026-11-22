@@ -1,7 +1,8 @@
 // The only module allowed to call Tauri's `invoke` (enforced by ESLint).
 // Every backend command is wrapped in a typed function here.
 
-import { invoke as tauriInvoke } from '@tauri-apps/api/core';
+import { Channel, invoke as tauriInvoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import type {
   AppError,
   AppInfo,
@@ -18,11 +19,14 @@ import type {
   ExportPreview,
   Folder,
   FolderInput,
+  HostKeyDecision,
   KnownHost,
   LockView,
   UnlockOutcome,
   LoggingStatus,
   Settings,
+  SshPrompt,
+  TerminalEvent,
   Uuid,
 } from './types';
 
@@ -119,6 +123,42 @@ export const ipc = {
   knownHostsRemove: (host: string, port: number) =>
     call<void>('known_hosts_remove', { host, port }),
 
+  /**
+   * Start a new SSH session (always a new backend session, also on reconnect).
+   * Terminal output arrives through `onEvent`; it never touches a store.
+   */
+  sshOpen: (
+    connectionId: Uuid,
+    cols: number,
+    rows: number,
+    onEvent: (event: TerminalEvent) => void,
+    attempt = 0,
+  ) => {
+    const channel: { onmessage: ((event: TerminalEvent) => void) | null } = isTauri()
+      ? new Channel<TerminalEvent>()
+      : { onmessage: null };
+    channel.onmessage = onEvent;
+    return call<{ sessionId: Uuid }>('ssh_open', {
+      connectionId,
+      cols,
+      rows,
+      onEvent: channel,
+      attempt,
+    });
+  },
+  /** `data` is base64 of the bytes to send. */
+  sshWrite: (sessionId: Uuid, data: string) => call<void>('ssh_write', { sessionId, data }),
+  sshResize: (sessionId: Uuid, cols: number, rows: number) =>
+    call<void>('ssh_resize', { sessionId, cols, rows }),
+  /** Flow control: the terminal has rendered `bytes` of output. */
+  sshAck: (sessionId: Uuid, bytes: number) => call<void>('ssh_ack', { sessionId, bytes }),
+  sshClose: (sessionId: Uuid) => call<void>('ssh_close', { sessionId }),
+  sshAnswerHostKey: (promptId: Uuid, decision: HostKeyDecision) =>
+    call<void>('ssh_answer_host_key', { promptId, decision }),
+  /** `answers: null` cancels. Answers go straight to Rust and are never stored. */
+  sshAnswerAuth: (promptId: Uuid, answers: string[] | null) =>
+    call<void>('ssh_answer_auth', { promptId, answers }),
+
   loggingStatus: () => call<LoggingStatus>('logging_status'),
   /** Opens the effective log directory in the OS file manager. */
   loggingOpenDir: () => call<void>('logging_open_dir'),
@@ -127,6 +167,24 @@ export const ipc = {
   loggingExport: () => call<ExportOutcome>('logging_export'),
   loggingRevealExport: () => call<void>('logging_reveal_export'),
 };
+
+type PromptListener = (prompt: SshPrompt) => void;
+const testListeners = new Set<PromptListener>();
+
+/** Questions from the SSH layer (host keys, credentials). Returns an unsubscribe. */
+export function onSshPrompt(listener: PromptListener): () => void {
+  if (!isTauri()) {
+    testListeners.add(listener);
+    return () => testListeners.delete(listener);
+  }
+  const pending = listen<SshPrompt>('ssh-prompt', (e) => listener(e.payload));
+  return () => void pending.then((unlisten) => unlisten());
+}
+
+/** Test/dev hook: deliver a prompt as the backend would. */
+export function __emitSshPromptForTests(prompt: SshPrompt): void {
+  testListeners.forEach((l) => l(prompt));
+}
 
 /** Test hook: replace the backend with a custom implementation. */
 export function __setBackendForTests(impl: Invoke | null): void {

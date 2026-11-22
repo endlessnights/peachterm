@@ -1,12 +1,11 @@
-// Phase 1 placeholder for the terminal area. Each tab keeps its own pane
-// mounted (hidden when inactive) so that in Phase 2 every xterm instance and
-// its scrollback survive tab switches without re-rendering.
+// The terminal area. Each tab keeps its own pane mounted (hidden when
+// inactive) so every xterm instance and its scrollback survive tab switches.
 
 import { Logo, Icon } from '../../components/Icon';
 import { openConnectionEditor } from '../../app/dialogs';
 import { useShortcutLabel } from '../settings/shortcutState';
-import { useConnections } from '../connections/store';
-import { useTabs, type Tab } from '../sessions/store';
+import { useTabs } from '../sessions/store';
+import { TerminalView } from './TerminalView';
 
 export function TerminalWorkspace() {
   const tabs = useTabs((s) => s.tabs);
@@ -17,7 +16,7 @@ export function TerminalWorkspace() {
       {tabs.length === 0 && <Welcome />}
       {tabs.map((tab) => (
         <div key={tab.id} className="terminal-pane" hidden={tab.id !== activeId} role="tabpanel">
-          <SessionPlaceholder tab={tab} />
+          <TerminalView tab={tab} active={tab.id === activeId} />
         </div>
       ))}
     </div>
@@ -54,41 +53,6 @@ function Welcome() {
         <span>Settings</span>
         <span className="kbd">{settingsKey}</span>
       </div>
-    </div>
-  );
-}
-
-function SessionPlaceholder({ tab }: { tab: Tab }) {
-  const connection = useConnections((s) =>
-    s.tree.connections.find((c) => c.id === tab.connectionId),
-  );
-  return (
-    <div className="session-card">
-      <h2>{tab.title}</h2>
-      <div className="hint">Interactive SSH terminals arrive in Phase 2.</div>
-      {connection ? (
-        <dl>
-          <dt>Host</dt>
-          <dd>
-            {connection.host}:{connection.port}
-          </dd>
-          <dt>User</dt>
-          <dd>{connection.username || '—'}</dd>
-          <dt>Auth</dt>
-          <dd>{connection.auth}</dd>
-          {connection.keyPath && (
-            <>
-              <dt>Key</dt>
-              <dd>{connection.keyPath}</dd>
-            </>
-          )}
-        </dl>
-      ) : (
-        <p className="hint">This saved connection was deleted.</p>
-      )}
-      <button className="btn" disabled title="Available in Phase 2">
-        <Icon name="terminal" /> Connect
-      </button>
     </div>
   );
 }

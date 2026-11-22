@@ -28,17 +28,26 @@ use storage::settings::{DiagnosticsSettings, SettingsStore};
 use tauri::{Emitter, Manager};
 
 /// Process-wide services, shared with commands via `State<Arc<AppState>>`.
+pub type PromptEmitter =
+    Arc<std::sync::OnceLock<Box<dyn Fn(ssh::prompt::PromptEvent) + Send + Sync>>>;
+
 pub struct AppState {
     #[allow(dead_code)] // cache_dir is used by the editor round trip (Phase 4)
     pub paths: AppPaths,
     pub connections: ConnectionStore,
     pub settings: SettingsStore,
-    pub known_hosts: KnownHostsStore,
+    pub known_hosts: Arc<KnownHostsStore>,
     pub credentials: Arc<dyn CredentialStore>,
     #[allow(dead_code)] // driven by the SSH service (Phase 2)
     pub sessions: SessionRegistry,
     pub logging: Arc<LogController>,
     pub lock: Arc<lock::LockService>,
+    pub ssh: ssh::session::SshManager,
+    pub prompts: ssh::prompt::Prompts,
+    /// Set once the Tauri app exists; prompts are delivered through it. (A
+    /// closure rather than an `AppHandle`, so unit tests do not link the
+    /// whole webview runtime.)
+    pub prompt_emitter: PromptEmitter,
     /// Human-readable, secret-free notes about recoverable start-up problems.
     pub startup_issues: Vec<String>,
     /// Last diagnostic archive written by this process (for "show in folder").
@@ -59,8 +68,15 @@ impl AppState {
         // Opening never fails on file *contents*; problems come back as issues.
         let connections = ConnectionStore::open(paths.connections_file())?;
         let settings = SettingsStore::open(paths.settings_file())?;
-        let known_hosts = KnownHostsStore::open(paths.known_hosts_file())?;
+        let known_hosts = Arc::new(KnownHostsStore::open(paths.known_hosts_file())?);
 
+        let prompt_emitter: PromptEmitter = Arc::default();
+        let emit_handle = prompt_emitter.clone();
+        let prompts = ssh::prompt::Prompts::new(Arc::new(move |event| {
+            if let Some(emit) = emit_handle.get() {
+                emit(event);
+            }
+        }));
         let lock = lock::LockService::open(paths.config_dir.join("lock.json"), lock::Kdf::STRONG);
         let logging = start_logging(paths.log_dir.clone(), &settings.get()?.diagnostics);
         tracing::info!(
@@ -125,6 +141,9 @@ impl AppState {
             sessions: SessionRegistry::with_lock(lock.flag()),
             logging,
             lock,
+            ssh: ssh::session::SshManager::default(),
+            prompts,
+            prompt_emitter,
             startup_issues,
             last_export: Mutex::new(None),
             paths,
@@ -182,6 +201,10 @@ pub fn run() {
             )?;
             apply_startup_title_bar(app, &state);
             let state = Arc::new(state);
+            let prompt_handle = app.handle().clone();
+            let _ = state.prompt_emitter.set(Box::new(move |event| {
+                let _ = prompt_handle.emit("ssh-prompt", event);
+            }));
             // Whenever the lock engages (button, shortcut or inactivity timer):
             // forget in-memory upload permissions and tell the UI.
             let handle = app.handle().clone();
@@ -213,6 +236,13 @@ pub fn run() {
             commands::settings::settings_load,
             commands::settings::settings_save,
             commands::window::window_apply_theme,
+            commands::ssh::ssh_open,
+            commands::ssh::ssh_write,
+            commands::ssh::ssh_resize,
+            commands::ssh::ssh_ack,
+            commands::ssh::ssh_close,
+            commands::ssh::ssh_answer_host_key,
+            commands::ssh::ssh_answer_auth,
             commands::lock::lock_status,
             commands::lock::lock_unlock,
             commands::lock::lock_now,

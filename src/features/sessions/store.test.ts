@@ -15,6 +15,7 @@ const connection = (id: string, name = id): Connection => ({
   timeoutSecs: 15,
   initialDirectory: null,
   folderId: null,
+  sortOrder: 0,
   createdAt: 0,
   updatedAt: 0,
 });

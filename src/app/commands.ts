@@ -6,7 +6,7 @@ import { useConnections } from '../features/connections/store';
 import { useTabs } from '../features/sessions/store';
 import { useSettings } from '../features/settings/store';
 import type { ActionId } from '../shared/shortcuts';
-import { connect, newFolder, renameFolder, requestCloseTab } from './actions';
+import { connect, newFolder, requestCloseTab } from './actions';
 import { openConnectionEditor, openSettings } from './dialogs';
 
 const selectedItem = () => {
@@ -34,8 +34,9 @@ function newTab() {
 function rename() {
   const item = selectedItem();
   if (!item) return notify('Select a connection or folder to rename.');
-  if (item.kind === 'folder') return renameFolder(item.folder);
-  useConnections.getState().startRename(item.connection.id);
+  useConnections
+    .getState()
+    .startRename(item.kind === 'folder' ? item.folder.id : item.connection.id);
 }
 
 export function toggleSidebar() {

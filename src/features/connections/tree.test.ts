@@ -7,6 +7,7 @@ const folder = (id: string, name: string, parentId: string | null = null): Folde
   name,
   parentId,
   expanded: true,
+  sortOrder: 0,
 });
 
 const conn = (
@@ -27,6 +28,7 @@ const conn = (
   timeoutSecs: 15,
   initialDirectory: null,
   folderId,
+  sortOrder: 0,
   createdAt: 0,
   updatedAt: 0,
 });

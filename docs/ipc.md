@@ -28,6 +28,19 @@ Status legend: ✅ implemented (Phase 1) · 🟡 contract fixed, implemented lat
 `Connection` = `{ id, name, host, port, username, auth: "password" | "publicKey" | "keyboardInteractive" | "agent", keyPath?, savePassword, hasStoredSecret, timeoutSecs, initialDirectory?, folderId?, createdAt, updatedAt }`.
 `hasStoredSecret` is computed by Rust; the secret itself is never returned.
 
+### Tree operations (`storage::tree_ops`)
+
+| Command               | Args                                                                    | Returns                                                                                    | Status |
+| --------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------ |
+| `connections_rename`  | `{ id, name }`                                                          | `Connection` — only the display name changes                                               | ✅     |
+| `folders_rename`      | `{ id, name }`                                                          | `Folder`                                                                                   | ✅     |
+| `tree_move`           | `{ items: ItemRef[], targetFolderId \| null, before: ItemRef \| null }` | `ConnectionTree` — validates cycles and the 3-level limit, atomic                          | ✅     |
+| `tree_delete_preview` | `{ items, mode: "moveToParent" \| "deleteContents" }`                   | `{ connectionIds, folderIds, movedConnections, movedFolders }`                             | ✅     |
+| `tree_delete`         | `{ items, mode }`                                                       | `{ plan, credentialFailures, tree }` — deletes only the credentials of deleted connections | ✅     |
+
+`ItemRef` = `{ kind: "connection" \| "folder", id }`. See
+[connection-tree.md](connection-tree.md).
+
 ## Settings (`storage::settings`)
 
 | Command         | Args                     | Returns                         | Status |

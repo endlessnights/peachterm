@@ -23,6 +23,7 @@ export const conn = (id: string, name: string, extra: Partial<Connection> = {}):
   initialDirectory: null,
   folderId: null,
   createdAt: 0,
+  sortOrder: 0,
   updatedAt: 0,
   ...extra,
 });

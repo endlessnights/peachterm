@@ -1,7 +1,8 @@
 // Pure helpers that turn the flat folder/connection lists into a sorted tree
 // and apply sidebar search. Kept free of React so they are cheap to test.
 
-import type { Connection, ConnectionTree, Folder, Uuid } from '../../shared/types';
+import type { Connection, ConnectionTree, Folder, ItemRef, Uuid } from '../../shared/types';
+import { compareSiblings } from './treeOps';
 
 export interface FolderNode {
   kind: 'folder';
@@ -18,8 +19,6 @@ export interface ConnectionNode {
 
 export type TreeNode = FolderNode | ConnectionNode;
 
-const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-
 export function connectionMatches(connection: Connection, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
@@ -32,8 +31,8 @@ export function connectionMatches(connection: Connection, query: string): boolea
 }
 
 /**
- * Build the visible tree. Folders sort before connections, both by natural
- * name order. With a query, only matching connections and the folders that
+ * Build the visible tree. Folders sort before connections; within each group
+ * the manual order applies, then natural name order. With a query, only matching connections and the folders that
  * lead to them are kept; folders whose *name* matches keep all children.
  */
 export function buildTree(tree: ConnectionTree, query = ''): TreeNode[] {
@@ -58,12 +57,8 @@ export function buildTree(tree: ConnectionTree, query = ''): TreeNode[] {
 
   const visited = new Set<Uuid>();
   const build = (parent: Uuid | null, forceInclude: boolean): TreeNode[] => {
-    const folders = [...(childFolders.get(parent) ?? [])].sort((a, b) =>
-      collator.compare(a.name, b.name),
-    );
-    const connections = [...(childConnections.get(parent) ?? [])].sort((a, b) =>
-      collator.compare(a.name, b.name),
-    );
+    const folders = [...(childFolders.get(parent) ?? [])].sort(compareSiblings);
+    const connections = [...(childConnections.get(parent) ?? [])].sort(compareSiblings);
     const nodes: TreeNode[] = [];
     for (const folder of folders) {
       if (visited.has(folder.id)) continue; // defensive: cycles
@@ -116,4 +111,52 @@ export function folderPath(folders: Folder[], folderId: Uuid | null): string {
     cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
   }
   return parts.join(' / ');
+}
+
+/** One visible line of the sidebar, in display order. */
+export interface Row {
+  /** `c:<id>` or `f:<id>`: stable identity used for selection and drag-and-drop. */
+  key: string;
+  ref: ItemRef;
+  depth: number;
+  /** Parent folder id (null = top level). */
+  parentId: Uuid | null;
+  node: TreeNode;
+  expanded: boolean;
+}
+
+/** Flatten the visible tree. Collapsed folders hide their children (unless searching). */
+export function flattenRows(
+  nodes: TreeNode[],
+  forceExpanded: boolean,
+  parentId: Uuid | null = null,
+  depth = 0,
+): Row[] {
+  const rows: Row[] = [];
+  for (const node of nodes) {
+    if (node.kind === 'folder') {
+      const expanded = forceExpanded || node.folder.expanded;
+      rows.push({
+        key: `f:${node.folder.id}`,
+        ref: { kind: 'folder', id: node.folder.id },
+        depth,
+        parentId,
+        node,
+        expanded,
+      });
+      if (expanded) {
+        rows.push(...flattenRows(node.children, forceExpanded, node.folder.id, depth + 1));
+      }
+    } else {
+      rows.push({
+        key: `c:${node.connection.id}`,
+        ref: { kind: 'connection', id: node.connection.id },
+        depth,
+        parentId,
+        node,
+        expanded: false,
+      });
+    }
+  }
+  return rows;
 }

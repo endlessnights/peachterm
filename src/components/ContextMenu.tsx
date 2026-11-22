@@ -8,6 +8,7 @@ export type MenuEntry =
       icon?: IconName;
       danger?: boolean;
       shortcut?: string;
+      disabled?: boolean;
       onSelect: () => void;
     }
   | { kind: 'separator' };
@@ -32,7 +33,7 @@ export function ContextMenu({ x, y, entries, onClose }: Props) {
       x: Math.max(4, Math.min(x, window.innerWidth - width - 4)),
       y: Math.max(4, Math.min(y, window.innerHeight - height - 4)),
     });
-    el.querySelector<HTMLElement>('.menu-item')?.focus();
+    el.querySelector<HTMLElement>('.menu-item:not(:disabled)')?.focus();
   }, [x, y]);
 
   useEffect(() => {
@@ -51,7 +52,9 @@ export function ContextMenu({ x, y, entries, onClose }: Props) {
   }, [onClose]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    const items = [...(ref.current?.querySelectorAll<HTMLElement>('.menu-item') ?? [])];
+    const items = [
+      ...(ref.current?.querySelectorAll<HTMLElement>('.menu-item:not(:disabled)') ?? []),
+    ];
     const index = items.indexOf(document.activeElement as HTMLElement);
     if (e.key === 'Escape') {
       e.stopPropagation();
@@ -81,6 +84,7 @@ export function ContextMenu({ x, y, entries, onClose }: Props) {
             className="menu-item"
             role="menuitem"
             data-danger={entry.danger || undefined}
+            disabled={entry.disabled}
             onClick={() => {
               onClose();
               entry.onSelect();

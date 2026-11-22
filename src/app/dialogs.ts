@@ -2,7 +2,7 @@
 // the same dialogs without prop drilling.
 
 import { create } from 'zustand';
-import type { Connection, Uuid } from '../shared/types';
+import type { Connection, ItemRef, Uuid } from '../shared/types';
 
 export type SettingsPage =
   'general' | 'appearance' | 'shortcuts' | 'ssh' | 'sftp' | 'security' | 'diagnostics';
@@ -10,6 +10,8 @@ export type SettingsPage =
 export type DialogState =
   | { kind: 'connection'; connection: Connection | null; folderId: Uuid | null }
   | { kind: 'settings'; page?: SettingsPage }
+  | { kind: 'move'; items: ItemRef[] }
+  | { kind: 'deleteItems'; items: ItemRef[] }
   | {
       kind: 'confirm';
       title: string;

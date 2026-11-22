@@ -97,6 +97,7 @@ pub const IDENT_VOCABULARY: &[&str] = &[
     "unreadable",
     "invalid_value",
     "invalid_entries",
+    "repaired_references",
     // credential store
     "keychain",
     "platform_failure",

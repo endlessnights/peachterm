@@ -3,12 +3,22 @@
 // dynamic import guarded by `import.meta.env.DEV`, so it never ships.
 // It mirrors validation loosely; the Rust implementation is authoritative.
 
+import {
+  MAX_FOLDER_DEPTH,
+  deleteItems,
+  folderLevel,
+  moveItems,
+  nextOrder,
+  planDelete,
+} from '../features/connections/treeOps';
 import type {
   Connection,
   ConnectionInput,
   ConnectionTree,
   Folder,
+  FolderDeleteMode,
   FolderInput,
+  ItemRef,
   LoggingStatus,
   Settings,
 } from './types';
@@ -72,6 +82,7 @@ export function createMockBackend(
         ...input,
         id: uuid(),
         hasStoredSecret: false,
+        sortOrder: nextOrder(tree, input.folderId, false),
         createdAt: now,
         updatedAt: now,
       };
@@ -88,6 +99,7 @@ export function createMockBackend(
         id: uuid(),
         name: `${source.name} (copy)`,
         hasStoredSecret: false,
+        sortOrder: source.sortOrder + 1,
       };
       tree.connections.push(copy);
       return structuredClone(copy);
@@ -103,9 +115,58 @@ export function createMockBackend(
         Object.assign(existing, input);
         return structuredClone(existing);
       }
-      const created: Folder = { ...input, id: uuid() };
+      const level = input.parentId ? folderLevel(tree, input.parentId) : 0;
+      if (level + 1 > MAX_FOLDER_DEPTH) {
+        throw {
+          code: 'validation',
+          message: `Folders can be nested at most ${MAX_FOLDER_DEPTH} levels deep.`,
+        };
+      }
+      const created: Folder = {
+        ...input,
+        id: uuid(),
+        sortOrder: nextOrder(tree, input.parentId, true),
+      };
       tree.folders.push(created);
       return structuredClone(created);
+    },
+    connections_rename: ({ id, name }) => {
+      const trimmed = String(name).trim();
+      if (!trimmed || trimmed.length > 128) {
+        throw { code: 'validation', message: 'Name is invalid' };
+      }
+      const c = findConnection(id);
+      c.name = trimmed;
+      return structuredClone(c);
+    },
+    folders_rename: ({ id, name }) => {
+      const trimmed = String(name).trim();
+      if (!trimmed || trimmed.length > 128) {
+        throw { code: 'validation', message: 'Folder name is invalid' };
+      }
+      const f = tree.folders.find((x) => x.id === id);
+      if (!f) throw { code: 'not_found', message: 'folder was not found' };
+      f.name = trimmed;
+      return structuredClone(f);
+    },
+    tree_move: ({ items, targetFolderId, before }) => {
+      const next = moveItems(
+        tree,
+        items as ItemRef[],
+        (targetFolderId as string | null) ?? null,
+        (before as ItemRef | null) ?? null,
+      );
+      tree.folders = next.folders;
+      tree.connections = next.connections;
+      return structuredClone(tree);
+    },
+    tree_delete_preview: ({ items, mode }) =>
+      planDelete(tree, items as ItemRef[], mode as FolderDeleteMode),
+    tree_delete: ({ items, mode }) => {
+      const result = deleteItems(tree, items as ItemRef[], mode as FolderDeleteMode);
+      tree.folders = result.tree.folders;
+      tree.connections = result.tree.connections;
+      return { plan: result.plan, credentialFailures: 0, tree: structuredClone(tree) };
     },
     folders_delete: ({ id }) => {
       const removed = tree.folders.find((f) => f.id === id);

@@ -18,9 +18,11 @@ export function Dialog({ title, onClose, children, footer, wide, persistent }: D
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    const first = ref.current?.querySelector<HTMLElement>(
-      '[data-autofocus], input:not([type="checkbox"]), select, textarea, button.btn-primary',
-    );
+    const first =
+      ref.current?.querySelector<HTMLElement>('[data-autofocus]') ??
+      ref.current?.querySelector<HTMLElement>(
+        'input:not([type="checkbox"]), select, textarea, button.btn-primary',
+      );
     first?.focus();
     return () => previous?.focus?.();
   }, []);

@@ -4,8 +4,8 @@ import { reportError } from '../components/Toasts';
 import { useConnections } from '../features/connections/store';
 import { isActiveStatus, useTabs } from '../features/sessions/store';
 import { useSettings } from '../features/settings/store';
-import type { Connection, Folder, Uuid } from '../shared/types';
-import { confirmAction, promptText } from './dialogs';
+import type { Connection, ItemRef, Uuid } from '../shared/types';
+import { confirmAction, promptText, useDialogs } from './dialogs';
 
 export function connect(connection: Connection) {
   // Phase 2 starts the SSH session here; Phase 1 opens the tab only.
@@ -29,16 +29,16 @@ export function requestCloseTab(tabId: string) {
   }
 }
 
-export function requestDeleteConnection(connection: Connection) {
-  confirmAction({
-    title: 'Delete connection',
-    message: `Delete "${connection.name}" (${connection.host})? Its saved password, if any, is removed from the system keychain.`,
-    confirmLabel: 'Delete',
-    danger: true,
-    onConfirm: () => {
-      useConnections.getState().deleteConnection(connection.id).catch(reportError);
-    },
-  });
+/** One consolidated confirmation for any number of connections and folders. */
+export function requestDeleteItems(items: ItemRef[]) {
+  if (items.length === 0) return;
+  useDialogs.getState().open({ kind: 'deleteItems', items });
+}
+
+/** Keyboard-accessible alternative to dragging: pick a destination folder. */
+export function requestMoveItems(items: ItemRef[]) {
+  if (items.length === 0) return;
+  useDialogs.getState().open({ kind: 'move', items });
 }
 
 export function duplicateConnection(connection: Connection) {
@@ -56,33 +56,6 @@ export function newFolder(parentId: Uuid | null) {
         .getState()
         .saveFolder({ id: null, name, parentId, expanded: true })
         .catch(reportError);
-    },
-  });
-}
-
-export function renameFolder(folder: Folder) {
-  promptText({
-    title: 'Rename folder',
-    label: 'Folder name',
-    initial: folder.name,
-    confirmLabel: 'Rename',
-    onSubmit: (name) => {
-      useConnections
-        .getState()
-        .saveFolder({ ...folder, name })
-        .catch(reportError);
-    },
-  });
-}
-
-export function requestDeleteFolder(folder: Folder) {
-  confirmAction({
-    title: 'Delete folder',
-    message: `Delete the folder "${folder.name}"? Its connections and sub-folders are kept and move up one level.`,
-    confirmLabel: 'Delete folder',
-    danger: true,
-    onConfirm: () => {
-      useConnections.getState().deleteFolder(folder.id).catch(reportError);
     },
   });
 }

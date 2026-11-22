@@ -34,6 +34,10 @@ impl ConfigIssue {
             ("invalid_json", _) => "is not valid JSON; defaults were used".to_owned(),
             ("not_an_object", _) => "has an unexpected layout; defaults were used".to_owned(),
             ("unreadable", _) => "could not be read; defaults were used".to_owned(),
+            ("repaired_references", _) => {
+                "referenced folders that no longer exist; those items were moved to the top level"
+                    .to_owned()
+            }
             (_, Some(field)) => {
                 format!("has an invalid value for \"{field}\"; its default was used")
             }
@@ -83,6 +87,29 @@ fn backup_original(path: &Path) -> bool {
         let _ = fs::remove_file(backups.remove(0));
     }
     true
+}
+
+/// Before an upgrade may rewrite a user data file, keep a copy of the version
+/// that was on disk (`<file>.pre-v<N>-<time>`). Done once per file and version.
+pub fn backup_before_migration(path: &Path, from_version: u32) -> bool {
+    let Some(parent) = path.parent() else {
+        return false;
+    };
+    let label = file_label(path);
+    let prefix = format!("{label}.pre-v{from_version}-");
+    let exists = fs::read_dir(parent)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|e| e.file_name().to_string_lossy().starts_with(&prefix));
+    if exists {
+        return true;
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    fs::copy(path, parent.join(format!("{prefix}{stamp}"))).is_ok()
 }
 
 /// Read a JSON document. A missing file is `None` without an issue; anything

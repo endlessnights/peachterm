@@ -3,6 +3,8 @@ import { ConfirmDialog, PromptDialog } from '../components/Dialog';
 import { ResizeHandle } from '../components/ResizeHandle';
 import { reportError, Toasts, useToasts } from '../components/Toasts';
 import { ConnectionEditor } from '../features/connections/ConnectionEditor';
+import { DeleteItemsDialog } from '../features/connections/DeleteItemsDialog';
+import { MoveDialog } from '../features/connections/MoveDialog';
 import { Sidebar } from '../features/connections/Sidebar';
 import { useConnections } from '../features/connections/store';
 import { TabBar } from '../features/sessions/TabBar';
@@ -119,6 +121,10 @@ function DialogHost() {
           onClose={close}
         />
       );
+    case 'move':
+      return <MoveDialog items={dialog.items} onClose={close} />;
+    case 'deleteItems':
+      return <DeleteItemsDialog items={dialog.items} onClose={close} />;
     case 'settings':
       return <SettingsDialog onClose={close} initialPage={dialog.page} />;
     case 'confirm':

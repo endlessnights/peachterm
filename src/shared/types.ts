@@ -18,6 +18,8 @@ export interface Connection {
   timeoutSecs: number;
   initialDirectory: string | null;
   folderId: Uuid | null;
+  /** Manual position among siblings; equal values fall back to name order. */
+  sortOrder: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -41,6 +43,7 @@ export interface Folder {
   name: string;
   parentId: Uuid | null;
   expanded: boolean;
+  sortOrder: number;
 }
 
 export interface FolderInput {
@@ -48,6 +51,25 @@ export interface FolderInput {
   name: string;
   parentId: Uuid | null;
   expanded: boolean;
+}
+
+/** A connection or folder, by stable id. */
+export type ItemRef = { kind: 'connection'; id: Uuid } | { kind: 'folder'; id: Uuid };
+
+/** What happens to the contents of deleted folders. */
+export type FolderDeleteMode = 'moveToParent' | 'deleteContents';
+
+export interface DeletePlan {
+  connectionIds: Uuid[];
+  folderIds: Uuid[];
+  movedConnections: number;
+  movedFolders: number;
+}
+
+export interface DeleteOutcome {
+  plan: DeletePlan;
+  credentialFailures: number;
+  tree: ConnectionTree;
 }
 
 export interface ConnectionTree {

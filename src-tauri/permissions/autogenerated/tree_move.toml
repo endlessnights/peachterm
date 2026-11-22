@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tree-move"
+description = "Enables the tree_move command without any pre-configured scope."
+commands.allow = ["tree_move"]
+
+[[permission]]
+identifier = "deny-tree-move"
+description = "Denies the tree_move command without any pre-configured scope."
+commands.deny = ["tree_move"]

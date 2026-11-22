@@ -7,6 +7,10 @@ import type {
   AppInfo,
   Connection,
   ConnectionInput,
+  DeleteOutcome,
+  DeletePlan,
+  FolderDeleteMode,
+  ItemRef,
   ConnectionTree,
   CredentialStatus,
   EditorPreset,
@@ -72,6 +76,16 @@ export const ipc = {
     call<void>('connections_move', { id, folderId }),
   foldersSave: (folder: FolderInput) => call<Folder>('folders_save', { folder }),
   foldersDelete: (id: Uuid) => call<void>('folders_delete', { id }),
+  connectionsRename: (id: Uuid, name: string) =>
+    call<Connection>('connections_rename', { id, name }),
+  foldersRename: (id: Uuid, name: string) => call<Folder>('folders_rename', { id, name }),
+  /** Move and/or reorder items; Rust validates cycles and the folder depth limit. */
+  treeMove: (items: ItemRef[], targetFolderId: Uuid | null, before: ItemRef | null) =>
+    call<ConnectionTree>('tree_move', { items, targetFolderId, before }),
+  treeDeletePreview: (items: ItemRef[], mode: FolderDeleteMode) =>
+    call<DeletePlan>('tree_delete_preview', { items, mode }),
+  treeDelete: (items: ItemRef[], mode: FolderDeleteMode) =>
+    call<DeleteOutcome>('tree_delete', { items, mode }),
 
   settingsLoad: () => call<Settings>('settings_load'),
   settingsSave: (settings: Settings) => call<Settings>('settings_save', { settings }),

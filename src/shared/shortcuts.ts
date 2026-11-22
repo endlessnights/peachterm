@@ -21,7 +21,13 @@ export type ActionId =
   | 'rename'
   | 'lockApp'
   | 'nextTab'
-  | 'prevTab';
+  | 'prevTab'
+  | 'duplicateTab'
+  | 'splitVertical'
+  | 'splitHorizontal'
+  | 'toggleSplitOrientation'
+  | 'focusNextPane'
+  | 'unsplit';
 
 export const ACTION_LABELS: Record<ActionId, string> = {
   newTab: 'New terminal tab',
@@ -35,6 +41,12 @@ export const ACTION_LABELS: Record<ActionId, string> = {
   lockApp: 'Lock application',
   nextTab: 'Next tab',
   prevTab: 'Previous tab',
+  duplicateTab: 'Duplicate tab (new session)',
+  splitVertical: 'Split side by side',
+  splitHorizontal: 'Split stacked',
+  toggleSplitOrientation: 'Toggle split orientation',
+  focusNextPane: 'Focus next terminal pane',
+  unsplit: 'Close split view (keep sessions)',
 };
 
 export const ACTION_IDS = definitions.actions.map((a) => a.id) as ActionId[];
@@ -213,10 +225,37 @@ export function withShift(accel: string): string {
 
 export type Bindings = Partial<Record<ActionId, string>>;
 
+/**
+ * What each action is bound to. An explicit user binding always wins. A
+ * *default* that would clash with a binding the user already has (for example
+ * after an upgrade introduced a new action) is left unassigned instead of
+ * silently taking the combination over; the user can assign it in Settings.
+ */
 export function effectiveBindings(overrides: Record<string, string>): Record<ActionId, string> {
-  return Object.fromEntries(
-    ACTION_IDS.map((id) => [id, overrides[id] ?? DEFAULT_BINDINGS[id]]),
-  ) as Record<ActionId, string>;
+  const result = {} as Record<ActionId, string>;
+  const taken: Combo[] = [];
+  const parse = (accel: string) => {
+    const p = parseAccelerator(accel);
+    return p.ok ? p.combo : null;
+  };
+  for (const id of ACTION_IDS) {
+    if (id in overrides) {
+      result[id] = overrides[id]!;
+      const combo = overrides[id] ? parse(overrides[id]!) : null;
+      if (combo) taken.push(combo);
+    }
+  }
+  for (const id of ACTION_IDS) {
+    if (id in overrides) continue;
+    const combo = parse(DEFAULT_BINDINGS[id]);
+    if (combo && taken.some((t) => sameCombo(t, combo))) {
+      result[id] = '';
+      continue;
+    }
+    result[id] = DEFAULT_BINDINGS[id];
+    if (combo) taken.push(combo);
+  }
+  return result;
 }
 
 export interface Problem {

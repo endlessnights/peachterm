@@ -134,6 +134,8 @@ pub struct StartParams {
     pub sink: Arc<dyn Sink>,
     /// Output is not forwarded to the renderer while this says "locked".
     pub lock: crate::lock::LockFlag,
+    /// Called once the server accepted the credentials (not when merely connecting).
+    pub on_authenticated: Arc<dyn Fn(SessionId) + Send + Sync>,
     /// Called exactly once when the session ends for any reason.
     pub on_end: Arc<dyn Fn(SessionId) + Send + Sync>,
 }
@@ -170,6 +172,7 @@ pub fn start(params: StartParams) -> Arc<SshSession> {
             params.initial_directory,
             sink.clone(),
             params.lock.clone(),
+            params.on_authenticated.clone(),
             rx,
         )
         .await;
@@ -204,6 +207,7 @@ async fn run(
     initial_directory: Option<String>,
     sink: Arc<dyn Sink>,
     lock: crate::lock::LockFlag,
+    on_authenticated: Arc<dyn Fn(SessionId) + Send + Sync>,
     mut control: mpsc::Receiver<Control>,
 ) -> Result<(), SshError> {
     sink.send(TerminalEvent::Status {
@@ -217,6 +221,7 @@ async fn run(
         // Closing while still connecting aborts the attempt.
         _ = wait_for_close(&mut control) => return Err(SshError::Cancelled),
     };
+    on_authenticated(session.id);
     let handle = Arc::new(handle);
     let size = super::TerminalSize { cols, rows }.sanitized();
     let mut channel = handle

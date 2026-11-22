@@ -185,3 +185,51 @@ describe('terminal safety', () => {
     expect(isWebViewDefault(key({ code: 'KeyA', key: 'a', ctrlKey: true }), false)).toBe(false);
   });
 });
+
+describe('new split and tab actions (migration safety)', () => {
+  const NEW = [
+    'duplicateTab',
+    'splitVertical',
+    'splitHorizontal',
+    'toggleSplitOrientation',
+    'focusNextPane',
+    'unsplit',
+  ] as const;
+
+  it('have valid, unreserved, mutually conflict-free defaults that never steal terminal keys', () => {
+    expect(checkBindings({})).toEqual([]);
+    for (const id of NEW) {
+      const parsed = parse(DEFAULT_BINDINGS[id]);
+      expect(isTerminalUnsafe(parsed.combo), id).toBe(false);
+      expect(ACTION_LABELS[id], id).toBeTruthy();
+    }
+    const combos = NEW.map((id) => parse(DEFAULT_BINDINGS[id]).canonical);
+    expect(new Set(combos).size).toBe(NEW.length);
+  });
+
+  it('are bound when the user has no clashing binding', () => {
+    const bindings = effectiveBindings({});
+    for (const id of NEW) expect(bindings[id]).toBe(DEFAULT_BINDINGS[id]);
+  });
+
+  it('are left unassigned instead of overriding a binding the user already uses', () => {
+    const mine = { closeTab: DEFAULT_BINDINGS.duplicateTab, newTab: 'Mod+Shift+O' };
+    const bindings = effectiveBindings(mine);
+    expect(bindings.closeTab).toBe(DEFAULT_BINDINGS.duplicateTab); // the user's choice wins
+    expect(bindings.newTab).toBe('Mod+Shift+O');
+    expect(bindings.duplicateTab).toBe('');
+    expect(bindings.splitHorizontal).toBe('');
+    expect(bindings.splitVertical).toBe(DEFAULT_BINDINGS.splitVertical);
+    // nothing is double-bound after the migration
+    expect(checkBindings(bindings)).toEqual([]);
+  });
+
+  it('an explicit "unassigned" stays unassigned and frees the combination for others', () => {
+    const bindings = effectiveBindings({
+      duplicateTab: '',
+      closeTab: DEFAULT_BINDINGS.duplicateTab,
+    });
+    expect(bindings.duplicateTab).toBe('');
+    expect(bindings.closeTab).toBe(DEFAULT_BINDINGS.duplicateTab);
+  });
+});

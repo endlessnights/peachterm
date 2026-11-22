@@ -68,6 +68,23 @@ pub async fn sftp_mkdir(
     failed("mkdir", &session, ops::mkdir(&client, &parent, &name).await)
 }
 
+/// Creates an empty file in `parent` (SFTP only, never a shell command).
+#[tauri::command]
+pub async fn sftp_create_file(
+    state: AppStateRef<'_>,
+    session_id: String,
+    parent: String,
+    name: String,
+) -> AppResult<String> {
+    state.lock.guard()?;
+    let (session, client) = client_of(&state, &session_id)?;
+    failed(
+        "create",
+        &session,
+        ops::create_file(&client, &parent, &name).await,
+    )
+}
+
 #[tauri::command]
 pub async fn sftp_rename(
     state: AppStateRef<'_>,

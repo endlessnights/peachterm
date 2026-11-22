@@ -30,6 +30,9 @@ const paths = {
   eye: 'M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   panelLeft: 'M2.5 3h11v10h-11zM6.5 3v10',
   panelRight: 'M2.5 3h11v10h-11zM9.5 3v10',
+  splitVertical: 'M2.5 3h11v10h-11zM8 3v10',
+  splitHorizontal: 'M2.5 3h11v10h-11zM2.5 8h11',
+  newFile: 'M4 2.5h5l3 3v8H4zM9 2.5v3h3M8 8v4M6 10h4',
   newFolder:
     'M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5zM8 7v4M6 9h4',
 } as const;

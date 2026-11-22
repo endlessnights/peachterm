@@ -90,6 +90,8 @@ export interface Settings {
     confirmCloseActive: boolean;
     autoReconnectRestored: boolean;
     language: string;
+    /** How many recent saved connections the home screen lists (3-20). */
+    recentSessionsLimit: number;
   };
   appearance: {
     theme: ThemeMode;
@@ -98,6 +100,8 @@ export interface Settings {
     terminalFontSize: number;
     terminalLineHeight: number;
     scrollback: number;
+    /** Whole-interface zoom in percent: 70-150, steps of 10. */
+    interfaceScale: number;
   };
   ssh: {
     connectTimeoutSecs: number;
@@ -233,6 +237,7 @@ export const DEFAULT_SETTINGS: Settings = {
     confirmCloseActive: true,
     autoReconnectRestored: false,
     language: 'en',
+    recentSessionsLimit: 3,
   },
   appearance: {
     theme: 'dark',
@@ -242,6 +247,7 @@ export const DEFAULT_SETTINGS: Settings = {
     terminalFontSize: 14,
     terminalLineHeight: 1.2,
     scrollback: 10000,
+    interfaceScale: 100,
   },
   ssh: {
     connectTimeoutSecs: 15,
@@ -401,3 +407,20 @@ export type EditorEvent =
   | { kind: 'conflict'; editId: Uuid; sessionId: Uuid; name: string; remotePath: string }
   | { kind: 'declined'; editId: Uuid; sessionId: Uuid; name: string }
   | { kind: 'closed'; editId: Uuid; sessionId: Uuid; name: string; keptLocal: boolean };
+
+// ---- Workspace layout and recent sessions ---------------------------------------
+
+/** What is remembered about open tabs: metadata only, never a session or a secret. */
+export interface WorkspaceLayout {
+  tabs: { connectionId: Uuid; /** custom title only */ title: string | null }[];
+  active: number | null;
+  split: {
+    orientation: SplitOrientation;
+    ratio: number;
+    panes: [number, number];
+    focus: number;
+  } | null;
+}
+
+export const INTERFACE_SCALES = [70, 80, 90, 100, 110, 120, 130, 140, 150] as const;
+export const RECENT_LIMITS = [3, 5, 10, 15, 20] as const;

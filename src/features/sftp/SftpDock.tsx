@@ -1,25 +1,27 @@
-// Places the SFTP panel beside the terminal: left or right, resizable and
-// collapsible. Side, width and visibility are remembered in the settings.
+// One SFTP panel for the whole workspace, placed beside the terminals (left or
+// right), resizable and collapsible. Side, width and visibility are remembered
+// in the settings.
+//
+// Every tab owns its own SftpPanel instance (kept mounted, shown only for the
+// FOCUSED terminal), so each SSH session keeps its own directory, listing and
+// transfers, and a listing can never be shown under another server's name.
 
 import { Icon } from '../../components/Icon';
 import { ResizeHandle } from '../../components/ResizeHandle';
 import { reportError } from '../../components/Toasts';
-import type { Tab } from '../sessions/store';
+import { useTabs } from '../sessions/store';
 import { useSettings } from '../settings/store';
 import { SftpPanel } from './SftpPanel';
 
-interface Props {
-  tab: Tab;
-  children: React.ReactNode;
-  onOpenFile?: Parameters<typeof SftpPanel>[0]['onOpenFile'];
-}
-
-export function SftpDock({ tab, children, onOpenFile }: Props) {
+export function SftpDock({ children }: { children: React.ReactNode }) {
+  const tabs = useTabs((s) => s.tabs);
+  const activeId = useTabs((s) => s.activeId);
   const side = useSettings((s) => s.settings.ui.sftpSide);
   const width = useSettings((s) => s.settings.ui.sftpWidth);
   const visible = useSettings((s) => s.settings.sftp.defaultVisible);
   const setUi = useSettings((s) => s.setUi);
   const persistUi = useSettings((s) => s.persistUi);
+  const active = tabs.find((t) => t.id === activeId);
 
   const setVisible = (defaultVisible: boolean) => {
     const settings = useSettings.getState().settings;
@@ -78,7 +80,25 @@ export function SftpDock({ tab, children, onOpenFile }: Props) {
             <Icon name="close" />
           </button>
         </div>
-        <SftpPanel tab={tab} onOpenFile={onOpenFile} />
+        {active && (
+          <div className="sftp-identity" aria-live="polite" data-testid="sftp-identity">
+            <span className="status-dot" data-status={active.status} />
+            <span className="sftp-identity-name">{active.title}</span>
+            <span className="sftp-identity-host">{active.subtitle}</span>
+          </div>
+        )}
+        <div className="sftp-slots">
+          {tabs.map((tab) => (
+            <div
+              key={tab.id}
+              className="sftp-slot"
+              hidden={tab.id !== activeId}
+              aria-label={`Files of ${tab.title}`}
+            >
+              <SftpPanel tab={tab} />
+            </div>
+          ))}
+        </div>
       </aside>
       {side === 'left' && (
         <ResizeHandle

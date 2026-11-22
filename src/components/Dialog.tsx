@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon';
 
 interface DialogProps {
@@ -106,6 +106,8 @@ interface PromptProps {
   label: string;
   initial: string;
   confirmLabel: string;
+  hint?: string;
+  validate?: (value: string) => string | null;
   onSubmit: (value: string) => void;
   onCancel: () => void;
 }
@@ -115,13 +117,21 @@ export function PromptDialog({
   label,
   initial,
   confirmLabel,
+  hint,
+  validate,
   onSubmit,
   onCancel,
 }: PromptProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
   const submit = () => {
     const value = inputRef.current?.value.trim() ?? '';
-    if (value) onSubmit(value);
+    const problem = validate ? validate(value) : value ? null : 'Enter a value.';
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    onSubmit(value);
   };
   return (
     <Dialog
@@ -151,10 +161,18 @@ export function PromptDialog({
             ref={inputRef}
             className="input"
             defaultValue={initial}
-            maxLength={128}
+            maxLength={255}
+            aria-invalid={error ? true : undefined}
+            onChange={() => setError(null)}
             data-autofocus
           />
         </label>
+        {hint && <p className="hint">{hint}</p>}
+        {error && (
+          <p className="error-text" role="alert">
+            {error}
+          </p>
+        )}
       </form>
     </Dialog>
   );

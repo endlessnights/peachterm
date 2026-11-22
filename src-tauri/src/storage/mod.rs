@@ -5,3 +5,4 @@ pub mod connections;
 pub mod settings;
 pub mod shortcuts;
 pub mod tree_ops;
+pub mod workspace;

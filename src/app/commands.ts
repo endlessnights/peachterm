@@ -8,7 +8,7 @@ import { requestTerminalSearch } from '../features/terminal/events';
 import { useSettings } from '../features/settings/store';
 import type { ActionId } from '../shared/shortcuts';
 import { useLock } from '../features/lock/store';
-import { connect, newFolder, requestCloseTab } from './actions';
+import { connect, duplicateTab, newFolder, requestCloseTab } from './actions';
 import { openConnectionEditor, openSettings } from './dialogs';
 
 const selectedItem = () => {
@@ -90,6 +90,20 @@ export function runAction(id: ActionId) {
       return focusSearch();
     case 'terminalSearch':
       return requestTerminalSearch();
+    case 'duplicateTab': {
+      const active = useTabs.getState().activeId;
+      return active ? duplicateTab(active) : undefined;
+    }
+    case 'splitVertical':
+      return useTabs.getState().startSplit('vertical');
+    case 'splitHorizontal':
+      return useTabs.getState().startSplit('horizontal');
+    case 'toggleSplitOrientation':
+      return useTabs.getState().toggleOrientation();
+    case 'focusNextPane':
+      return useTabs.getState().focusNextPane();
+    case 'unsplit':
+      return useTabs.getState().unsplit();
     case 'rename':
       return rename();
     case 'lockApp':

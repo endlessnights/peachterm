@@ -11,7 +11,13 @@
     { "id": "rename", "default": "F2" },
     { "id": "lockApp", "default": "Mod+Shift+L" },
     { "id": "nextTab", "default": "Ctrl+Tab" },
-    { "id": "prevTab", "default": "Ctrl+Shift+Tab" }
+    { "id": "prevTab", "default": "Ctrl+Shift+Tab" },
+    { "id": "duplicateTab", "default": "Mod+Shift+D" },
+    { "id": "splitVertical", "default": "Mod+Shift+E" },
+    { "id": "splitHorizontal", "default": "Mod+Shift+O" },
+    { "id": "toggleSplitOrientation", "default": "Mod+Shift+U" },
+    { "id": "focusNextPane", "default": "Mod+Shift+P" },
+    { "id": "unsplit", "default": "Mod+Shift+X" }
   ],
   "reserved": [
     { "accel": "F5", "reason": "reloads the web view and would discard the open tabs" },

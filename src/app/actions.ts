@@ -13,20 +13,78 @@ export function connect(connection: Connection) {
 }
 
 export function requestCloseTab(tabId: string) {
-  const tab = useTabs.getState().tabs.find((t) => t.id === tabId);
-  if (!tab) return;
+  requestCloseTabs([tabId]);
+}
+
+/**
+ * Close one or more tabs. Closing only ends the SSH sessions through the normal
+ * channel teardown (no `exit` is typed into any shell). ONE confirmation covers
+ * the whole batch and says how many sessions are affected.
+ */
+export function requestCloseTabs(ids: string[]) {
+  const tabs = useTabs.getState().tabs.filter((t) => ids.includes(t.id));
+  if (tabs.length === 0) return;
+  const active = tabs.filter((t) => isActiveStatus(t.status));
   const confirm = useSettings.getState().settings.general.confirmCloseActive;
-  if (confirm && isActiveStatus(tab.status)) {
+  const close = () => useTabs.getState().closeTabs(tabs.map((t) => t.id));
+  if (active.length >= 2 || (active.length === 1 && confirm)) {
+    const single = tabs.length === 1;
     confirmAction({
-      title: 'Close active session?',
-      message: `"${tab.title}" is still connected. Closing the tab ends the SSH session.`,
-      confirmLabel: 'Close tab',
+      title: single ? 'Close active session?' : `Close ${tabs.length} tabs?`,
+      message: single
+        ? `"${tabs[0]!.title}" is still connected. Closing the tab ends the SSH session.`
+        : `${active.length} active SSH session${active.length === 1 ? '' : 's'} will be disconnected` +
+          (tabs.length > active.length ? ` (${tabs.length} tabs in total).` : '.'),
+      confirmLabel: single ? 'Close tab' : `Close ${tabs.length} tabs`,
       danger: true,
-      onConfirm: () => useTabs.getState().closeTab(tabId),
+      onConfirm: close,
     });
   } else {
-    useTabs.getState().closeTab(tabId);
+    close();
   }
+}
+
+export function closeOtherTabs(tabId: string) {
+  requestCloseTabs(
+    useTabs
+      .getState()
+      .tabs.filter((t) => t.id !== tabId)
+      .map((t) => t.id),
+  );
+}
+
+export function closeTabsToTheRight(tabId: string) {
+  const { tabs } = useTabs.getState();
+  const index = tabs.findIndex((t) => t.id === tabId);
+  if (index === -1) return;
+  requestCloseTabs(tabs.slice(index + 1).map((t) => t.id));
+}
+
+/** Tabs opened from the same SAVED connection (matched by its id, never by name or host). */
+export const tabsForSameConnection = (tabId: string) => {
+  const { tabs } = useTabs.getState();
+  const tab = tabs.find((t) => t.id === tabId);
+  return tab ? tabs.filter((t) => t.connectionId === tab.connectionId) : [];
+};
+
+export function closeOtherTabsForHost(tabId: string) {
+  requestCloseTabs(
+    tabsForSameConnection(tabId)
+      .filter((t) => t.id !== tabId)
+      .map((t) => t.id),
+  );
+}
+
+export function closeAllTabsForHost(tabId: string) {
+  requestCloseTabs(tabsForSameConnection(tabId).map((t) => t.id));
+}
+
+export function duplicateTab(tabId: string) {
+  useTabs.getState().duplicateTab(tabId);
+}
+
+export function renameTabDialog(tabId: string) {
+  useDialogs.getState().open({ kind: 'renameTab', tabId });
 }
 
 /** One consolidated confirmation for any number of connections and folders. */

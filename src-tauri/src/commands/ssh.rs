@@ -85,6 +85,16 @@ pub async fn ssh_open(
         initial_directory: connection.initial_directory,
         sink: Arc::new(on_event),
         lock: state.lock.flag(),
+        on_authenticated: Arc::new({
+            let app = Arc::clone(&state);
+            move |_| {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                let _ = app.workspace.record_recent(connection_id, now);
+            }
+        }),
         on_end,
     });
     state.ssh.insert(session);

@@ -20,6 +20,8 @@ pub struct SftpOpts {
     pub posix_rename: bool,
     /// After this many bytes were written through one server, writes fail.
     pub fail_write_after: Option<u64>,
+    /// Refuse every change (create, write, mkdir, remove, rename) like a read-only account.
+    pub readonly: bool,
     pub written: AtomicU64,
 }
 
@@ -193,6 +195,11 @@ impl Handler for FsHandler {
         pflags: OpenFlags,
         attrs: FileAttributes,
     ) -> Result<Handle, Self::Error> {
+        if self.opts.readonly
+            && pflags.intersects(OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::APPEND)
+        {
+            return Err(StatusCode::PermissionDenied);
+        }
         let path = self.real(&filename);
         let mut options = std::fs::OpenOptions::new();
         options
@@ -351,6 +358,9 @@ impl Handler for FsHandler {
     }
 
     async fn remove(&mut self, id: u32, filename: SftpString) -> Result<Status, Self::Error> {
+        if self.opts.readonly {
+            return Err(StatusCode::PermissionDenied);
+        }
         std::fs::remove_file(self.real(&filename)).map_err(|e| err(&e))?;
         Ok(ok(id))
     }
@@ -361,6 +371,9 @@ impl Handler for FsHandler {
         path: SftpString,
         _attrs: FileAttributes,
     ) -> Result<Status, Self::Error> {
+        if self.opts.readonly {
+            return Err(StatusCode::PermissionDenied);
+        }
         std::fs::create_dir(self.real(&path)).map_err(|e| err(&e))?;
         Ok(ok(id))
     }

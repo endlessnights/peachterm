@@ -42,6 +42,7 @@ pub struct AppState {
     pub connections: ConnectionStore,
     pub settings: SettingsStore,
     pub known_hosts: Arc<KnownHostsStore>,
+    pub workspace: Arc<storage::workspace::WorkspaceStore>,
     pub credentials: Arc<dyn CredentialStore>,
     #[allow(dead_code)] // driven by the SSH service (Phase 2)
     pub sessions: Arc<SessionRegistry>,
@@ -77,6 +78,9 @@ impl AppState {
         let connections = ConnectionStore::open(paths.connections_file())?;
         let settings = SettingsStore::open(paths.settings_file())?;
         let known_hosts = Arc::new(KnownHostsStore::open(paths.known_hosts_file())?);
+        let workspace = Arc::new(storage::workspace::WorkspaceStore::open(
+            paths.workspace_file(),
+        )?);
 
         let prompt_emitter: PromptEmitter = Arc::default();
         let emit_handle = prompt_emitter.clone();
@@ -164,6 +168,7 @@ impl AppState {
             connections,
             settings,
             known_hosts,
+            workspace,
             credentials,
             sessions,
             editor,
@@ -200,6 +205,16 @@ fn prepare_paths() -> (AppPaths, Vec<String>) {
 /// Colour the native title bar before the UI has loaded, so a dark theme does
 /// not flash the system accent colour. The renderer re-applies it on theme
 /// changes (`window_apply_theme`).
+/// The saved interface scale is in effect from the first frame.
+fn apply_startup_scale(app: &tauri::App, state: &AppState) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    if let Ok(settings) = state.settings.get() {
+        let _ = window.set_zoom(f64::from(settings.appearance.interface_scale) / 100.0);
+    }
+}
+
 fn apply_startup_title_bar(app: &tauri::App, state: &AppState) {
     use platform::WindowTheme;
     use storage::settings::ThemeMode;
@@ -230,6 +245,7 @@ pub fn run() {
                 LogController::init,
             )?;
             apply_startup_title_bar(app, &state);
+            apply_startup_scale(app, &state);
             let state = Arc::new(state);
             let prompt_handle = app.handle().clone();
             let _ = state.prompt_emitter.set(Box::new(move |event| {
@@ -282,6 +298,7 @@ pub fn run() {
             commands::sftp::sftp_list,
             commands::sftp::sftp_mkdir,
             commands::sftp::sftp_rename,
+            commands::sftp::sftp_create_file,
             commands::sftp::sftp_delete,
             commands::sftp::sftp_download,
             commands::sftp::sftp_pick_upload,
@@ -292,6 +309,11 @@ pub fn run() {
             commands::editor::editor_resolve_conflict,
             commands::editor::editor_retry,
             commands::editor::editor_stop,
+            commands::workspace::workspace_load,
+            commands::workspace::workspace_save,
+            commands::workspace::recent_list,
+            commands::workspace::recent_clear,
+            commands::window::window_apply_scale,
             commands::lock::lock_status,
             commands::lock::lock_unlock,
             commands::lock::lock_now,
@@ -559,6 +581,7 @@ mod tests {
             "lock_touch",         // no-op while locked
             "app_info",           // withholds start-up notes while locked
             "window_apply_theme", // cosmetic, reveals nothing
+            "window_apply_scale", // cosmetic zoom, reveals nothing
             "editor_presets",     // static list of editor names
         ];
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/commands");

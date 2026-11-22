@@ -651,3 +651,117 @@ fn state_events_serialize_for_the_renderer() {
     assert_eq!(json["kind"], "sftp");
     assert_eq!(json["state"], "ready");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn creating_an_empty_file_uses_sftp_and_never_replaces_anything() {
+    let f = fixture(SftpOpts::default()).await;
+    std::fs::create_dir(f.root.path().join("docs")).unwrap();
+
+    let path = ops::create_file(&f.client, "/docs", "notes.txt")
+        .await
+        .unwrap();
+    assert_eq!(
+        path, "/docs/notes.txt",
+        "created in the directory that was asked for"
+    );
+    let created = f.root.path().join("docs").join("notes.txt");
+    assert_eq!(std::fs::metadata(&created).unwrap().len(), 0, "zero bytes");
+    assert!(!f.root.path().join("notes.txt").exists(), "not in the root");
+
+    // an existing file is never touched
+    std::fs::write(&created, b"precious").unwrap();
+    assert_eq!(
+        ops::create_file(&f.client, "/docs", "notes.txt")
+            .await
+            .unwrap_err(),
+        SftpError::AlreadyExists
+    );
+    assert_eq!(std::fs::read(&created).unwrap(), b"precious");
+    // nor is a directory of that name
+    std::fs::create_dir(f.root.path().join("docs").join("sub")).unwrap();
+    assert_eq!(
+        ops::create_file(&f.client, "/docs", "sub")
+            .await
+            .unwrap_err(),
+        SftpError::AlreadyExists
+    );
+
+    // names are validated in Rust as well
+    for bad in ["", ".", "..", "a/b", "line\nbreak", &"x".repeat(300)] {
+        assert_eq!(
+            ops::create_file(&f.client, "/docs", bad).await.unwrap_err(),
+            SftpError::InvalidPath,
+            "{bad:?}"
+        );
+    }
+    assert_eq!(
+        ops::create_file(&f.client, "", "ok.txt").await.unwrap_err(),
+        SftpError::InvalidPath
+    );
+    // nothing else appeared
+    let mut names: Vec<_> = std::fs::read_dir(f.root.path().join("docs"))
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["notes.txt", "sub"]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn unicode_names_work_for_files_and_folders() {
+    let f = fixture(SftpOpts::default()).await;
+    for name in [
+        "отчёт 2024 ✓.txt",
+        "日本語のファイル.md",
+        "naïve café.log",
+        "emoji-🍑.txt",
+    ] {
+        let path = ops::create_file(&f.client, "/", name).await.unwrap();
+        assert_eq!(path, format!("/{name}"));
+        assert!(f.root.path().join(name).is_file(), "{name}");
+    }
+    assert_eq!(
+        ops::mkdir(&f.client, "/", "папка ✓").await.unwrap(),
+        "/папка ✓"
+    );
+    assert!(f.root.path().join("папка ✓").is_dir());
+    let listing = ops::list(&f.client, Some("/")).await.unwrap();
+    let mut names: Vec<_> = listing.entries.iter().map(|e| e.name.clone()).collect();
+    names.sort();
+    assert!(names.contains(&"отчёт 2024 ✓.txt".to_owned()));
+    assert!(names.contains(&"папка ✓".to_owned()));
+    // a duplicate in another script is still a duplicate
+    assert_eq!(
+        ops::create_file(&f.client, "/", "日本語のファイル.md")
+            .await
+            .unwrap_err(),
+        SftpError::AlreadyExists
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn permission_errors_are_reported_without_changing_anything() {
+    let f = fixture(SftpOpts {
+        readonly: true,
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(
+        ops::create_file(&f.client, "/", "new.txt")
+            .await
+            .unwrap_err(),
+        SftpError::PermissionDenied
+    );
+    assert_eq!(
+        ops::mkdir(&f.client, "/", "newdir").await.unwrap_err(),
+        SftpError::PermissionDenied
+    );
+    assert_eq!(std::fs::read_dir(f.root.path()).unwrap().count(), 0);
+    // the SSH session itself is fine and browsing still works
+    assert!(ops::list(&f.client, None).await.unwrap().entries.is_empty());
+    assert_eq!(f.session.session.state(), SessionState::Connected);
+    assert_eq!(
+        SftpError::PermissionDenied.message(),
+        "Permission denied on the server"
+    );
+}

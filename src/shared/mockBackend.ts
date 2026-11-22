@@ -23,6 +23,7 @@ import type {
   Settings,
   TerminalEvent,
   TransferEvent,
+  WorkspaceLayout,
 } from './types';
 import { DEFAULT_SETTINGS } from './types';
 import { checkBindings } from './shortcuts';
@@ -39,6 +40,9 @@ export interface MockSsh {
   resizes: { sessionId: string; cols: number; rows: number }[];
   acks: { sessionId: string; bytes: number }[];
   closes: string[];
+  /** Interface scales that were applied, in order. */
+  scales: number[];
+  workspaceSaves: WorkspaceLayout[];
   hostKeyAnswers: { promptId: string; decision: string }[];
   authAnswers: { promptId: string; answers: string[] | null }[];
   emit: (sessionId: string, event: TerminalEvent) => void;
@@ -52,6 +56,9 @@ export interface MockSsh {
   sftp: {
     lists: (string | null)[];
     mkdirs: string[];
+    createdFiles: string[];
+    /** Make the next create/mkdir fail with this error message. */
+    failNext: string | null;
     renames: { path: string; newName: string }[];
     deletes: string[];
     downloads: string[];
@@ -63,6 +70,8 @@ export interface MockSsh {
     nextPick: { name: string; size: number }[] | null;
     /** Remote file system: directory path -> entries. */
     fs: Record<string, { name: string; dir: boolean; size: number }[]>;
+    /** A different file system for one session (by session id). */
+    perSession: Record<string, Record<string, { name: string; dir: boolean; size: number }[]>>;
   };
 }
 
@@ -81,6 +90,14 @@ export interface MockOptions {
   lockEnabled?: boolean;
   /** Pretend the server has no SFTP subsystem. */
   noSftp?: boolean;
+  /** Saved connections whose SSH login fails (they never enter the recent list). */
+  sshFails?: string[];
+  /** A layout left by the previous run; also switches "restore tabs" on. */
+  restoreLayout?: WorkspaceLayout;
+  /** Recent connection ids from earlier runs (newest first). */
+  recent?: string[];
+  /** Change the stored settings before the app starts. */
+  settings?: (s: Settings) => Settings;
 }
 
 export function createMockBackend(
@@ -93,17 +110,23 @@ export function createMockBackend(
     connections: seed?.connections ?? [],
   };
   let settings: Settings = structuredClone(DEFAULT_SETTINGS);
+  if (options.restoreLayout) settings.general.startup = 'restoreTabs';
+  if (options.settings) settings = options.settings(settings);
   const saves: Settings[] = [];
   let lockPassword: string | null = options.lockPassword ?? null;
   let locked = !!options.startLocked && lockPassword !== null;
   let failed = 0;
   const channels = new Map<string, (event: TerminalEvent) => void>();
+  let layout: WorkspaceLayout = options.restoreLayout ?? { tabs: [], active: null, split: null };
+  let recent: string[] = options.recent ?? [];
   const ssh: MockSsh = {
     opens: [],
     writes: [],
     resizes: [],
     acks: [],
     closes: [],
+    scales: [],
+    workspaceSaves: [],
     hostKeyAnswers: [],
     authAnswers: [],
     emit: (sessionId, event) => channels.get(sessionId)?.(event),
@@ -111,6 +134,8 @@ export function createMockBackend(
     sftp: {
       lists: [],
       mkdirs: [],
+      createdFiles: [],
+      failNext: null,
       renames: [],
       deletes: [],
       downloads: [],
@@ -118,6 +143,7 @@ export function createMockBackend(
       cancels: [],
       emitTransfer: () => undefined,
       nextPick: null,
+      perSession: {},
       fs: {
         '/': [
           { name: 'home', dir: true, size: 0 },
@@ -391,6 +417,13 @@ export function createMockBackend(
       });
       if (channel.onmessage) channels.set(sessionId, channel.onmessage);
       queueMicrotask(() => {
+        if (options.sshFails?.includes(String(args.connectionId))) {
+          ssh.emit(sessionId, { kind: 'status', state: 'failed' });
+          ssh.emit(sessionId, { kind: 'closed', reason: 'auth_failed' });
+          return;
+        }
+        // what Rust does after a successful login
+        recent = [String(args.connectionId), ...recent.filter((id) => id !== args.connectionId)];
         ssh.emit(sessionId, { kind: 'status', state: 'connected' });
         ssh.emit(sessionId, { kind: 'sftp', state: options.noSftp ? 'unavailable' : 'ready' });
         ssh.emit(sessionId, {
@@ -451,11 +484,53 @@ export function createMockBackend(
     editor_stop: (args) => {
       ssh.editor.stops.push(String(args.editId));
     },
+    workspace_load: () => {
+      if (settings.general.startup !== 'restoreTabs')
+        return { tabs: [], active: null, split: null };
+      const exists = new Set(tree.connections.map((c) => c.id));
+      const map: (number | null)[] = [];
+      const tabs: WorkspaceLayout['tabs'] = [];
+      layout.tabs.forEach((t) => {
+        map.push(exists.has(t.connectionId) ? tabs.length : null);
+        if (exists.has(t.connectionId)) tabs.push(t);
+      });
+      const a = layout.split ? map[layout.split.panes[0]] : null;
+      const b = layout.split ? map[layout.split.panes[1]] : null;
+      return {
+        tabs,
+        active: layout.active === null ? null : (map[layout.active] ?? null),
+        split:
+          layout.split && a !== null && b !== null && a !== undefined && b !== undefined
+            ? { ...layout.split, panes: [a, b] }
+            : null,
+      };
+    },
+    workspace_save: (args) => {
+      const next = args.layout as WorkspaceLayout;
+      ssh.workspaceSaves.push(structuredClone(next));
+      layout =
+        settings.general.startup === 'restoreTabs'
+          ? structuredClone(next)
+          : { tabs: [], active: null, split: null };
+    },
+    recent_list: () => {
+      const exists = new Set(tree.connections.map((c) => c.id));
+      recent = recent.filter((id) => exists.has(id));
+      return recent.slice(0, settings.general.recentSessionsLimit);
+    },
+    recent_clear: () => {
+      recent = [];
+    },
+    window_apply_scale: (args) => {
+      const percent = Number(args.percent);
+      ssh.scales.push(percent);
+      return percent;
+    },
     sftp_status: () => (options.noSftp ? 'unavailable' : 'ready'),
     sftp_list: (args) => {
       const requested = args.path === null ? '/' : String(args.path);
       ssh.sftp.lists.push(args.path === null ? null : requested);
-      const entries = ssh.sftp.fs[requested];
+      const entries = (ssh.sftp.perSession[String(args.sessionId)] ?? ssh.sftp.fs)[requested];
       if (!entries) throw { code: 'remote', message: 'No such file or directory' };
       const parent =
         requested === '/' ? null : requested.slice(0, requested.lastIndexOf('/')) || '/';
@@ -473,9 +548,30 @@ export function createMockBackend(
         })),
       };
     },
+    sftp_create_file: (args) => {
+      const parent = String(args.parent);
+      const name = String(args.name);
+      if (ssh.sftp.failNext) {
+        const message = ssh.sftp.failNext;
+        ssh.sftp.failNext = null;
+        throw { code: 'remote', message };
+      }
+      const dir = ssh.sftp.fs[parent];
+      if (dir?.some((e) => e.name === name)) {
+        throw { code: 'remote', message: 'An item with that name already exists' };
+      }
+      ssh.sftp.createdFiles.push(parent === '/' ? `/${name}` : `${parent}/${name}`);
+      dir?.push({ name, dir: false, size: 0 });
+      return parent === '/' ? `/${name}` : `${parent}/${name}`;
+    },
     sftp_mkdir: (args) => {
       const parent = String(args.parent);
       const name = String(args.name);
+      if (ssh.sftp.failNext) {
+        const message = ssh.sftp.failNext;
+        ssh.sftp.failNext = null;
+        throw { code: 'remote', message };
+      }
       ssh.sftp.mkdirs.push(parent === '/' ? `/${name}` : `${parent}/${name}`);
       ssh.sftp.fs[parent]?.push({ name, dir: true, size: 0 });
       return parent === '/' ? `/${name}` : `${parent}/${name}`;

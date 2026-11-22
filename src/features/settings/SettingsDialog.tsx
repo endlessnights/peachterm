@@ -6,7 +6,17 @@ import { notify, reportError } from '../../components/Toasts';
 import { formatArgs, parseArgs } from '../../shared/args';
 import { ipc, isTauri, toAppError } from '../../shared/ipc';
 import { checkBindings } from '../../shared/shortcuts';
-import type { Accent, AuthMethod, EditorPreset, KnownHost, Settings } from '../../shared/types';
+import { effectiveFontSize } from '../../shared/scale';
+import {
+  INTERFACE_SCALES,
+  RECENT_LIMITS,
+  type Accent,
+  type AuthMethod,
+  type EditorPreset,
+  type KnownHost,
+  type Settings,
+} from '../../shared/types';
+import { useRecent } from '../sessions/recentStore';
 import { useConnections } from '../connections/store';
 import { useLock } from '../lock/store';
 import { Field, Segmented, numberInput, type PageProps } from './controls';
@@ -88,6 +98,7 @@ export function SettingsDialog({
       setBaseline(result);
       setDraft(result);
       setApplied((n) => n + 1);
+      void useRecent.getState().refresh(); // a changed limit shows at once
       // The lock may have been turned on/off or re-timed by this save.
       await useLock.getState().refresh();
       return true;
@@ -205,6 +216,25 @@ function GeneralPage({ draft, patch }: PageProps) {
         Restoring never re-runs commands. Every restored connection is a new session and asks again
         before uploading edited files.
       </span>
+      <h3>Home screen</h3>
+      <Field
+        label="Recent sessions limit"
+        hint="How many recently used saved connections the home screen lists."
+      >
+        <select
+          className="select"
+          aria-label="Recent sessions limit"
+          value={g.recentSessionsLimit}
+          onChange={(e) => patch('general', { recentSessionsLimit: Number(e.target.value) })}
+        >
+          {RECENT_LIMITS.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <ClearHistory />
       <h3>Tabs</h3>
       <label className="check">
         <input
@@ -257,6 +287,33 @@ function AppearancePage({ draft, patch }: PageProps) {
           ))}
         </div>
       </Field>
+      <h3>Interface scale</h3>
+      <Field
+        label="Interface scale"
+        hint="Zooms the whole interface. The terminal font size below is separate and is not scaled again."
+      >
+        <div className="scale-row">
+          <input
+            type="range"
+            aria-label="Interface scale"
+            aria-valuetext={`${a.interfaceScale}%`}
+            min={INTERFACE_SCALES[0]}
+            max={INTERFACE_SCALES[INTERFACE_SCALES.length - 1]}
+            step={10}
+            value={a.interfaceScale}
+            onChange={(e) => patch('appearance', { interfaceScale: Number(e.target.value) })}
+          />
+          <output aria-live="polite">{a.interfaceScale}%</output>
+          <button
+            className="btn"
+            type="button"
+            disabled={a.interfaceScale === 100}
+            onClick={() => patch('appearance', { interfaceScale: 100 })}
+          >
+            Reset to 100%
+          </button>
+        </div>
+      </Field>
       <h3>Terminal</h3>
       <Field label="Font family" hint="CSS font list; the first installed font is used.">
         <input
@@ -283,7 +340,7 @@ function AppearancePage({ draft, patch }: PageProps) {
         className="notice"
         style={{
           fontFamily: a.terminalFontFamily,
-          fontSize: a.terminalFontSize,
+          fontSize: effectiveFontSize(a),
           color: 'var(--text-1)',
         }}
       >
@@ -567,5 +624,46 @@ function SecurityPage({ draft, patch, replace }: PageProps) {
         session. This is enforced by the backend and has no global off switch.
       </div>
     </>
+  );
+}
+
+/** Clears only the recent-connection history (takes effect immediately, outside Apply/Cancel). */
+function ClearHistory() {
+  const [confirming, setConfirming] = useState(false);
+  const count = useRecent((s) => s.ids.length);
+  if (!confirming) {
+    return (
+      <div>
+        <button
+          className="btn"
+          type="button"
+          onClick={() => setConfirming(true)}
+          disabled={count === 0}
+        >
+          Clear Recent Sessions History
+        </button>
+        <span className="hint" style={{ marginLeft: 8 }}>
+          Saved connections, passwords and open sessions are not affected.
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div role="group" aria-label="Confirm clearing history" className="inline-confirm">
+      <span>Forget the recent sessions list?</span>
+      <button
+        className="btn btn-danger"
+        type="button"
+        onClick={() => {
+          void useRecent.getState().clear();
+          setConfirming(false);
+        }}
+      >
+        Clear history
+      </button>
+      <button className="btn" type="button" onClick={() => setConfirming(false)}>
+        Keep
+      </button>
+    </div>
   );
 }

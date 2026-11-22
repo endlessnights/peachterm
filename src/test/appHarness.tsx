@@ -5,6 +5,8 @@ import { useDialogs } from '../app/dialogs';
 import { useToasts } from '../components/Toasts';
 import { useConnections } from '../features/connections/store';
 import { useLock } from '../features/lock/store';
+import { __setPersistenceEnabled } from '../features/sessions/persistence';
+import { useRecent } from '../features/sessions/recentStore';
 import { useTabs } from '../features/sessions/store';
 import { useSettings } from '../features/settings/store';
 import { __setBackendForTests } from '../shared/ipc';
@@ -40,7 +42,9 @@ export function mountApp(
   const backend = createMockBackend(seed, options);
   __setBackendForTests(wrap ? wrap(backend) : backend);
   __resetTitleBarCache();
-  useTabs.setState({ tabs: [], activeId: null });
+  useTabs.setState({ tabs: [], activeId: null, split: null });
+  useRecent.setState({ ids: [] });
+  __setPersistenceEnabled(false);
   useConnections.setState({
     tree: { version: 2, folders: [], connections: [] },
     query: '',

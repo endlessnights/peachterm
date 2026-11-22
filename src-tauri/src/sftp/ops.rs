@@ -141,6 +141,35 @@ pub async fn mkdir(client: &Client, parent: &str, name: &str) -> Result<String, 
     Ok(path)
 }
 
+/// Create an empty (zero-byte) file through SFTP. It never replaces anything:
+/// the open uses exclusive creation, so an existing file, directory or symlink
+/// of that name is an error, even if it appears while we are working.
+pub async fn create_file(client: &Client, parent: &str, name: &str) -> Result<String, SftpError> {
+    use russh_sftp::protocol::{FileAttributes, OpenFlags};
+    validate_path(parent)?;
+    validate_name(name)?;
+    let path = join_remote(parent, name);
+    if exists(client, &path).await {
+        return Err(SftpError::AlreadyExists);
+    }
+    let mut attrs = FileAttributes::empty();
+    attrs.permissions = Some(0o644);
+    let file = client
+        .open_with_flags_and_attributes(
+            path.clone(),
+            OpenFlags::CREATE | OpenFlags::EXCLUDE | OpenFlags::WRITE,
+            attrs,
+        )
+        .await
+        .map_err(|e| match SftpError::from(e) {
+            // a server reports "exists" as a generic failure for O_EXCL
+            SftpError::Failed => SftpError::AlreadyExists,
+            other => other,
+        })?;
+    file.close().await.map_err(|_| SftpError::Failed)?;
+    Ok(path)
+}
+
 /// Rename inside the same directory. Never replaces an existing item.
 pub async fn rename(client: &Client, path: &str, new_name: &str) -> Result<String, SftpError> {
     validate_path(path)?;

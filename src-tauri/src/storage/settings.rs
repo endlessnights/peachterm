@@ -64,6 +64,8 @@ pub struct GeneralSettings {
     /// Reconnect restored tabs automatically. Off by default (opt-in).
     pub auto_reconnect_restored: bool,
     pub language: String,
+    /// How many recent saved connections the home screen lists (3-20).
+    pub recent_sessions_limit: u32,
 }
 
 impl Default for GeneralSettings {
@@ -73,6 +75,7 @@ impl Default for GeneralSettings {
             confirm_close_active: true,
             auto_reconnect_restored: false,
             language: "en".into(),
+            recent_sessions_limit: 3,
         }
     }
 }
@@ -86,6 +89,9 @@ pub struct AppearanceSettings {
     pub terminal_font_size: u16,
     pub terminal_line_height: f32,
     pub scrollback: u32,
+    /// Whole-interface zoom in percent: 70-150 in steps of 10. The terminal font
+    /// size is independent of it.
+    pub interface_scale: u32,
 }
 
 impl Default for AppearanceSettings {
@@ -99,6 +105,7 @@ impl Default for AppearanceSettings {
             terminal_font_size: 14,
             terminal_line_height: 1.2,
             scrollback: 10_000,
+            interface_scale: 100,
         }
     }
 }
@@ -257,6 +264,11 @@ pub struct Settings {
     pub ui: UiState,
 }
 
+/// Supported interface scales: 70, 80, ... 150 (anything else snaps to the nearest).
+pub fn normalize_scale(percent: u32) -> u32 {
+    (((percent.clamp(70, 150) + 5) / 10) * 10).clamp(70, 150)
+}
+
 impl Settings {
     /// Clamp numeric values into supported ranges and trim strings, so a
     /// hand-edited file or a buggy renderer cannot store nonsense.
@@ -269,6 +281,8 @@ impl Settings {
             1.2
         };
         a.scrollback = a.scrollback.clamp(500, 200_000);
+        a.interface_scale = normalize_scale(a.interface_scale);
+        self.general.recent_sessions_limit = self.general.recent_sessions_limit.clamp(3, 20);
         a.terminal_font_family = a.terminal_font_family.trim().chars().take(512).collect();
         if a.terminal_font_family.is_empty() {
             a.terminal_font_family = AppearanceSettings::default().terminal_font_family;
@@ -391,6 +405,53 @@ impl SettingsStore {
 
 #[cfg(test)]
 mod tests {
+    use super::normalize_scale;
+
+    #[test]
+    fn interface_scale_snaps_to_supported_steps() {
+        for (given, expected) in [
+            (0, 70),
+            (69, 70),
+            (70, 70),
+            (74, 70),
+            (75, 80),
+            (100, 100),
+            (104, 100),
+            (105, 110),
+            (150, 150),
+            (151, 150),
+            (4000, 150),
+        ] {
+            assert_eq!(normalize_scale(given), expected, "{given}");
+        }
+        for step in (70..=150).step_by(10) {
+            assert_eq!(normalize_scale(step), step);
+        }
+    }
+
+    #[test]
+    fn recent_limit_and_scale_have_defaults_and_limits() {
+        let defaults = Settings::default();
+        assert_eq!(defaults.general.recent_sessions_limit, 3);
+        assert_eq!(defaults.appearance.interface_scale, 100);
+        for (given, expected) in [(0, 3), (2, 3), (3, 3), (10, 10), (20, 20), (99, 20)] {
+            let mut s = Settings::default();
+            s.general.recent_sessions_limit = given;
+            assert_eq!(s.normalized().general.recent_sessions_limit, expected);
+        }
+        let mut s = Settings::default();
+        s.appearance.interface_scale = 133;
+        assert_eq!(s.normalized().appearance.interface_scale, 130);
+    }
+
+    #[test]
+    fn older_settings_files_without_the_new_fields_still_load() {
+        let old = r#"{"general":{"startup":"empty","confirmCloseActive":true,"language":"en"},"appearance":{"theme":"dark","scrollback":9000}}"#;
+        let parsed: Settings = serde_json::from_str(old).unwrap();
+        assert_eq!(parsed.general.recent_sessions_limit, 3);
+        assert_eq!(parsed.appearance.interface_scale, 100);
+        assert_eq!(parsed.appearance.scrollback, 9000);
+    }
     use super::*;
 
     #[test]

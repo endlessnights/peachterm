@@ -36,6 +36,7 @@ import type {
   TerminalEvent,
   UserAnswer,
   Uuid,
+  WorkspaceLayout,
 } from './types';
 
 type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
@@ -178,6 +179,8 @@ export const ipc = {
     call<Listing>('sftp_list', { sessionId, path }),
   sftpMkdir: (sessionId: Uuid, parent: string, name: string) =>
     call<string>('sftp_mkdir', { sessionId, parent, name }),
+  sftpCreateFile: (sessionId: Uuid, parent: string, name: string) =>
+    call<string>('sftp_create_file', { sessionId, parent, name }),
   sftpRename: (sessionId: Uuid, path: string, newName: string) =>
     call<string>('sftp_rename', { sessionId, path, newName }),
   sftpDelete: (sessionId: Uuid, path: string) =>
@@ -213,6 +216,15 @@ export const ipc = {
     call<boolean>('editor_resolve_conflict', { editId, choice }),
   editorRetry: (editId: Uuid) => call<boolean>('editor_retry', { editId }),
   editorStop: (editId: Uuid) => call<void>('editor_stop', { editId }),
+
+  /** The saved tab layout (empty unless "restore tabs" is on). */
+  workspaceLoad: () => call<WorkspaceLayout>('workspace_load'),
+  workspaceSave: (layout: WorkspaceLayout) => call<void>('workspace_save', { layout }),
+  /** Recent saved connection ids, newest first (limited by the setting). */
+  recentList: () => call<Uuid[]>('recent_list'),
+  recentClear: () => call<void>('recent_clear'),
+  /** WebView zoom for the whole interface; returns the percentage that was applied. */
+  windowApplyScale: (percent: number) => call<number>('window_apply_scale', { percent }),
 
   loggingStatus: () => call<LoggingStatus>('logging_status'),
   /** Opens the effective log directory in the OS file manager. */

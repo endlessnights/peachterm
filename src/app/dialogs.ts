@@ -12,6 +12,7 @@ export type DialogState =
   | { kind: 'settings'; page?: SettingsPage }
   | { kind: 'move'; items: ItemRef[] }
   | { kind: 'deleteItems'; items: ItemRef[] }
+  | { kind: 'renameTab'; tabId: string }
   | {
       kind: 'confirm';
       title: string;
@@ -26,6 +27,10 @@ export type DialogState =
       label: string;
       initial: string;
       confirmLabel: string;
+      /** Extra line under the field (e.g. where the item will be created). */
+      hint?: string;
+      /** Return a message to refuse the value; the dialog stays open and shows it. */
+      validate?: (value: string) => string | null;
       onSubmit: (value: string) => void;
     };
 

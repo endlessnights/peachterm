@@ -109,3 +109,20 @@ export function describeFailure(reason: string): string {
       return 'the server reported an error';
   }
 }
+
+/**
+ * Why a new file or folder name cannot be used, or `null` when it is fine. The
+ * server and Rust check again; this gives the answer before anything is sent.
+ */
+export function validateRemoteName(name: string, existing: string[] = []): string | null {
+  if (name.trim() === '') return 'Enter a name.';
+  if (name === '.' || name === '..') return `"${name}" is not a valid name.`;
+  if (name.includes('/')) return 'A name cannot contain /.';
+  if ([...name].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) {
+    return 'A name cannot contain control characters.';
+  }
+  if (new TextEncoder().encode(name).length > 255)
+    return 'That name is too long (255 bytes at most).';
+  if (existing.includes(name)) return `"${name}" already exists in this folder.`;
+  return null;
+}

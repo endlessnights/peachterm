@@ -14,6 +14,7 @@ import { EditorPromptHost } from '../features/editor/EditorDialogs';
 import { listenForEditor } from '../features/editor/store';
 import { SshPromptHost } from '../features/ssh/PromptDialogs';
 import { listenForPrompts } from '../features/ssh/promptStore';
+import { RenameTabDialog } from '../features/sessions/RenameTabDialog';
 import { SettingsDialog } from '../features/settings/SettingsDialog';
 import { useSettings } from '../features/settings/store';
 import { TerminalWorkspace } from '../features/terminal/TerminalWorkspace';
@@ -21,7 +22,10 @@ import { LockScreen } from '../features/lock/LockScreen';
 import { useLock } from '../features/lock/store';
 import { useActivityTouch } from '../features/lock/useActivityTouch';
 import { ipc, isTauri, toAppError } from '../shared/ipc';
+import { restoreWorkspace, startWorkspacePersistence } from '../features/sessions/persistence';
+import { useRecent } from '../features/sessions/recentStore';
 import { useDialogs } from './dialogs';
+import { useInterfaceScale } from './useInterfaceScale';
 import { StatusBar } from './StatusBar';
 import { useShortcuts } from './useShortcuts';
 import { useTheme } from './useTheme';
@@ -47,6 +51,8 @@ export function App() {
   );
   useShortcuts();
   useActivityTouch();
+  useInterfaceScale(settingsLoaded ? (preview ?? settings.appearance).interfaceScale : undefined);
+  useEffect(() => startWorkspacePersistence(), []);
 
   const bootstrap = async () => {
     try {
@@ -55,6 +61,13 @@ export function App() {
       setFatal(toAppError(e).message);
       return;
     }
+    // Tabs of the previous run (metadata only; connecting is the user's choice).
+    const loaded = useSettings.getState().settings.general;
+    await restoreWorkspace(
+      useConnections.getState().tree.connections,
+      loaded.startup === 'restoreTabs' && loaded.autoReconnectRestored,
+    );
+    void useRecent.getState().refresh();
     ipc
       .appInfo()
       .then((info) => {
@@ -197,6 +210,8 @@ function DialogHost() {
       return <MoveDialog items={dialog.items} onClose={close} />;
     case 'deleteItems':
       return <DeleteItemsDialog items={dialog.items} onClose={close} />;
+    case 'renameTab':
+      return <RenameTabDialog tabId={dialog.tabId} onClose={close} />;
     case 'settings':
       return <SettingsDialog onClose={close} initialPage={dialog.page} />;
     case 'confirm':
@@ -220,6 +235,8 @@ function DialogHost() {
           label={dialog.label}
           initial={dialog.initial}
           confirmLabel={dialog.confirmLabel}
+          hint={dialog.hint}
+          validate={dialog.validate}
           onCancel={close}
           onSubmit={(value) => {
             close();

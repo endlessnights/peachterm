@@ -20,6 +20,7 @@ import {
   formatTime,
   isDir,
   sortEntries,
+  validateRemoteName,
   visibleEntries,
   type Sort,
   type SortKey,
@@ -54,6 +55,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [menu, setMenu] = useState<{ x: number; y: number; entries: MenuEntry[] } | null>(null);
   const lastPath = useRef<string | null>(null);
+  const pendingSelect = useRef<string | null>(null);
   const requestNo = useRef(0);
 
   const ready = tab.sftp === 'ready' && sessionId !== null;
@@ -69,7 +71,8 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
         lastPath.current = result.path;
         setListing(result);
         setError(null);
-        setSelected(null);
+        setSelected(pendingSelect.current);
+        pendingSelect.current = null;
         setPathText(null);
       } catch (e) {
         if (requestNo.current !== mine) return;
@@ -194,17 +197,65 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
   };
 
   // ---- file operations -------------------------------------------------------
-  const newFolder = () => {
+  /**
+   * New file / new folder in the directory that is shown NOW (captured when the
+   * dialog opens, so a later navigation cannot redirect it). Both use SFTP
+   * requests; nothing is run in a shell.
+   */
+  const createEntry = (kind: 'file' | 'folder') => {
     if (!sessionId || !listing) return;
+    const dir = listing.path;
+    const existing = listing.entries.map((e) => e.name);
     promptText({
-      title: 'New folder',
-      label: 'Folder name',
+      title: kind === 'file' ? 'New file' : 'New folder',
+      label: kind === 'file' ? 'File name' : 'Folder name',
+      hint: `Will be created in ${dir}`,
       initial: '',
       confirmLabel: 'Create',
+      validate: (name) => validateRemoteName(name, existing),
       onSubmit: (name) => {
-        ipc.sftpMkdir(sessionId, listing.path, name).then(refresh).catch(reportError);
+        const create =
+          kind === 'file'
+            ? ipc.sftpCreateFile(sessionId, dir, name)
+            : ipc.sftpMkdir(sessionId, dir, name);
+        create
+          .then((path) => {
+            pendingSelect.current = path;
+            // only refresh when the user is still looking at that directory
+            if (lastPath.current === dir) refresh();
+          })
+          .catch(reportError);
       },
     });
+  };
+
+  const newMenu = (): MenuEntry[] => [
+    { kind: 'item', label: 'New File…', icon: 'newFile', onSelect: () => createEntry('file') },
+    {
+      kind: 'item',
+      label: 'New Folder…',
+      icon: 'newFolder',
+      onSelect: () => createEntry('folder'),
+    },
+  ];
+
+  /** The menu for the empty area: acts on the current directory, never on a selection. */
+  const backgroundMenu = (x: number, y: number) => {
+    setSelected(null);
+    setMenu({
+      x,
+      y,
+      entries: [
+        ...newMenu(),
+        { kind: 'separator' },
+        { kind: 'item', label: 'Refresh', icon: 'refresh', onSelect: refresh },
+      ],
+    });
+  };
+
+  const menuAtElement = (element: Element | null, entries: MenuEntry[]) => {
+    const rect = element?.getBoundingClientRect();
+    setMenu({ x: (rect?.left ?? 0) + 8, y: (rect?.bottom ?? 0) + 2, entries });
   };
 
   const rename = (entry: RemoteEntry) => {
@@ -329,8 +380,14 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
         <button className="icon-btn" aria-label="Refresh" title="Refresh" onClick={refresh}>
           <Icon name="refresh" />
         </button>
-        <button className="icon-btn" aria-label="New folder" title="New folder" onClick={newFolder}>
-          <Icon name="newFolder" />
+        <button
+          className="icon-btn"
+          aria-label="New file or folder"
+          aria-haspopup="menu"
+          title="New file or folder"
+          onClick={(e) => menuAtElement(e.currentTarget, newMenu())}
+        >
+          <Icon name="plus" />
         </button>
         <button className="icon-btn" aria-label="Upload files" title="Upload…" onClick={upload}>
           <Icon name="upload" />
@@ -413,8 +470,29 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
         aria-label="Remote files"
         aria-busy={loading}
         tabIndex={0}
+        // Right click on the empty area: the folder's own menu.
+        onContextMenu={(e) => {
+          e.preventDefault();
+          backgroundMenu(e.clientX, e.clientY);
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setSelected(null);
+        }}
         onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') {
+          if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+            // keyboard alternative to a right click
+            e.preventDefault();
+            const row = current
+              ? e.currentTarget.querySelector('.sftp-row[aria-selected="true"]')
+              : null;
+            if (current && row) {
+              const rect = row.getBoundingClientRect();
+              entryMenu(current, rect.left + 24, rect.bottom);
+            } else {
+              const rect = e.currentTarget.getBoundingClientRect();
+              backgroundMenu(rect.left + 24, rect.top + 24);
+            }
+          } else if (e.key === 'ArrowDown') {
             e.preventDefault();
             moveSelection(1);
           } else if (e.key === 'ArrowUp') {
@@ -444,6 +522,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
             onDoubleClick={() => open(entry)}
             onContextMenu={(e) => {
               e.preventDefault();
+              e.stopPropagation(); // an item has its own menu, not the folder's
               entryMenu(entry, e.clientX, e.clientY);
             }}
             title={`${entry.path}\n${formatMode(entry.mode, entry.kind)}`}

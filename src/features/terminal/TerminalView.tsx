@@ -14,9 +14,11 @@ import '@xterm/xterm/css/xterm.css';
 import { Icon } from '../../components/Icon';
 import { reportError } from '../../components/Toasts';
 import { ipc, toAppError } from '../../shared/ipc';
+import { effectiveFontSize } from '../../shared/scale';
 import type { SessionState, TerminalEvent } from '../../shared/types';
 import { useSettings } from '../settings/store';
 import { useEditor } from '../editor/store';
+import { useRecent } from '../sessions/recentStore';
 import { usePrompts } from '../ssh/promptStore';
 import { useTabs, type Tab, type TabStatus } from '../sessions/store';
 import { TERMINAL_SEARCH_EVENT } from './events';
@@ -112,7 +114,8 @@ export function TerminalView({ tab, active }: Props) {
   const [needle, setNeedle] = useState('');
   const searchInput = useRef<HTMLInputElement>(null);
 
-  const settings = useSettings((s) => s.settings.appearance);
+  // The Settings dialog previews appearance changes (also the interface scale).
+  const settings = useSettings((s) => s.preview ?? s.settings.appearance);
   const tabId = tab.id;
   const connectionId = tab.connectionId;
 
@@ -159,6 +162,7 @@ export function TerminalView({ tab, active }: Props) {
         useTabs.getState().setSftp(tabId, event.state);
       } else if (event.kind === 'status') {
         useTabs.getState().setStatus(tabId, STATUS[event.state]);
+        if (event.state === 'connected') void useRecent.getState().refresh();
       } else {
         const text = event.reason ? (REASONS[event.reason] ?? 'The connection failed.') : null;
         setReason(text);
@@ -195,10 +199,11 @@ export function TerminalView({ tab, active }: Props) {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return undefined;
-    const s = useSettings.getState().settings.appearance;
+    const state = useSettings.getState();
+    const s = state.preview ?? state.settings.appearance;
     const term = new Terminal({
       fontFamily: s.terminalFontFamily,
-      fontSize: s.terminalFontSize,
+      fontSize: effectiveFontSize(s),
       lineHeight: s.terminalLineHeight,
       scrollback: s.scrollback,
       cursorBlink: true,
@@ -295,7 +300,9 @@ export function TerminalView({ tab, active }: Props) {
       } catch {
         /* sized later */
       }
-      connect();
+      // A restored tab waits for the user; nothing reconnects by itself.
+      const me = useTabs.getState().tabs.find((t) => t.id === tabId);
+      if (!me?.restored) connect();
     }, 0);
 
     return () => {
@@ -322,7 +329,7 @@ export function TerminalView({ tab, active }: Props) {
     const term = termRef.current;
     if (!term) return;
     term.options.fontFamily = settings.terminalFontFamily;
-    term.options.fontSize = settings.terminalFontSize;
+    term.options.fontSize = effectiveFontSize(settings);
     term.options.lineHeight = settings.terminalLineHeight;
     term.options.scrollback = settings.scrollback;
     try {
@@ -370,6 +377,7 @@ export function TerminalView({ tab, active }: Props) {
   };
 
   const ended = tab.status === 'disconnected' || tab.status === 'failed';
+  const waiting = tab.restored && tab.status === 'idle';
 
   return (
     <div className="terminal-view" data-terminal data-status={tab.status}>
@@ -406,6 +414,21 @@ export function TerminalView({ tab, active }: Props) {
           </button>
           <button className="icon-btn" onClick={closeSearch} aria-label="Close search">
             <Icon name="close" />
+          </button>
+        </div>
+      )}
+      {waiting && (
+        <div className="terminal-ended" role="status">
+          <span>Restored tab — not connected yet.</span>
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              useTabs.getState().markStarted(tabId);
+              connect();
+            }}
+            data-autofocus
+          >
+            <Icon name="plug" /> Connect
           </button>
         </div>
       )}

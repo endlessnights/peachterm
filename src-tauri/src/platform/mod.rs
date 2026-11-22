@@ -68,6 +68,9 @@ impl AppPaths {
     pub fn known_hosts_file(&self) -> PathBuf {
         self.config_dir.join("known_hosts.json")
     }
+    pub fn workspace_file(&self) -> PathBuf {
+        self.config_dir.join("workspace.json")
+    }
 }
 
 /// An sRGB colour.

@@ -203,3 +203,229 @@
   min-width: 0;
   height: 6px;
 }
+
+/* ---- Split view ------------------------------------------------------- */
+.terminal-pane[data-focused] {
+  outline: 1px solid var(--accent-line);
+  outline-offset: -1px;
+}
+.split-divider {
+  position: absolute;
+  z-index: 4;
+  background: transparent;
+}
+.split-divider[data-orientation='vertical'] {
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+}
+.split-divider[data-orientation='horizontal'] {
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: row-resize;
+}
+.split-divider::after {
+  content: '';
+  position: absolute;
+  background: var(--line-strong);
+}
+.split-divider[data-orientation='vertical']::after {
+  left: 2px;
+  right: 2px;
+  top: 0;
+  bottom: 0;
+}
+.split-divider[data-orientation='horizontal']::after {
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  right: 0;
+}
+.split-divider:hover::after,
+.split-divider:focus-visible::after,
+.split-divider[data-dragging]::after {
+  background: var(--accent);
+}
+.tab[data-pane] {
+  box-shadow: inset 0 -2px 0 var(--accent-line);
+}
+.pane-picker {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  min-width: 240px;
+  max-width: 90%;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--surface-1);
+}
+.pane-picker h3 {
+  margin: 0;
+  font-size: 13px;
+}
+.pane-picker ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow: auto;
+}
+.pane-picker-label {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.pane-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-1);
+  text-align: left;
+}
+.pane-picker-row:hover,
+.pane-picker-row:focus-visible {
+  background: var(--surface-3);
+}
+.pane-picker-sub {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* ---- SFTP identity + per-session slots ------------------------------------ */
+.sftp-identity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  min-width: 0;
+}
+.sftp-identity-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sftp-identity-host {
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sftp-slots {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sftp-slot {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sftp-slot[hidden] {
+  display: none;
+}
+.dialog-footer .btn.left {
+  margin-right: auto;
+}
+
+/* ---- Recent sessions (home screen) -------------------------------------- */
+.recent {
+  margin-top: 22px;
+  text-align: left;
+  width: min(360px, 100%);
+  margin-left: auto;
+  margin-right: auto;
+}
+.recent h3 {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.recent ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.recent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.recent-row:hover {
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--text-1) 4%, transparent);
+  color: var(--text-1);
+}
+.recent-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  color: var(--text-1);
+}
+.recent-row svg {
+  flex: none;
+  color: var(--text-3);
+}
+.recent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-host {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--text-3);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Settings: scale + history ---------------------------------------------- */
+.scale-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.scale-row input[type='range'] {
+  flex: 1;
+  min-width: 140px;
+  accent-color: var(--accent);
+}
+.scale-row output {
+  min-width: 3.5ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.inline-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}

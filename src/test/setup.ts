@@ -7,6 +7,8 @@ export interface FakeTerminal {
   cols: number;
   rows: number;
   written: string[];
+  /** The options the application set on the terminal (font size etc.). */
+  options: Record<string, unknown>;
   pasted: string[];
   selection: string;
   /** Simulate the user typing / the terminal reporting a resize. */
@@ -31,6 +33,7 @@ vi.mock('@xterm/xterm', () => {
         cols: 80,
         rows: 24,
         written: [],
+        options: this.options,
         pasted: [],
         selection: '',
         type: (text) => this.dataHandlers.forEach((h) => h(text)),

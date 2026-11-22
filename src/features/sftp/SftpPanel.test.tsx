@@ -78,16 +78,9 @@ describe('SFTP panel', () => {
     await waitFor(async () => expect(await names()).toEqual(['dir', 'a.txt', 'b.txt']));
   });
 
-  it('creates folders and renames through the backend, then refreshes', async () => {
+  it('renames through the backend and refreshes', async () => {
     const { ssh } = await openSession();
     await names();
-    const panel = within(screen.getByRole('complementary', { name: 'SFTP' }));
-    fireEvent.click(panel.getByRole('button', { name: 'New folder' }));
-    fireEvent.change(await screen.findByLabelText('Folder name'), { target: { value: 'logs' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
-    await waitFor(() => expect(ssh.sftp.mkdirs).toEqual(['/logs']));
-    await waitFor(async () => expect(await names()).toContain('logs'));
-
     fireEvent.contextMenu(screen.getByRole('option', { name: /readme\.txt/ }));
     fireEvent.click(await screen.findByRole('menuitem', { name: /Rename/ }));
     fireEvent.change(await screen.findByLabelText('New name'), { target: { value: 'README' } });

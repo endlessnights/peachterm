@@ -24,6 +24,8 @@ pub struct Env {
     pub credentials: Arc<MemoryCredentialStore>,
     pub prompts: Prompts,
     pub events: Arc<Mutex<Vec<PromptEvent>>>,
+    /// Sessions whose credentials the server accepted (what "recent" records).
+    pub authenticated: Arc<Mutex<Vec<SessionId>>>,
 }
 
 /// Answers every prompt with `policy` (as the UI would).
@@ -54,6 +56,7 @@ pub fn env(policy: Policy) -> Env {
         credentials: Arc::new(MemoryCredentialStore::new()),
         prompts,
         events,
+        authenticated: Arc::default(),
     }
 }
 
@@ -234,6 +237,10 @@ pub fn start_session_locked(
         initial_directory: initial_dir.map(str::to_owned),
         sink: sink.clone(),
         lock,
+        on_authenticated: Arc::new({
+            let seen = env.authenticated.clone();
+            move |id| seen.lock().unwrap().push(id)
+        }),
         on_end: Arc::new(move |i| e.lock().unwrap().push(i)),
     });
     Started {
@@ -713,6 +720,7 @@ async fn closing_while_a_question_is_pending_cancels_the_connection() {
             credentials: Arc::new(MemoryCredentialStore::new()),
             prompts: Prompts::new(Arc::new(|_| {})),
             events: Arc::default(),
+            authenticated: Arc::default(),
             dir,
         }
     };
@@ -897,5 +905,66 @@ async fn output_held_while_locked_is_bounded_and_keeps_the_newest_bytes() {
     let delivered = s.sink.text().len() - before;
     assert!(delivered <= HELD_LIMIT + 64, "bounded: {delivered}");
     assert!(delivered > 1024, "the newest output is still delivered");
+    s.session.close().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn only_a_successful_login_counts_as_a_recent_connection() {
+    let server = TestServer::start(password_server("tester", "pw")).await;
+
+    // wrong password: three tries, never authenticated
+    let env_bad = env(trust_and_password("nope"));
+    let s = start_session(
+        &env_bad,
+        target(server.port, "tester", AuthMethod::Password),
+        None,
+    );
+    s.sink
+        .wait_until("closed", |k| k.closed_reason().is_some())
+        .await;
+    assert!(env_bad.authenticated.lock().unwrap().is_empty());
+
+    // host key rejected
+    let env_rejected = env(Arc::new(|e| match e {
+        PromptEvent::HostKey { .. } => Answer::HostKey(HostKeyDecision::Reject),
+        PromptEvent::Auth { .. } => secrets(&["pw"]),
+    }));
+    let s = start_session(
+        &env_rejected,
+        target(server.port, "tester", AuthMethod::Password),
+        None,
+    );
+    s.sink
+        .wait_until("closed", |k| k.closed_reason().is_some())
+        .await;
+    assert!(env_rejected.authenticated.lock().unwrap().is_empty());
+
+    // nothing listening
+    let port = {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        l.local_addr().unwrap().port()
+    };
+    let env_dead = env(trust_and_password("pw"));
+    let s = start_session(
+        &env_dead,
+        target(port, "tester", AuthMethod::Password),
+        None,
+    );
+    s.sink
+        .wait_until("closed", |k| k.closed_reason().is_some())
+        .await;
+    assert!(env_dead.authenticated.lock().unwrap().is_empty());
+
+    // a real login is reported exactly once, for that session
+    let env_ok = env(trust_and_password("pw"));
+    let s = start_session(
+        &env_ok,
+        target(server.port, "tester", AuthMethod::Password),
+        None,
+    );
+    s.sink
+        .wait_until("banner", |k| k.text().contains("ready"))
+        .await;
+    assert_eq!(*env_ok.authenticated.lock().unwrap(), [s.session.id]);
     s.session.close().await;
 }

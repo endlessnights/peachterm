@@ -12,6 +12,7 @@ pub mod settings;
 pub mod sftp;
 pub mod ssh;
 pub mod window;
+pub mod workspace;
 
 use crate::error::{AppError, AppResult};
 

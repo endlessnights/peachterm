@@ -21,6 +21,11 @@ Actual verification status per platform: [docs/platform-support.md](docs/platfor
 - [Architecture](docs/architecture.md) — modules, data flow, security boundaries
 - [IPC contract](docs/ipc.md) — every Rust ⇄ React command
 - [Roadmap, risks, acceptance criteria](docs/roadmap.md)
+- [Keyboard shortcuts](docs/shortcuts.md) — customisable, terminal-safe
+- [Connection tree](docs/connection-tree.md) — folders (3 levels), drag-and-drop, bulk operations
+- [Application lock](docs/lock.md) — optional, enforced in the backend
+- [Native title bar](docs/title-bar.md) — themed on Windows 11, macOS and Linux
+- [Diagnostic logging](docs/logging.md)
 - [FTPeach review notes](docs/ftpeach-review.md)
 
 ## Prerequisites (all platforms)

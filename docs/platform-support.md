@@ -23,6 +23,7 @@ CI history (all jobs: frontend, Rust ×3 OS, app build ×4 targets):
 | ---------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------- |
 | [45026854567](https://github.com/endlessnights/peachterm/actions/runs/45026854567) | `016032e` | ✅ 8/8 jobs; Node 20 deprecation warnings on three actions                                                           |
 | [45028846755](https://github.com/endlessnights/peachterm/actions/runs/45028846755) | `bc779d9` | ✅ 8/8 jobs after bumping actions to v7 (Node 24); only a GitHub notice about macOS arm64 runner queue times remains |
+| [45031142180](https://github.com/endlessnights/peachterm/actions/runs/45031142180) | `d65da8d` | ✅ 8/8 jobs; 90 Rust tests on each of Windows, Linux, macOS arm64; 27 frontend tests; no warnings                    |
 
 CI success proves compilation, unit tests and packaging only, not runtime behaviour.
 Only the Windows column has had the application actually run.

@@ -1,0 +1,22 @@
+[[set]]
+identifier = "allow-app-commands"
+description = "PeachTerm commands available to the main window in Phase 1."
+permissions = [
+  "allow-app-info",
+  "allow-connections-load",
+  "allow-connections-save",
+  "allow-connections-delete",
+  "allow-connections-duplicate",
+  "allow-connections-move",
+  "allow-folders-save",
+  "allow-folders-delete",
+  "allow-settings-load",
+  "allow-settings-save",
+  "allow-credentials-status",
+  "allow-credentials-set-password",
+  "allow-credentials-clear",
+  "allow-credentials-clear-all",
+  "allow-known-hosts-list",
+  "allow-known-hosts-remove",
+  "allow-editor-presets",
+]

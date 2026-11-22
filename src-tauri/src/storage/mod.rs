@@ -1,0 +1,5 @@
+//! Local persistence (JSON documents written atomically).
+
+pub mod atomic;
+pub mod connections;
+pub mod settings;

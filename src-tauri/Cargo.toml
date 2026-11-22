@@ -1,0 +1,62 @@
+[package]
+name = "peachterm"
+version = "0.1.0"
+description = "Lightweight cross-platform SSH client with integrated SFTP"
+license = "Apache-2.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[lib]
+# `_lib` suffix avoids a name clash with the binary on Windows (cargo#8519).
+name = "peachterm_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+redundant_clone = "deny"
+
+[build-dependencies]
+tauri-build = { version = "2.7.6", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.7", features = [] }
+tauri-plugin-dialog = "2.8.4"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+uuid = { version = "1.29", features = ["v4", "serde"] }
+tokio = { version = "1.54", features = ["sync", "rt-multi-thread", "macros", "time"] }
+log = "0.4"
+zeroize = { version = "1.9", features = ["zeroize_derive"] }
+sha2 = "0.11"
+# SSH transport (Phase 2) and SFTP (Phase 3). Pulled in now to validate that the
+# dependency graph builds on all three platforms. `ring` instead of the default
+# aws-lc-rs avoids requiring CMake/NASM on Windows.
+russh = { version = "0.65.4", default-features = false, features = ["ring", "rsa", "flate2"] }
+russh-sftp = "4.0.0"
+
+# OS-native secret storage. Each platform enables only its own backend.
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["apple-native"] }
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["sync-secret-service", "crypto-rust"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+opt-level = "s"

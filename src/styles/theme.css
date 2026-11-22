@@ -1,0 +1,123 @@
+/* Theme tokens. Dark is the default; light overrides via [data-theme='light'].
+   Accent colours are layered on top via [data-accent]. Components only ever
+   reference these variables. */
+
+:root {
+  color-scheme: dark;
+
+  --font-ui:
+    'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Ubuntu', 'Cantarell',
+    'Noto Sans', sans-serif;
+  --font-mono: 'Cascadia Mono', 'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace;
+
+  --surface-0: #121212; /* window / terminal background */
+  --surface-1: #181817; /* panels */
+  --surface-2: #1f1e1c; /* raised rows, inputs */
+  --surface-3: #292724; /* hover */
+  --surface-4: #34312d; /* active / pressed */
+  --line: #2d2b28;
+  --line-strong: #46423c;
+
+  --text-1: #f1ede8;
+  --text-2: #b9b2aa;
+  --text-3: #7f7871;
+
+  --ok: #86c08f;
+  --warn: #e9be6e;
+  --danger: #f07a6a;
+  --danger-dim: rgba(240, 122, 106, 0.14);
+  --info: #7fb3e6;
+
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --backdrop: rgba(0, 0, 0, 0.5);
+  --radius-s: 4px;
+  --radius-m: 6px;
+  --radius-l: 10px;
+
+  --row-h: 26px;
+  --tab-h: 34px;
+  --status-h: 24px;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --surface-0: #fbfaf8;
+  --surface-1: #f3f1ee;
+  --surface-2: #ffffff;
+  --surface-3: #e9e6e1;
+  --surface-4: #dedad3;
+  --line: #e1ddd7;
+  --line-strong: #c9c3ba;
+  --text-1: #23201d;
+  --text-2: #5b554e;
+  --text-3: #8d867e;
+  --ok: #2f8a43;
+  --warn: #a86d00;
+  --danger: #c9402f;
+  --danger-dim: rgba(201, 64, 47, 0.1);
+  --info: #2b6cb0;
+  --shadow-pop: 0 12px 32px rgba(40, 30, 20, 0.16), 0 0 0 1px rgba(40, 30, 20, 0.06);
+  --backdrop: rgba(30, 25, 20, 0.28);
+}
+
+/* Accents: --accent (fills, focus), --accent-text (on accent), --accent-soft (tints). */
+:root,
+:root[data-accent='peach'] {
+  --accent: #f6a07a;
+  --accent-hover: #f9b291;
+  --accent-text: #2a160c;
+  --accent-soft: rgba(246, 160, 122, 0.14);
+  --accent-line: rgba(246, 160, 122, 0.4);
+}
+:root[data-accent='teal'] {
+  --accent: #5cc8b8;
+  --accent-hover: #78d6c8;
+  --accent-text: #08211d;
+  --accent-soft: rgba(92, 200, 184, 0.14);
+  --accent-line: rgba(92, 200, 184, 0.4);
+}
+:root[data-accent='violet'] {
+  --accent: #b39cf0;
+  --accent-hover: #c4b1f5;
+  --accent-text: #1b1233;
+  --accent-soft: rgba(179, 156, 240, 0.15);
+  --accent-line: rgba(179, 156, 240, 0.42);
+}
+:root[data-accent='blue'] {
+  --accent: #78aef0;
+  --accent-hover: #93c0f5;
+  --accent-text: #0b1a2e;
+  --accent-soft: rgba(120, 174, 240, 0.15);
+  --accent-line: rgba(120, 174, 240, 0.42);
+}
+
+/* Light theme needs deeper accents for contrast on pale surfaces. */
+:root[data-theme='light'][data-accent='peach'],
+:root[data-theme='light']:not([data-accent]) {
+  --accent: #d9693d;
+  --accent-hover: #c95c31;
+  --accent-text: #ffffff;
+  --accent-soft: rgba(217, 105, 61, 0.12);
+  --accent-line: rgba(217, 105, 61, 0.45);
+}
+:root[data-theme='light'][data-accent='teal'] {
+  --accent: #14897a;
+  --accent-hover: #0f7669;
+  --accent-text: #ffffff;
+  --accent-soft: rgba(20, 137, 122, 0.12);
+  --accent-line: rgba(20, 137, 122, 0.45);
+}
+:root[data-theme='light'][data-accent='violet'] {
+  --accent: #6d4fd1;
+  --accent-hover: #5e41bf;
+  --accent-text: #ffffff;
+  --accent-soft: rgba(109, 79, 209, 0.12);
+  --accent-line: rgba(109, 79, 209, 0.45);
+}
+:root[data-theme='light'][data-accent='blue'] {
+  --accent: #2f6fc4;
+  --accent-hover: #255fae;
+  --accent-text: #ffffff;
+  --accent-soft: rgba(47, 111, 196, 0.12);
+  --accent-line: rgba(47, 111, 196, 0.45);
+}

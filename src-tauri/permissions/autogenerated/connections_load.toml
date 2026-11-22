@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-connections-load"
+description = "Enables the connections_load command without any pre-configured scope."
+commands.allow = ["connections_load"]
+
+[[permission]]
+identifier = "deny-connections-load"
+description = "Denies the connections_load command without any pre-configured scope."
+commands.deny = ["connections_load"]

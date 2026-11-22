@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-folders-save"
+description = "Enables the folders_save command without any pre-configured scope."
+commands.allow = ["folders_save"]
+
+[[permission]]
+identifier = "deny-folders-save"
+description = "Denies the folders_save command without any pre-configured scope."
+commands.deny = ["folders_save"]

@@ -54,9 +54,28 @@ untouched. Limits that are **not** claimed: owner/group of the file may change
 when the server creates a new inode, hard links and ACLs are not preserved.
 Symlinks are resolved first so the link is kept and its target replaced.
 
+## New file, new folder, menus
+
+Right-click on **empty space** in the listing for _New File…_, _New Folder…_ and
+_Refresh_; right-click on an item for its own actions (open / open in editor,
+download, rename, copy path, delete). The empty-area menu never acts on a
+previously selected item (the selection is cleared). Without a mouse: the
+**+** toolbar button opens the same New File / New Folder menu, and the
+context-menu key or `Shift+F10` opens the menu for the selected item, or the
+folder menu when nothing is selected.
+
+The name dialog states where the item will be created (the directory shown when
+the dialog opened) and refuses empty names, `.`, `..`, names containing `/`,
+control characters, names over 255 bytes and names that already exist, before
+anything is sent. Rust validates again. **New File** creates a zero-byte file with
+an exclusive SFTP open (`sftp_create_file`); it can never replace an existing file,
+directory or link, and Unicode names are sent unchanged. Server errors (permission
+denied, a name taken in the meantime) are shown as they are. No shell command is
+ever used. The new item is selected after the listing refreshes.
+
 ## Panel
 
-Per tab, beside the terminal. Dock left or right, drag the splitter (or use the
+One panel for the workspace, beside the terminals (it shows the focused session's files; see [workspace.md](workspace.md)). Dock left or right, drag the splitter (or use the
 arrow keys on it) to resize, collapse to a thin button. Side and width are saved
 in `settings.ui` and collapse state in `settings.sftp.defaultVisible`, so they
 survive a restart. Context menu: open / open in editor, download, rename, copy

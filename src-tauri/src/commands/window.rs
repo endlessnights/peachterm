@@ -11,11 +11,7 @@ pub async fn window_apply_scale(window: tauri::WebviewWindow, percent: u32) -> A
     window
         .set_zoom(f64::from(percent) / 100.0)
         .map_err(|_| AppError::Storage("The interface scale could not be applied".into()))?;
-    tracing::debug!(
-        event = "window.theme_applied",
-        state = "none",
-        status = "ok"
-    );
+    tracing::debug!(event = "window.scale_applied", count = u64::from(percent));
     Ok(percent)
 }
 

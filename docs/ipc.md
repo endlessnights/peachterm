@@ -133,3 +133,17 @@ single-use and expire after 180 s. See [ssh.md](ssh.md).
 The renderer never passes a local path to any upload command; Rust owns the
 mapping `editId → (session, private copy, remote path, base hashes)` and the
 confirmation state. See [sftp.md](sftp.md) and [editor.md](editor.md).
+
+## Workspace, recent sessions and window scale
+
+| Command              | Shape                                                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workspace_load`     | → `{ tabs[{connectionId, title\|null}], active, split{orientation, ratio, panes[i,j], focus}\|null }` (empty unless "restore tabs" is on; tabs of deleted connections left out) |
+| `workspace_save`     | `{ layout }` — stores nothing when "restore tabs" is off                                                                                                                        |
+| `recent_list`        | → saved-connection ids, newest first, at most `general.recentSessionsLimit`; deleted ones pruned                                                                                |
+| `recent_clear`       | forgets the history only                                                                                                                                                        |
+| `window_apply_scale` | `{ percent }` → applied percent (snapped to 70…150 step 10); the WebView zoom; allowed while locked                                                                             |
+
+Settings gained `general.recentSessionsLimit` (3–20, default 3) and
+`appearance.interfaceScale` (70–150 step 10, default 100); older files without them
+load with the defaults. See [workspace.md](workspace.md).

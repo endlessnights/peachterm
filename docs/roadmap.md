@@ -54,6 +54,14 @@ See above.
 
 See above.
 
+## Post-Core UX milestone ✅
+
+Independent sessions per saved connection, tab context menu (rename, duplicate,
+host-scoped and bulk close with one confirmation), two-pane split view with a
+per-session SFTP panel, workspace layout persisted as metadata only, SFTP
+empty-area menu and New File, recent sessions with a configurable limit, and
+interface scaling (WebView zoom, 70–150 %). See [workspace.md](workspace.md).
+
 ## Phase 5 — Split view and polish
 
 Two-pane split (H/V, ratio), move tabs into panes, shortcuts, session restore

@@ -16,6 +16,18 @@ combination, shows conflicts before saving and restores the defaults.
 | Rename selected connection/folder | F2                        | F2           |
 | Lock application                  | Ctrl+Shift+L              | ⇧⌘L          |
 | Next / previous tab               | Ctrl+Tab / Ctrl+Shift+Tab | ⌃Tab / ⌃⇧Tab |
+| Search in terminal                | Ctrl+Alt+F                | ⌘⌥F          |
+| Duplicate tab (new session)       | Ctrl+Shift+D              | ⇧⌘D          |
+| Split side by side                | Ctrl+Shift+E              | ⇧⌘E          |
+| Split stacked                     | Ctrl+Shift+O              | ⇧⌘O          |
+| Toggle split orientation          | Ctrl+Shift+U              | ⇧⌘U          |
+| Focus next terminal pane          | Ctrl+Shift+P              | ⇧⌘P          |
+| Close split (keep sessions)       | Ctrl+Shift+X              | ⇧⌘X          |
+
+**Upgrading:** a default for an action that is new in this version is left
+_unassigned_ when it would clash with a binding you already use; your own
+bindings are never changed or overridden. Assign it in Settings → Keyboard
+Shortcuts.
 
 Settings can also be opened with the gear button at the bottom of the sidebar
 (and in the status bar while the sidebar is collapsed).

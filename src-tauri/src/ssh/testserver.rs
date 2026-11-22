@@ -57,6 +57,11 @@ pub fn random_key() -> PrivateKey {
 
 impl TestServer {
     pub async fn start(opts: Opts) -> Self {
+        Self::start_on(0, opts).await
+    }
+
+    /// Listen on a fixed port (0 = any free one).
+    pub async fn start_on(port: u16, opts: Opts) -> Self {
         let host_key = opts.host_key.clone().unwrap_or_else(random_key);
         let host_public = host_key.public_key().clone();
         let mut methods = MethodSet::empty();
@@ -70,7 +75,7 @@ impl TestServer {
             auth_rejection_time_initial: Some(std::time::Duration::from_millis(0)),
             ..Default::default()
         });
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener = TcpListener::bind(("127.0.0.1", port)).await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let rec = Arc::new(Recorded::default());
         let opts = Arc::new(opts);

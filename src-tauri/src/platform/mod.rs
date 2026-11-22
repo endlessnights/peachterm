@@ -40,7 +40,19 @@ pub struct AppPaths {
 }
 
 impl AppPaths {
+    /// Environment variable that moves ALL of PeachTerm's files (settings,
+    /// connections, history, logs, editor copies) below one directory: for a
+    /// portable copy or for trying the application without touching the
+    /// normal profile. Must be an absolute path.
+    pub const PROFILE_ENV: &'static str = "PEACHTERM_PROFILE_DIR";
+
     pub fn resolve() -> AppResult<Self> {
+        if let Some(base) = std::env::var_os(Self::PROFILE_ENV)
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute())
+        {
+            return Ok(Self::under(&base));
+        }
         let missing =
             || AppError::Storage("the operating system reports no user directories".into());
         Ok(Self {

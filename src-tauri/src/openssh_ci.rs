@@ -164,3 +164,51 @@ async fn wait_for(events: &Arc<Mutex<Vec<EditorEvent>>>, pred: impl Fn(&EditorEv
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
+
+/// Starts the in-process test server (password `tester` / `gui-pass`, a small
+/// SFTP tree) and keeps it running until the file named by
+/// `PEACHTERM_GUI_SERVER_STOP` appears. Used to try the real application on this
+/// machine without any other server:
+///
+/// ```text
+/// PEACHTERM_GUI_SERVER=2222 PEACHTERM_GUI_SERVER_STOP=stop.flag cargo test -- --ignored gui_server
+/// ```
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "manual: serves a throw-away SSH/SFTP server for GUI checks"]
+async fn gui_server() {
+    use crate::ssh::testserver::{Opts, TestServer};
+    use crate::ssh::testsftp::SftpOpts;
+    let Some(stop) = std::env::var_os("PEACHTERM_GUI_SERVER_STOP") else {
+        panic!("PEACHTERM_GUI_SERVER_STOP is required");
+    };
+    let port: u16 = std::env::var("PEACHTERM_GUI_SERVER")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(2222);
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("etc")).unwrap();
+    std::fs::write(root.path().join("etc").join("app.conf"), b"port=22\n").unwrap();
+    std::fs::write(
+        root.path().join("readme.txt"),
+        b"hello from the test server\n",
+    )
+    .unwrap();
+    std::fs::create_dir(root.path().join("home")).unwrap();
+    let server = TestServer::start_on(
+        port,
+        Opts {
+            users: vec![("tester".into(), "gui-pass".into())],
+            sftp_root: Some(root.path().to_path_buf()),
+            sftp: Arc::new(SftpOpts {
+                posix_rename: true,
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+    )
+    .await;
+    eprintln!("gui test server on 127.0.0.1:{}", server.port);
+    while !std::path::Path::new(&stop).exists() {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+}

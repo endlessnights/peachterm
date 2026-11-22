@@ -135,6 +135,12 @@ pub fn temp_root(settings: &crate::storage::settings::EditorSettings) -> std::pa
             return path.join("PeachTerm-editing");
         }
     }
+    if let Some(base) = std::env::var_os(crate::platform::AppPaths::PROFILE_ENV)
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.is_absolute())
+    {
+        return base.join("cache").join("editing");
+    }
     dirs::cache_dir()
         .unwrap_or_else(std::env::temp_dir)
         .join("PeachTerm")

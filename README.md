@@ -23,6 +23,8 @@ Actual verification status per platform: [docs/platform-support.md](docs/platfor
 - [Roadmap, risks, acceptance criteria](docs/roadmap.md)
 - [Keyboard shortcuts](docs/shortcuts.md) — customisable, terminal-safe
 - [Connection tree](docs/connection-tree.md) — folders (3 levels), drag-and-drop, bulk operations
+- [SSH terminal](docs/ssh.md), [SFTP](docs/sftp.md), [external editor](docs/editor.md)
+- [Tabs, split view, workspace, recent sessions, interface scale](docs/workspace.md)
 - [Application lock](docs/lock.md) — optional, enforced in the backend
 - [Native title bar](docs/title-bar.md) — themed on Windows 11, macOS and Linux
 - [Diagnostic logging](docs/logging.md)

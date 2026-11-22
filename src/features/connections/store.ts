@@ -14,9 +14,13 @@ interface ConnectionsState {
   loaded: boolean;
   query: string;
   selectedId: Uuid | null;
+  /** Id of the connection currently being renamed inline (null = none). */
+  renamingId: Uuid | null;
   load: () => Promise<void>;
   setQuery: (query: string) => void;
   select: (id: Uuid | null) => void;
+  startRename: (id: Uuid) => void;
+  stopRename: () => void;
   saveConnection: (input: ConnectionInput) => Promise<Connection>;
   deleteConnection: (id: Uuid) => Promise<void>;
   duplicateConnection: (id: Uuid) => Promise<Connection>;
@@ -41,6 +45,7 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
   loaded: false,
   query: '',
   selectedId: null,
+  renamingId: null,
 
   load: async () => {
     const tree = await ipc.connectionsLoad();
@@ -51,6 +56,8 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
   },
   setQuery: (query) => set({ query }),
   select: (selectedId) => set({ selectedId }),
+  startRename: (renamingId) => set({ renamingId, selectedId: renamingId }),
+  stopRename: () => set({ renamingId: null }),
 
   saveConnection: async (input) => {
     const saved = await ipc.connectionsSave(input);

@@ -7,10 +7,12 @@ interface DialogProps {
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  /** Clicking the backdrop does not close the dialog (it holds editable state). */
+  persistent?: boolean;
 }
 
 /** Modal dialog with focus trap-lite: focuses the first field, Esc closes. */
-export function Dialog({ title, onClose, children, footer, wide }: DialogProps) {
+export function Dialog({ title, onClose, children, footer, wide, persistent }: DialogProps) {
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -27,7 +29,7 @@ export function Dialog({ title, onClose, children, footer, wide }: DialogProps) 
     <div
       className="dialog-backdrop"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && !persistent) onClose();
       }}
     >
       <div

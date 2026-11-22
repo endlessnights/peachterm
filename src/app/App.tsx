@@ -26,7 +26,8 @@ export function App() {
   const [version, setVersion] = useState('');
   const [fatal, setFatal] = useState<string | null>(null);
 
-  useTheme(settings.appearance);
+  const preview = useSettings((s) => s.preview);
+  useTheme(preview ?? settings.appearance);
   useShortcuts();
 
   useEffect(() => {
@@ -119,7 +120,7 @@ function DialogHost() {
         />
       );
     case 'settings':
-      return <SettingsDialog onClose={close} />;
+      return <SettingsDialog onClose={close} initialPage={dialog.page} />;
     case 'confirm':
       return (
         <ConfirmDialog

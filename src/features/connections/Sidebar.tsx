@@ -10,6 +10,7 @@ import {
   requestDeleteConnection,
   requestDeleteFolder,
 } from '../../app/actions';
+import { AppButtons } from '../../app/AppButtons';
 import { openConnectionEditor } from '../../app/dialogs';
 import type { Connection, Folder } from '../../shared/types';
 import { useTabs, type TabStatus } from '../sessions/store';
@@ -210,6 +211,9 @@ export function Sidebar({ width }: { width: number }) {
           onClose={() => setMenu(null)}
         />
       )}
+      <div className="sidebar-footer">
+        <AppButtons />
+      </div>
     </aside>
   );
 }

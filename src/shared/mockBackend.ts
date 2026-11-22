@@ -13,8 +13,11 @@ import type {
   Settings,
 } from './types';
 import { DEFAULT_SETTINGS } from './types';
+import { checkBindings } from './shortcuts';
 
-type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
+type Invoke = (<T>(command: string, args?: Record<string, unknown>) => Promise<T>) & {
+  saves?: Settings[];
+};
 
 const uuid = () => globalThis.crypto?.randomUUID?.() ?? `id-${Math.random().toString(36).slice(2)}`;
 
@@ -35,6 +38,7 @@ export function createMockBackend(
     connections: seed?.connections ?? [],
   };
   let settings: Settings = structuredClone(DEFAULT_SETTINGS);
+  const saves: Settings[] = [];
 
   const findConnection = (id: unknown) => {
     const c = tree.connections.find((x) => x.id === id);
@@ -116,7 +120,13 @@ export function createMockBackend(
     },
     settings_load: () => structuredClone(settings),
     settings_save: ({ settings: next }) => {
-      settings = structuredClone(next as Settings);
+      const incoming = next as Settings;
+      // Mirrors the Rust validation: conflicting/reserved shortcuts are refused.
+      const problem = checkBindings(incoming.shortcuts ?? {})[0];
+      if (problem)
+        throw { code: 'validation', message: `Shortcut "${problem.action}" ${problem.message}` };
+      settings = structuredClone(incoming);
+      saves.push(structuredClone(incoming));
       return structuredClone(settings);
     },
     credentials_status: () => ({ available: true, backend: 'memory (dev mock)', detail: null }),
@@ -165,9 +175,11 @@ export function createMockBackend(
     known_hosts_remove: () => undefined,
   };
 
-  return async <T>(command: string, args: Record<string, unknown> = {}): Promise<T> => {
+  const invoke = async <T>(command: string, args: Record<string, unknown> = {}): Promise<T> => {
     const handler = handlers[command];
     if (!handler) throw { code: 'not_implemented', message: `${command} is not implemented` };
     return handler(args) as T;
   };
+  // Test hook: every settings object that was persisted, in order.
+  return Object.assign(invoke, { saves }) as Invoke & { saves: Settings[] };
 }

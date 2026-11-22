@@ -102,6 +102,16 @@ export interface Settings {
     retentionDays: 7 | 14 | 30;
     maxTotalMb: number;
   };
+  security: {
+    appLock: {
+      /** Takes effect only while a lock password is configured. */
+      enabled: boolean;
+      /** Minutes of inactivity before locking; 0 = never. */
+      inactivityMinutes: 0 | 1 | 5 | 15 | 30;
+    };
+  };
+  /** Shortcut overrides: action id -> accelerator ("" = unassigned). */
+  shortcuts: Record<string, string>;
   ui: {
     sidebarVisible: boolean;
     sidebarWidth: number;
@@ -208,6 +218,8 @@ export const DEFAULT_SETTINGS: Settings = {
     retentionDays: 14,
     maxTotalMb: 100,
   },
+  security: { appLock: { enabled: false, inactivityMinutes: 0 } },
+  shortcuts: {},
   ui: {
     sidebarVisible: true,
     sidebarWidth: 260,

@@ -1,0 +1,42 @@
+{
+  "_comment": "Single source of truth for shortcut actions, defaults and reserved combinations. Read by the renderer (src/shared/shortcuts.ts) and by Rust (src-tauri/src/storage/shortcuts.rs). `Mod` = Ctrl on Windows/Linux and Cmd on macOS.",
+  "actions": [
+    { "id": "newTab", "default": "Mod+T" },
+    { "id": "newConnection", "default": "Mod+N" },
+    { "id": "closeTab", "default": "Mod+W" },
+    { "id": "openSettings", "default": "Mod+," },
+    { "id": "toggleSidebar", "default": "Mod+B" },
+    { "id": "searchConnections", "default": "Mod+Shift+F" },
+    { "id": "rename", "default": "F2" },
+    { "id": "lockApp", "default": "Mod+Shift+L" },
+    { "id": "nextTab", "default": "Ctrl+Tab" },
+    { "id": "prevTab", "default": "Ctrl+Shift+Tab" }
+  ],
+  "reserved": [
+    { "accel": "F5", "reason": "reloads the web view and would discard the open tabs" },
+    { "accel": "F12", "reason": "opens developer tools" },
+    { "accel": "Mod+R", "reason": "reloads the web view and would discard the open tabs" },
+    { "accel": "Mod+Shift+R", "reason": "reloads the web view and would discard the open tabs" },
+    { "accel": "Mod+P", "reason": "opens the web view print dialog" },
+    { "accel": "Mod+U", "reason": "opens the page source viewer" },
+    { "accel": "Mod+Shift+I", "reason": "opens developer tools" },
+    { "accel": "Mod+Shift+J", "reason": "opens developer tools" },
+    { "accel": "Mod+Shift+C", "reason": "opens developer tools" },
+    { "accel": "Mod+0", "reason": "changes the web view zoom" },
+    { "accel": "Mod+=", "reason": "changes the web view zoom" },
+    { "accel": "Mod+-", "reason": "changes the web view zoom" },
+    { "accel": "Alt+F4", "reason": "closes the window (handled by the operating system)" },
+    { "accel": "Alt+Tab", "reason": "switches applications (handled by the operating system)" },
+    { "accel": "Ctrl+Alt+Delete", "reason": "is the Windows secure attention sequence" },
+    { "accel": "Ctrl+Escape", "reason": "opens the system menu" },
+    { "accel": "Alt+Escape", "reason": "switches windows (handled by the operating system)" },
+    { "accel": "Alt+Space", "reason": "opens the window menu" }
+  ],
+  "reservedMac": [
+    { "accel": "Meta+Q", "reason": "quits the application (handled by macOS)" },
+    { "accel": "Meta+H", "reason": "hides the application (handled by macOS)" },
+    { "accel": "Meta+M", "reason": "minimises the window (handled by macOS)" },
+    { "accel": "Meta+Space", "reason": "opens Spotlight (handled by macOS)" },
+    { "accel": "Meta+Tab", "reason": "switches applications (handled by macOS)" }
+  ]
+}

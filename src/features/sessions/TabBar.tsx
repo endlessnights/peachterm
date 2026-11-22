@@ -11,7 +11,7 @@ import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dn
 import { CSS } from '@dnd-kit/utilities';
 import { Icon } from '../../components/Icon';
 import { requestCloseTab } from '../../app/actions';
-import { shortcutLabel, SHORTCUTS } from '../../shared/platform';
+import { useShortcutLabel } from '../settings/shortcutState';
 import { useSettings } from '../settings/store';
 import { useTabs, type Tab } from './store';
 
@@ -20,6 +20,7 @@ export function TabBar() {
   const activeId = useTabs((s) => s.activeId);
   const activate = useTabs((s) => s.activate);
   const moveTab = useTabs((s) => s.moveTab);
+  const sidebarLabel = useShortcutLabel('toggleSidebar');
   const sidebarVisible = useSettings((s) => s.settings.ui.sidebarVisible);
   const setUi = useSettings((s) => s.setUi);
   const persistUi = useSettings((s) => s.persistUi);
@@ -40,7 +41,7 @@ export function TabBar() {
           className="icon-btn"
           aria-pressed={sidebarVisible}
           aria-label="Toggle sidebar"
-          title={`Toggle sidebar (${shortcutLabel(SHORTCUTS.toggleSidebar)})`}
+          title={`Toggle sidebar (${sidebarLabel})`}
           onClick={() => {
             setUi({ sidebarVisible: !sidebarVisible });
             void persistUi();
@@ -81,6 +82,7 @@ function SortableTab({
   active: boolean;
   onActivate: (id: string) => void;
 }) {
+  const closeLabel = useShortcutLabel('closeTab');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id,
   });
@@ -109,7 +111,7 @@ function SortableTab({
       <button
         className="icon-btn"
         aria-label={`Close ${tab.title}`}
-        title={`Close (${shortcutLabel(SHORTCUTS.closeTab)})`}
+        title={`Close (${closeLabel})`}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();

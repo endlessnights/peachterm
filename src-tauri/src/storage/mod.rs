@@ -3,3 +3,4 @@
 pub mod atomic;
 pub mod connections;
 pub mod settings;
+pub mod shortcuts;

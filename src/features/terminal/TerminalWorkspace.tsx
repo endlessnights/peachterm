@@ -4,7 +4,7 @@
 
 import { Logo, Icon } from '../../components/Icon';
 import { openConnectionEditor } from '../../app/dialogs';
-import { shortcutLabel, SHORTCUTS } from '../../shared/platform';
+import { useShortcutLabel } from '../settings/shortcutState';
 import { useConnections } from '../connections/store';
 import { useTabs, type Tab } from '../sessions/store';
 
@@ -25,6 +25,11 @@ export function TerminalWorkspace() {
 }
 
 function Welcome() {
+  const newConnection = useShortcutLabel('newConnection');
+  const toggleSidebar = useShortcutLabel('toggleSidebar');
+  const search = useShortcutLabel('searchConnections');
+  const closeTab = useShortcutLabel('closeTab');
+  const settingsKey = useShortcutLabel('openSettings');
   return (
     <div className="placeholder">
       <Logo className="logo" />
@@ -39,15 +44,15 @@ function Welcome() {
       </button>
       <div className="shortcut-list">
         <span>New connection</span>
-        <span className="kbd">{shortcutLabel(SHORTCUTS.newConnection)}</span>
+        <span className="kbd">{newConnection}</span>
         <span>Toggle sidebar</span>
-        <span className="kbd">{shortcutLabel(SHORTCUTS.toggleSidebar)}</span>
+        <span className="kbd">{toggleSidebar}</span>
         <span>Search connections</span>
-        <span className="kbd">{shortcutLabel(SHORTCUTS.search)}</span>
+        <span className="kbd">{search}</span>
         <span>Close tab</span>
-        <span className="kbd">{shortcutLabel(SHORTCUTS.closeTab)}</span>
+        <span className="kbd">{closeTab}</span>
         <span>Settings</span>
-        <span className="kbd">{shortcutLabel(SHORTCUTS.settings)}</span>
+        <span className="kbd">{settingsKey}</span>
       </div>
     </div>
   );

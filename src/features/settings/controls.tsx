@@ -6,6 +6,8 @@ import type { Settings } from '../../shared/types';
 export type PageProps = {
   draft: Settings;
   patch: <S extends keyof Settings>(section: S, values: Partial<Settings[S]>) => void;
+  /** Replace a whole section (needed for map-like sections such as `shortcuts`). */
+  replace: <S extends keyof Settings>(section: S, value: Settings[S]) => void;
 };
 
 export function Segmented<T extends string | number>({

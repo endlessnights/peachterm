@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { reportError } from '../../components/Toasts';
-import { ipc, isTauri, toAppError } from '../../shared/ipc';
+import { ipc, isTauri } from '../../shared/ipc';
 import type { ExportOutcome, ExportPreview, LogLevel, LoggingStatus } from '../../shared/types';
 import { Field, Segmented, numberInput, type PageProps } from './controls';
 
@@ -42,34 +42,20 @@ type ExportState =
   | { step: 'done'; outcome: ExportOutcome };
 
 interface Props extends PageProps {
-  /** Persist the current draft now so logging changes take effect immediately. */
-  onApply: () => Promise<void>;
+  /** Increments whenever the dialog applied settings, so the status is re-read. */
+  appliedTick: number;
 }
 
-export function DiagnosticsPage({ draft, patch, onApply }: Props) {
+export function DiagnosticsPage({ draft, patch, appliedTick }: Props) {
   const d = draft.diagnostics;
   const [status, setStatus] = useState<LoggingStatus | null>(null);
   const [exporting, setExporting] = useState<ExportState>({ step: 'idle' });
   const [busy, setBusy] = useState(false);
-  const [applyError, setApplyError] = useState<string | null>(null);
 
   const refresh = useCallback(() => ipc.loggingStatus().then(setStatus).catch(reportError), []);
   useEffect(() => {
     void refresh();
-  }, [refresh]);
-
-  const apply = async () => {
-    setBusy(true);
-    setApplyError(null);
-    try {
-      await onApply();
-      await refresh();
-    } catch (e) {
-      setApplyError(toAppError(e).message);
-    } finally {
-      setBusy(false);
-    }
-  };
+  }, [refresh, appliedTick]);
 
   const browse = async () => {
     const picked = await openFileDialog({
@@ -163,19 +149,10 @@ export function DiagnosticsPage({ draft, patch, onApply }: Props) {
           {numberInput(d.maxTotalMb, (n) => patch('diagnostics', { maxTotalMb: n }), 10, 1000)}
         </Field>
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button className="btn" onClick={() => void apply()} disabled={busy}>
-          Apply logging settings
-        </button>
-        <span className="hint">Takes effect immediately; no restart needed.</span>
-      </div>
-      {applyError && (
-        <div className="error-text" role="alert">
-          {applyError}
-        </div>
-      )}
-
       <h3>Status</h3>
+      <div className="hint">
+        Shows the applied configuration. Changes take effect on Apply or OK.
+      </div>
       <LoggingStatusView status={status} />
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button className="btn" onClick={() => ipc.loggingOpenDir().catch(reportError)}>

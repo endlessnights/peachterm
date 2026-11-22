@@ -4,9 +4,12 @@
 import { create } from 'zustand';
 import type { Connection, Uuid } from '../shared/types';
 
+export type SettingsPage =
+  'general' | 'appearance' | 'shortcuts' | 'ssh' | 'sftp' | 'security' | 'diagnostics';
+
 export type DialogState =
   | { kind: 'connection'; connection: Connection | null; folderId: Uuid | null }
-  | { kind: 'settings' }
+  | { kind: 'settings'; page?: SettingsPage }
   | {
       kind: 'confirm';
       title: string;
@@ -39,7 +42,8 @@ export const useDialogs = create<DialogStore>((set) => ({
 export const openConnectionEditor = (connection: Connection | null, folderId: Uuid | null = null) =>
   useDialogs.getState().open({ kind: 'connection', connection, folderId });
 
-export const openSettings = () => useDialogs.getState().open({ kind: 'settings' });
+export const openSettings = (page?: SettingsPage) =>
+  useDialogs.getState().open({ kind: 'settings', page });
 
 export const confirmAction = (options: Omit<Extract<DialogState, { kind: 'confirm' }>, 'kind'>) =>
   useDialogs.getState().open({ kind: 'confirm', ...options });

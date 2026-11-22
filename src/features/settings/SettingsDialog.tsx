@@ -1,21 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
+import type { SettingsPage } from '../../app/dialogs';
 import { Dialog } from '../../components/Dialog';
 import { notify, reportError } from '../../components/Toasts';
 import { formatArgs, parseArgs } from '../../shared/args';
 import { ipc, isTauri, toAppError } from '../../shared/ipc';
+import { checkBindings } from '../../shared/shortcuts';
 import type { Accent, AuthMethod, EditorPreset, KnownHost, Settings } from '../../shared/types';
 import { useConnections } from '../connections/store';
 import { Field, Segmented, numberInput, type PageProps } from './controls';
 import { DiagnosticsPage } from './DiagnosticsPage';
+import { ShortcutsPage } from './ShortcutsPage';
 import { useCredentialStatus } from '../connections/useCredentialStatus';
 import { useSettings } from './store';
 
-type Page = 'general' | 'appearance' | 'ssh' | 'sftp' | 'security' | 'diagnostics';
-
-const PAGES: { id: Page; label: string }[] = [
+const PAGES: { id: SettingsPage; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'appearance', label: 'Appearance' },
+  { id: 'shortcuts', label: 'Keyboard Shortcuts' },
   { id: 'ssh', label: 'SSH' },
   { id: 'sftp', label: 'SFTP & editor' },
   { id: 'security', label: 'Security' },
@@ -29,41 +31,111 @@ const ACCENTS: { id: Accent; color: string }[] = [
   { id: 'blue', color: '#78aef0' },
 ];
 
-export function SettingsDialog({ onClose }: { onClose: () => void }) {
-  const current = useSettings((s) => s.settings);
+/** Settings whose change is only picked up by the next launch. */
+const RESTART_FIELDS: { label: string; get: (s: Settings) => unknown }[] = [
+  { label: 'Interface language', get: (s) => s.general.language },
+];
+
+/** Layout (`ui`) is saved by its own controls, so it does not make the dialog dirty. */
+const comparable = (s: Settings) => JSON.stringify({ ...s, ui: null });
+
+export function SettingsDialog({
+  onClose,
+  initialPage = 'general',
+}: {
+  onClose: () => void;
+  initialPage?: SettingsPage;
+}) {
+  const saved = useSettings((s) => s.settings);
+  const startup = useSettings((s) => s.startupSnapshot);
   const save = useSettings((s) => s.save);
-  const [draft, setDraft] = useState<Settings>(current);
-  const [page, setPage] = useState<Page>('general');
+  const [draft, setDraft] = useState<Settings>(saved);
+  const [baseline, setBaseline] = useState<Settings>(saved);
+  const [page, setPage] = useState<SettingsPage>(initialPage);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [applied, setApplied] = useState(0);
 
   const patch = <S extends keyof Settings>(section: S, values: Partial<Settings[S]>) =>
     setDraft((d) => ({ ...d, [section]: { ...d[section], ...values } }));
 
-  // UI layout may have changed while the dialog was open; keep the live value.
-  const persist = () => save({ ...draft, ui: useSettings.getState().settings.ui });
+  const replace = <S extends keyof Settings>(section: S, value: Settings[S]) =>
+    setDraft((d) => ({ ...d, [section]: value }));
 
-  const submit = async () => {
+  const dirty = comparable(draft) !== comparable(baseline);
+  const problems = useMemo(() => checkBindings(draft.shortcuts), [draft.shortcuts]);
+
+  // Live preview of theme/accent while editing. Cancel (or any close) removes
+  // it again; only Apply/OK persist anything.
+  useEffect(() => {
+    useSettings.getState().setPreview(draft.appearance);
+  }, [draft.appearance]);
+  useEffect(() => () => useSettings.getState().setPreview(null), []);
+
+  const apply = async (): Promise<boolean> => {
+    if (problems.length > 0) {
+      setError('Resolve the keyboard shortcut conflicts first.');
+      setPage('shortcuts');
+      return false;
+    }
+    setBusy(true);
+    setError(null);
     try {
-      await persist();
-      onClose();
+      // Layout may have changed while the dialog was open; keep the live value.
+      const result = await save({ ...draft, ui: useSettings.getState().settings.ui });
+      setBaseline(result);
+      setDraft(result);
+      setApplied((n) => n + 1);
+      return true;
     } catch (e) {
       setError(toAppError(e).message);
+      return false;
+    } finally {
+      setBusy(false);
     }
   };
+
+  const ok = async () => {
+    if (!dirty || (await apply())) onClose();
+  };
+
+  const needsRestart = startup
+    ? RESTART_FIELDS.filter((f) => f.get(baseline) !== f.get(startup)).map((f) => f.label)
+    : [];
 
   return (
     <Dialog
       title="Settings"
       wide
+      persistent
       onClose={onClose}
       footer={
         <>
-          {error && <span className="error-text left">{error}</span>}
+          <span className="left settings-status" role="status">
+            {error ? (
+              <span className="error-text">{error}</span>
+            ) : needsRestart.length > 0 ? (
+              <span className="hint">Restart PeachTerm to apply: {needsRestart.join(', ')}.</span>
+            ) : dirty ? (
+              <span className="hint">Unapplied changes</span>
+            ) : null}
+          </span>
+          <button
+            className="btn btn-primary"
+            onClick={() => void ok()}
+            disabled={busy || problems.length > 0}
+          >
+            OK
+          </button>
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" onClick={() => void submit()}>
-            Save
+          <button
+            className="btn"
+            onClick={() => void apply()}
+            disabled={!dirty || busy || problems.length > 0}
+          >
+            Apply
           </button>
         </>
       }
@@ -81,17 +153,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           ))}
         </nav>
         <div className="settings-page">
-          {page === 'general' && <GeneralPage draft={draft} patch={patch} />}
-          {page === 'appearance' && <AppearancePage draft={draft} patch={patch} />}
-          {page === 'ssh' && <SshPage draft={draft} patch={patch} />}
-          {page === 'sftp' && <SftpPage draft={draft} patch={patch} />}
+          {page === 'general' && <GeneralPage draft={draft} patch={patch} replace={replace} />}
+          {page === 'appearance' && (
+            <AppearancePage draft={draft} patch={patch} replace={replace} />
+          )}
+          {page === 'shortcuts' && (
+            <ShortcutsPage draft={draft} patch={patch} replace={replace} problems={problems} />
+          )}
+          {page === 'ssh' && <SshPage draft={draft} patch={patch} replace={replace} />}
+          {page === 'sftp' && <SftpPage draft={draft} patch={patch} replace={replace} />}
           {page === 'security' && <SecurityPage />}
           {page === 'diagnostics' && (
-            <DiagnosticsPage
-              draft={draft}
-              patch={patch}
-              onApply={async () => void (await persist())}
-            />
+            <DiagnosticsPage draft={draft} patch={patch} replace={replace} appliedTick={applied} />
           )}
         </div>
       </div>
@@ -104,7 +177,7 @@ function GeneralPage({ draft, patch }: PageProps) {
   return (
     <>
       <h3>Startup</h3>
-      <Field label="When PeachTerm starts">
+      <Field label="When PeachTerm starts" hint="Applies the next time PeachTerm starts.">
         <select
           className="select"
           value={g.startup}
@@ -138,7 +211,7 @@ function GeneralPage({ draft, patch }: PageProps) {
         Confirm before closing a connected tab
       </label>
       <h3>Language</h3>
-      <Field label="Interface language">
+      <Field label="Interface language" hint="Takes effect after restarting PeachTerm.">
         <select
           className="select"
           value={g.language}

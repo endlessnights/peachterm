@@ -249,3 +249,51 @@
     transform: translateY(4px) scale(0.99);
   }
 }
+
+/* ---------- settings footer, shortcuts ---------- */
+
+.settings-status {
+  align-self: center;
+  min-width: 0;
+}
+.shortcut-table td {
+  vertical-align: top;
+  padding: 8px 6px;
+}
+.shortcut-table .kbd {
+  display: inline-block;
+  min-width: 70px;
+  text-align: center;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.shortcut-table .kbd.recording {
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+.shortcut-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.shortcut-actions .btn {
+  height: 24px;
+  padding: 0 8px;
+  margin-left: 4px;
+}
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.reserved-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.9;
+}

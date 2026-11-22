@@ -9,6 +9,7 @@ use super::atomic::{ConfigIssue, load_json_value, merge_lenient, save_json};
 use crate::error::{AppError, AppResult};
 use crate::storage::connections::AuthMethod;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -202,6 +203,23 @@ impl Default for DiagnosticsSettings {
     }
 }
 
+/// Optional local application lock. The secret itself never lives here (see
+/// `lock`): this only records the user's choices.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AppLockSettings {
+    /// Takes effect only while a lock password is configured.
+    pub enabled: bool,
+    /// Minutes of inactivity before locking; 0 = never.
+    pub inactivity_minutes: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SecuritySettings {
+    pub app_lock: AppLockSettings,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UiState {
@@ -233,6 +251,9 @@ pub struct Settings {
     pub sftp: SftpSettings,
     pub editor: EditorSettings,
     pub diagnostics: DiagnosticsSettings,
+    pub security: SecuritySettings,
+    /// Shortcut overrides: action id -> accelerator ("" = unassigned).
+    pub shortcuts: BTreeMap<String, String>,
     pub ui: UiState,
 }
 
@@ -287,6 +308,15 @@ impl Settings {
             .map(|p| p.trim().to_owned())
             .filter(|p| !p.is_empty() && !p.contains(' '));
 
+        let lock = &mut self.security.app_lock;
+        lock.inactivity_minutes = match lock.inactivity_minutes {
+            0 => 0,
+            1..=2 => 1,
+            3..=9 => 5,
+            10..=20 => 15,
+            _ => 30,
+        };
+
         let u = &mut self.ui;
         u.sidebar_width = u.sidebar_width.clamp(160, 640);
         u.sftp_width = u.sftp_width.clamp(220, 1200);
@@ -312,7 +342,17 @@ impl SettingsStore {
         let settings = match load_json_value(&path, &mut issues) {
             Some(value) => {
                 let before = issues.len();
-                let settings: Settings = merge_lenient(value, &path, &mut issues);
+                let mut settings: Settings = merge_lenient(value, &path, &mut issues);
+                // Shortcut overrides that are invalid or collide are dropped
+                // individually; the other overrides survive.
+                if !super::shortcuts::sanitize(&mut settings.shortcuts).is_empty() {
+                    issues.push(ConfigIssue {
+                        file: super::atomic::file_label(&path),
+                        kind: "invalid_value",
+                        field: Some("shortcuts".into()),
+                        backed_up: false,
+                    });
+                }
                 super::atomic::ensure_backup(&path, &mut issues, before);
                 settings
             }
@@ -337,6 +377,7 @@ impl SettingsStore {
     }
 
     pub fn save(&self, settings: Settings) -> AppResult<Settings> {
+        super::shortcuts::validate(&settings.shortcuts).map_err(AppError::Validation)?;
         let settings = settings.normalized();
         let mut guard = self
             .current
@@ -403,5 +444,90 @@ mod tests {
         assert!(s.ui.sidebar_visible);
         assert!(s.general.confirm_close_active);
         assert!(!s.general.auto_reconnect_restored);
+    }
+
+    #[test]
+    fn shortcut_overrides_persist_across_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let store = SettingsStore::open(path.clone()).unwrap();
+        let mut s = store.get().unwrap();
+        s.shortcuts.insert("lockApp".into(), "Mod+Shift+K".into());
+        s.shortcuts.insert("newTab".into(), String::new()); // unassigned
+        store.save(s).unwrap();
+        let reopened = SettingsStore::open(path).unwrap();
+        let s = reopened.get().unwrap();
+        assert_eq!(
+            s.shortcuts.get("lockApp").map(String::as_str),
+            Some("Mod+Shift+K")
+        );
+        assert_eq!(s.shortcuts.get("newTab").map(String::as_str), Some(""));
+        assert!(reopened.issues().is_empty());
+    }
+
+    #[test]
+    fn conflicting_or_reserved_shortcuts_are_rejected_before_anything_is_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let store = SettingsStore::open(path.clone()).unwrap();
+        for (action, accel) in [
+            ("closeTab", "Mod+T"),
+            ("lockApp", "F5"),
+            ("ghost", "Mod+G"),
+            ("rename", "L"),
+        ] {
+            let mut s = store.get().unwrap();
+            s.shortcuts.insert(action.into(), accel.into());
+            let err = store.save(s).unwrap_err();
+            assert_eq!(err.code(), "validation", "{action} {accel}");
+        }
+        assert!(!path.exists());
+        assert!(store.get().unwrap().shortcuts.is_empty());
+    }
+
+    #[test]
+    fn bad_shortcut_entries_in_a_file_are_dropped_individually() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{"appearance":{"theme":"light"},"shortcuts":{"lockApp":"Mod+Shift+K","newTab":"F5","closeTab":"Mod+N"}}"#,
+        )
+        .unwrap();
+        let store = SettingsStore::open(path).unwrap();
+        let s = store.get().unwrap();
+        assert_eq!(s.appearance.theme, ThemeMode::Light);
+        assert_eq!(s.shortcuts.len(), 1);
+        assert_eq!(s.shortcuts["lockApp"], "Mod+Shift+K");
+        assert!(
+            store
+                .issues()
+                .iter()
+                .any(|i| i.field.as_deref() == Some("shortcuts"))
+        );
+    }
+
+    #[test]
+    fn app_lock_choices_are_normalised_and_default_to_off() {
+        let d = Settings::default();
+        assert!(!d.security.app_lock.enabled);
+        assert_eq!(d.security.app_lock.inactivity_minutes, 0);
+        let mut s = Settings::default();
+        s.security.app_lock.enabled = true;
+        for (given, expected) in [
+            (0, 0),
+            (1, 1),
+            (4, 5),
+            (12, 15),
+            (20, 15),
+            (25, 30),
+            (9999, 30),
+        ] {
+            s.security.app_lock.inactivity_minutes = given;
+            assert_eq!(
+                s.clone().normalized().security.app_lock.inactivity_minutes,
+                expected
+            );
+        }
     }
 }

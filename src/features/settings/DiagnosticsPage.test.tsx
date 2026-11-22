@@ -42,7 +42,7 @@ describe('Settings → Diagnostics', () => {
     await within(dialog).findByText(/Logging is active at level/);
   });
 
-  it('persists level, retention, directory and the on/off switch through Save', async () => {
+  it('persists level, retention, directory and the on/off switch through OK', async () => {
     mount();
     const dialog = await openDiagnostics();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Debug' }));
@@ -51,7 +51,7 @@ describe('Settings → Diagnostics', () => {
       target: { value: '/var/log/peachterm-test' },
     });
     fireEvent.click(within(dialog).getByLabelText(/Write diagnostic logs/));
-    fireEvent.click(within(dialog).getByText('Save'));
+    fireEvent.click(within(dialog).getByText('OK'));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     const { diagnostics } = useSettings.getState().settings;
     expect(diagnostics).toMatchObject({
@@ -62,11 +62,11 @@ describe('Settings → Diagnostics', () => {
     });
   });
 
-  it('applies logging changes immediately and refreshes the status', async () => {
+  it('applies logging changes with Apply and refreshes the status', async () => {
     mount();
     const dialog = await openDiagnostics();
     fireEvent.click(within(dialog).getByLabelText(/Write diagnostic logs/));
-    fireEvent.click(within(dialog).getByText('Apply logging settings'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
     await within(dialog).findByText('File logging is off.');
     expect(useSettings.getState().settings.diagnostics.fileLogging).toBe(false);
   });

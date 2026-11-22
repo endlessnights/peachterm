@@ -323,3 +323,23 @@
   align-items: center;
   gap: 6px;
 }
+
+/* ---------- sidebar footer / app buttons ---------- */
+
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 8px;
+  border-top: 1px solid var(--line);
+  flex: none;
+}
+.app-buttons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.app-buttons-compact .icon-btn {
+  width: 22px;
+  height: 22px;
+}

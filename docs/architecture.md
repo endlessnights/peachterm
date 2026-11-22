@@ -173,3 +173,12 @@ progress) bypasses stores and goes to imperative sinks.
 - `AppError` messages are built from fixed strings + non-sensitive context;
   secrets are wrapped in `SecretString` (`zeroize`) and have no `Debug` output.
 - No telemetry, no network access other than the SSH connections the user opens.
+
+### `freezePrototype` is off on purpose
+
+Tauri's `freezePrototype` freezes `Object.prototype` before any page script
+runs. xterm.js assigns `toString` on its own namespace objects at import time,
+which then throws and leaves an empty window (found in the first packaged
+Phase 2 build; browsers and tests do not freeze, so they never saw it). The
+setting stays `false`; the strict CSP (`script-src 'self'`, no remote content)
+remains the main protection against injected script.

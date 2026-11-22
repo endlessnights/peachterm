@@ -21,6 +21,9 @@ pub enum AppError {
     Locked,
     #[error("{0} is not implemented yet")]
     NotImplemented(&'static str),
+    /// A failure on the remote side or while transferring; `(token, sentence)`.
+    #[error("{1}")]
+    Remote(&'static str, &'static str),
 }
 
 impl AppError {
@@ -34,6 +37,7 @@ impl AppError {
             AppError::Credentials(_) => "credentials",
             AppError::Locked => "locked",
             AppError::NotImplemented(_) => "not_implemented",
+            AppError::Remote(..) => "remote",
         }
     }
 }

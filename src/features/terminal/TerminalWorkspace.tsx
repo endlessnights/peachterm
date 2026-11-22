@@ -5,6 +5,7 @@ import { Logo, Icon } from '../../components/Icon';
 import { openConnectionEditor } from '../../app/dialogs';
 import { useShortcutLabel } from '../settings/shortcutState';
 import { useTabs } from '../sessions/store';
+import { SftpDock } from '../sftp/SftpDock';
 import { TerminalView } from './TerminalView';
 
 export function TerminalWorkspace() {
@@ -16,7 +17,9 @@ export function TerminalWorkspace() {
       {tabs.length === 0 && <Welcome />}
       {tabs.map((tab) => (
         <div key={tab.id} className="terminal-pane" hidden={tab.id !== activeId} role="tabpanel">
-          <TerminalView tab={tab} active={tab.id === activeId} />
+          <SftpDock tab={tab}>
+            <TerminalView tab={tab} active={tab.id === activeId} />
+          </SftpDock>
         </div>
       ))}
     </div>

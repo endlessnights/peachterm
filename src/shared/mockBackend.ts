@@ -22,6 +22,7 @@ import type {
   LoggingStatus,
   Settings,
   TerminalEvent,
+  TransferEvent,
 } from './types';
 import { DEFAULT_SETTINGS } from './types';
 import { checkBindings } from './shortcuts';
@@ -41,6 +42,21 @@ export interface MockSsh {
   hostKeyAnswers: { promptId: string; decision: string }[];
   authAnswers: { promptId: string; answers: string[] | null }[];
   emit: (sessionId: string, event: TerminalEvent) => void;
+  sftp: {
+    lists: (string | null)[];
+    mkdirs: string[];
+    renames: { path: string; newName: string }[];
+    deletes: string[];
+    downloads: string[];
+    uploads: { pickId: string; remoteDir: string; overwrite: boolean }[];
+    cancels: string[];
+    /** Deliver a transfer event to the most recent upload/download. */
+    emitTransfer: (event: TransferEvent) => void;
+    /** Files the next native file picker returns. */
+    nextPick: { name: string; size: number }[] | null;
+    /** Remote file system: directory path -> entries. */
+    fs: Record<string, { name: string; dir: boolean; size: number }[]>;
+  };
 }
 
 const uuid = () => globalThis.crypto?.randomUUID?.() ?? `id-${Math.random().toString(36).slice(2)}`;
@@ -56,6 +72,8 @@ export interface MockOptions {
   startLocked?: boolean;
   /** Start with the lock enabled but unlocked. */
   lockEnabled?: boolean;
+  /** Pretend the server has no SFTP subsystem. */
+  noSftp?: boolean;
 }
 
 export function createMockBackend(
@@ -82,6 +100,27 @@ export function createMockBackend(
     hostKeyAnswers: [],
     authAnswers: [],
     emit: (sessionId, event) => channels.get(sessionId)?.(event),
+    sftp: {
+      lists: [],
+      mkdirs: [],
+      renames: [],
+      deletes: [],
+      downloads: [],
+      uploads: [],
+      cancels: [],
+      emitTransfer: () => undefined,
+      nextPick: null,
+      fs: {
+        '/': [
+          { name: 'home', dir: true, size: 0 },
+          { name: 'etc', dir: true, size: 0 },
+          { name: 'readme.txt', dir: false, size: 120 },
+          { name: '.profile', dir: false, size: 800 },
+        ],
+        '/home': [{ name: 'notes.md', dir: false, size: 2048 }],
+        '/etc': [],
+      },
+    },
   };
   if (options.startLocked || options.lockEnabled) settings.security.appLock.enabled = true;
   const lockOpen = new Set([
@@ -345,6 +384,7 @@ export function createMockBackend(
       if (channel.onmessage) channels.set(sessionId, channel.onmessage);
       queueMicrotask(() => {
         ssh.emit(sessionId, { kind: 'status', state: 'connected' });
+        ssh.emit(sessionId, { kind: 'sftp', state: options.noSftp ? 'unavailable' : 'ready' });
         ssh.emit(sessionId, {
           kind: 'data',
           data: btoa('mock shell ready' + String.fromCharCode(13, 10)),
@@ -376,6 +416,66 @@ export function createMockBackend(
         promptId: String(args.promptId),
         answers: (args.answers as string[] | null) ?? null,
       });
+    },
+    sftp_status: () => (options.noSftp ? 'unavailable' : 'ready'),
+    sftp_list: (args) => {
+      const requested = args.path === null ? '/' : String(args.path);
+      ssh.sftp.lists.push(args.path === null ? null : requested);
+      const entries = ssh.sftp.fs[requested];
+      if (!entries) throw { code: 'remote', message: 'No such file or directory' };
+      const parent =
+        requested === '/' ? null : requested.slice(0, requested.lastIndexOf('/')) || '/';
+      return {
+        path: requested,
+        parent,
+        entries: entries.map((e) => ({
+          name: e.name,
+          path: requested === '/' ? `/${e.name}` : `${requested}/${e.name}`,
+          kind: e.dir ? 'directory' : 'file',
+          targetIsDir: false,
+          size: e.size,
+          modified: 1_700_000_000,
+          mode: e.dir ? 0o755 : 0o644,
+        })),
+      };
+    },
+    sftp_mkdir: (args) => {
+      const parent = String(args.parent);
+      const name = String(args.name);
+      ssh.sftp.mkdirs.push(parent === '/' ? `/${name}` : `${parent}/${name}`);
+      ssh.sftp.fs[parent]?.push({ name, dir: true, size: 0 });
+      return parent === '/' ? `/${name}` : `${parent}/${name}`;
+    },
+    sftp_rename: (args) => {
+      ssh.sftp.renames.push({ path: String(args.path), newName: String(args.newName) });
+      return String(args.newName);
+    },
+    sftp_delete: (args) => {
+      ssh.sftp.deletes.push(String(args.path));
+      return { removed: 1 };
+    },
+    sftp_download: (args) => {
+      ssh.sftp.downloads.push(String(args.remotePath));
+      const channel = args.onEvent as { onmessage: ((e: TransferEvent) => void) | null };
+      if (channel.onmessage) ssh.sftp.emitTransfer = channel.onmessage;
+      return true;
+    },
+    sftp_pick_upload: () => {
+      const files = ssh.sftp.nextPick;
+      ssh.sftp.nextPick = null;
+      return files ? { pickId: 'pick-1', files } : null;
+    },
+    sftp_upload: (args) => {
+      const channel = args.onEvent as { onmessage: ((e: TransferEvent) => void) | null };
+      if (channel.onmessage) ssh.sftp.emitTransfer = channel.onmessage;
+      ssh.sftp.uploads.push({
+        pickId: String(args.pickId),
+        remoteDir: String(args.remoteDir),
+        overwrite: Boolean(args.overwrite),
+      });
+    },
+    sftp_cancel: (args) => {
+      ssh.sftp.cancels.push(String(args.transferId));
     },
     known_hosts_list: () => [],
     known_hosts_remove: () => undefined,

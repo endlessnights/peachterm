@@ -147,11 +147,14 @@ export function TerminalView({ tab, active }: Props) {
     setReason(null);
     tabs.setStatus(tabId, 'connecting');
     tabs.setSession(tabId, null);
+    tabs.setSftp(tabId, 'idle');
     const onEvent = (event: TerminalEvent) => {
       if (generation.current !== mine) return;
       if (event.kind === 'data') {
         const bytes = toBytes(event.data);
         term.write(bytes, () => ack(bytes.length));
+      } else if (event.kind === 'sftp') {
+        useTabs.getState().setSftp(tabId, event.state);
       } else if (event.kind === 'status') {
         useTabs.getState().setStatus(tabId, STATUS[event.state]);
       } else {
@@ -159,6 +162,7 @@ export function TerminalView({ tab, active }: Props) {
         setReason(text);
         term.write(`\r\n\x1b[2m[${text ?? 'Connection closed'}]\x1b[0m\r\n`);
         endSession(false);
+        useTabs.getState().setSftp(tabId, 'idle');
         useTabs.getState().setStatus(tabId, event.reason ? 'failed' : 'disconnected');
       }
     };

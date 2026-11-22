@@ -155,6 +155,15 @@ impl VecSink {
             })
             .collect()
     }
+    pub fn sftp_state(&self) -> Option<crate::sftp::SftpState> {
+        self.events.lock().unwrap().iter().rev().find_map(|e| {
+            if let TerminalEvent::Sftp { state } = e {
+                Some(*state)
+            } else {
+                None
+            }
+        })
+    }
     pub fn closed_reason(&self) -> Option<Option<String>> {
         self.events.lock().unwrap().iter().find_map(|e| {
             if let TerminalEvent::Closed { reason } = e {

@@ -44,6 +44,7 @@ pub struct AppState {
     pub lock: Arc<lock::LockService>,
     pub ssh: ssh::session::SshManager,
     pub prompts: ssh::prompt::Prompts,
+    pub sftp: sftp::transfer::Hub,
     /// Set once the Tauri app exists; prompts are delivered through it. (A
     /// closure rather than an `AppHandle`, so unit tests do not link the
     /// whole webview runtime.)
@@ -142,6 +143,7 @@ impl AppState {
             logging,
             lock,
             ssh: ssh::session::SshManager::default(),
+            sftp: sftp::transfer::Hub::default(),
             prompts,
             prompt_emitter,
             startup_issues,
@@ -243,6 +245,15 @@ pub fn run() {
             commands::ssh::ssh_close,
             commands::ssh::ssh_answer_host_key,
             commands::ssh::ssh_answer_auth,
+            commands::sftp::sftp_status,
+            commands::sftp::sftp_list,
+            commands::sftp::sftp_mkdir,
+            commands::sftp::sftp_rename,
+            commands::sftp::sftp_delete,
+            commands::sftp::sftp_download,
+            commands::sftp::sftp_pick_upload,
+            commands::sftp::sftp_upload,
+            commands::sftp::sftp_cancel,
             commands::lock::lock_status,
             commands::lock::lock_unlock,
             commands::lock::lock_now,

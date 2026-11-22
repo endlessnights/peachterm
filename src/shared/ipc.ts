@@ -21,6 +21,10 @@ import type {
   FolderInput,
   HostKeyDecision,
   KnownHost,
+  Listing,
+  PickedUpload,
+  SftpState,
+  TransferEvent,
   LockView,
   UnlockOutcome,
   LoggingStatus,
@@ -67,6 +71,15 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
   } catch (error) {
     throw toAppError(error);
   }
+}
+
+/** A Tauri `Channel` in the desktop shell, a plain object in tests/dev. */
+function makeChannel<T>(onEvent: (event: T) => void): { onmessage: ((event: T) => void) | null } {
+  const channel: { onmessage: ((event: T) => void) | null } = isTauri()
+    ? new Channel<T>()
+    : { onmessage: null };
+  channel.onmessage = onEvent;
+  return channel;
 }
 
 export const ipc = {
@@ -134,15 +147,11 @@ export const ipc = {
     onEvent: (event: TerminalEvent) => void,
     attempt = 0,
   ) => {
-    const channel: { onmessage: ((event: TerminalEvent) => void) | null } = isTauri()
-      ? new Channel<TerminalEvent>()
-      : { onmessage: null };
-    channel.onmessage = onEvent;
     return call<{ sessionId: Uuid }>('ssh_open', {
       connectionId,
       cols,
       rows,
-      onEvent: channel,
+      onEvent: makeChannel(onEvent),
       attempt,
     });
   },
@@ -158,6 +167,37 @@ export const ipc = {
   /** `answers: null` cancels. Answers go straight to Rust and are never stored. */
   sshAnswerAuth: (promptId: Uuid, answers: string[] | null) =>
     call<void>('ssh_answer_auth', { promptId, answers }),
+
+  sftpStatus: (sessionId: Uuid) => call<SftpState>('sftp_status', { sessionId }),
+  /** `path: null` = the login directory. */
+  sftpList: (sessionId: Uuid, path: string | null) =>
+    call<Listing>('sftp_list', { sessionId, path }),
+  sftpMkdir: (sessionId: Uuid, parent: string, name: string) =>
+    call<string>('sftp_mkdir', { sessionId, parent, name }),
+  sftpRename: (sessionId: Uuid, path: string, newName: string) =>
+    call<string>('sftp_rename', { sessionId, path, newName }),
+  sftpDelete: (sessionId: Uuid, path: string) =>
+    call<{ removed: number }>('sftp_delete', { sessionId, path }),
+  /** Rust asks where to save (native dialog); resolves false if cancelled. */
+  sftpDownload: (sessionId: Uuid, remotePath: string, onEvent: (e: TransferEvent) => void) =>
+    call<boolean>('sftp_download', { sessionId, remotePath, onEvent: makeChannel(onEvent) }),
+  /** Rust shows the native file picker; local paths never reach the renderer. */
+  sftpPickUpload: (sessionId: Uuid) => call<PickedUpload | null>('sftp_pick_upload', { sessionId }),
+  sftpUpload: (
+    sessionId: Uuid,
+    pickId: Uuid,
+    remoteDir: string,
+    overwrite: boolean,
+    onEvent: (e: TransferEvent) => void,
+  ) =>
+    call<void>('sftp_upload', {
+      sessionId,
+      pickId,
+      remoteDir,
+      overwrite,
+      onEvent: makeChannel(onEvent),
+    }),
+  sftpCancel: (transferId: Uuid) => call<void>('sftp_cancel', { transferId }),
 
   loggingStatus: () => call<LoggingStatus>('logging_status'),
   /** Opens the effective log directory in the OS file manager. */

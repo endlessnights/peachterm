@@ -20,6 +20,7 @@ pub struct Opts {
     pub kbd: Option<(String, Vec<(String, String)>)>,
     pub host_key: Option<PrivateKey>,
     pub sftp_root: Option<std::path::PathBuf>,
+    pub sftp: std::sync::Arc<super::testsftp::SftpOpts>,
 }
 
 #[derive(Default)]
@@ -84,6 +85,7 @@ impl TestServer {
                     opts: opts.clone(),
                     rec: rec2.clone(),
                     channels: HashMap::new(),
+                    shells: Default::default(),
                 };
                 let config = config.clone();
                 tokio::spawn(async move {
@@ -106,6 +108,7 @@ struct H {
     opts: Arc<Opts>,
     rec: Arc<Recorded>,
     channels: HashMap<ChannelId, Channel<Msg>>,
+    shells: std::collections::HashSet<ChannelId>,
 }
 
 impl Handler for H {
@@ -224,6 +227,7 @@ impl Handler for H {
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         self.rec.shells.fetch_add(1, Ordering::SeqCst);
+        self.shells.insert(channel);
         session.channel_success(channel)?;
         session.data(channel, b"ready\r\n".to_vec())
     }
@@ -234,6 +238,9 @@ impl Handler for H {
         data: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
+        if !self.shells.contains(&channel) {
+            return Ok(());
+        }
         self.rec.input.lock().unwrap().extend_from_slice(data);
         if data == b"flood\n" {
             for _ in 0..64 {
@@ -257,9 +264,13 @@ impl Handler for H {
             };
             session.channel_success(channel)?;
             let root = self.opts.sftp_root.clone().unwrap();
+            let sftp = self.opts.sftp.clone();
             tokio::spawn(async move {
-                russh_sftp::server::run(ch.into_stream(), super::testsftp::FsHandler::new(root))
-                    .await;
+                russh_sftp::server::run(
+                    ch.into_stream(),
+                    super::testsftp::FsHandler::new(root, sftp),
+                )
+                .await;
             });
             Ok(())
         } else {

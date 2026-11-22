@@ -3,7 +3,7 @@
 // Channel. `sessionId` is the backend's per-connection-attempt id.
 
 import { create } from 'zustand';
-import type { Connection, Uuid } from '../../shared/types';
+import type { Connection, SftpState, Uuid } from '../../shared/types';
 
 export type TabStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'failed';
 
@@ -15,6 +15,8 @@ export interface Tab {
   status: TabStatus;
   /** Set by Rust when a connection attempt starts; new on every reconnect. */
   sessionId: string | null;
+  /** SFTP availability of the current session (`idle` until one starts). */
+  sftp: 'idle' | SftpState;
 }
 
 interface TabsState {
@@ -27,6 +29,7 @@ interface TabsState {
   moveTab: (fromId: string, toId: string) => void;
   setStatus: (id: string, status: TabStatus) => void;
   setSession: (id: string, sessionId: string | null) => void;
+  setSftp: (id: string, sftp: Tab['sftp']) => void;
   /** Keep tab titles in sync when a saved connection is edited or removed. */
   syncConnections: (connections: Connection[]) => void;
 }
@@ -54,6 +57,7 @@ export const useTabs = create<TabsState>((set, get) => ({
       subtitle: describe(connection),
       status: 'idle',
       sessionId: null,
+      sftp: 'idle',
     };
     set((s) => ({ tabs: [...s.tabs, tab], activeId: id }));
     return id;
@@ -99,6 +103,9 @@ export const useTabs = create<TabsState>((set, get) => ({
 
   setSession: (id, sessionId) =>
     set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, sessionId } : t)) })),
+
+  setSftp: (id, sftp) =>
+    set((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? { ...t, sftp } : t)) })),
 
   syncConnections: (connections) =>
     set((s) => {

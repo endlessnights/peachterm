@@ -278,7 +278,8 @@ export type SessionState =
 export type TerminalEvent =
   | { kind: 'data'; data: string }
   | { kind: 'status'; state: SessionState }
-  | { kind: 'closed'; reason: string | null };
+  | { kind: 'closed'; reason: string | null }
+  | { kind: 'sftp'; state: SftpState };
 
 export type HostKeyDecision = 'trustOnce' | 'trustAndSave' | 'replace' | 'reject';
 
@@ -310,3 +311,56 @@ export type SshPrompt =
       prompts: AuthPromptLine[];
       retry: boolean;
     };
+
+// ---- SFTP (Phase 2) --------------------------------------------------------
+
+export type SftpState = 'pending' | 'ready' | 'unavailable';
+
+export type EntryKind = 'file' | 'directory' | 'symlink' | 'other';
+
+export interface RemoteEntry {
+  name: string;
+  path: string;
+  kind: EntryKind;
+  /** For a symlink: does it point to a directory? */
+  targetIsDir: boolean;
+  size: number;
+  /** Seconds since the Unix epoch. */
+  modified: number | null;
+  /** POSIX permission bits (no file type). */
+  mode: number | null;
+}
+
+export interface Listing {
+  path: string;
+  parent: string | null;
+  entries: RemoteEntry[];
+}
+
+export interface PickedFile {
+  name: string;
+  size: number;
+}
+
+export interface PickedUpload {
+  pickId: Uuid;
+  files: PickedFile[];
+}
+
+export type TransferDirection = 'upload' | 'download';
+
+export type TransferEvent =
+  | {
+      kind: 'started';
+      transferId: Uuid;
+      name: string;
+      direction: TransferDirection;
+      total: number;
+      index: number;
+      count: number;
+    }
+  | { kind: 'progress'; transferId: Uuid; done: number; total: number }
+  | { kind: 'completed'; transferId: Uuid; bytes: number }
+  | { kind: 'failed'; transferId: Uuid; reason: string; message: string }
+  | { kind: 'cancelled'; transferId: Uuid }
+  | { kind: 'finished' };

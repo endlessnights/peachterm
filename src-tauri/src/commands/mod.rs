@@ -8,6 +8,7 @@ pub mod lock;
 pub mod logging;
 pub mod security;
 pub mod settings;
+pub mod sftp;
 pub mod ssh;
 pub mod window;
 

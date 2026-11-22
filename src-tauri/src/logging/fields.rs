@@ -44,7 +44,7 @@ pub fn kind_of(name: &str) -> Option<FieldKind> {
         "version" => Version,
         "os" | "arch" | "kind" | "issue" | "reason" | "error_kind" | "auth_kind"
         | "host_key_status" | "state" | "status" | "backend" | "log_level" | "phase" => Ident,
-        "session_id" | "connection_id" => Uuid,
+        "session_id" | "connection_id" | "transfer_id" => Uuid,
         "file" => DataFile,
         "field" => ConfigField,
         "source_file" => SourceFile,
@@ -148,6 +148,22 @@ pub const IDENT_VOCABULARY: &[&str] = &[
     "declined",
     "conflict",
     "policy_reset",
+    // SSH / SFTP / editor failure reasons and operations
+    "connect_failed",
+    "host_key_rejected",
+    "auth_failed",
+    "key_unreadable",
+    "agent_unavailable",
+    "protocol_error",
+    "unavailable",
+    "not_empty",
+    "remote_changed",
+    "local_io",
+    "pending",
+    "list",
+    "mkdir",
+    "rename",
+    "delete",
     "always_ask",
 ];
 

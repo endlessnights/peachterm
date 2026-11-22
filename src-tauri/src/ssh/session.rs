@@ -89,6 +89,7 @@ pub struct SshSession {
     /// Set once authenticated; SFTP opens its own channel on this transport.
     pub transport: OnceCell<Arc<client::Handle>>,
     state: Mutex<SessionState>,
+    pub sftp: crate::sftp::SftpSlot,
 }
 
 impl SshSession {
@@ -148,6 +149,7 @@ pub fn start(params: StartParams) -> Arc<SshSession> {
         credits: Arc::new(Credits::default()),
         transport: OnceCell::new(),
         state: Mutex::new(SessionState::Connecting),
+        sftp: crate::sftp::SftpSlot::default(),
     });
     let task_session = session.clone();
     tokio::spawn(async move {
@@ -232,6 +234,7 @@ async fn run(
         state: SessionState::Connected,
     });
     tracing::info!(event = "ssh.connected", session_id = %session.id);
+    tokio::spawn(crate::sftp::init(session.clone(), sink.clone()));
 
     if let Some(dir) = initial_directory.as_deref().and_then(shell_quote) {
         let _ = channel

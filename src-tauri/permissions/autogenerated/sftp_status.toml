@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sftp-status"
+description = "Enables the sftp_status command without any pre-configured scope."
+commands.allow = ["sftp_status"]
+
+[[permission]]
+identifier = "deny-sftp-status"
+description = "Denies the sftp_status command without any pre-configured scope."
+commands.deny = ["sftp_status"]

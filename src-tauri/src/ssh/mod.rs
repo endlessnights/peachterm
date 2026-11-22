@@ -9,7 +9,7 @@
 
 pub mod client;
 #[cfg(test)]
-mod integration;
+pub mod integration;
 pub mod prompt;
 pub mod session;
 #[cfg(test)]
@@ -61,6 +61,10 @@ pub enum TerminalEvent {
     },
     Closed {
         reason: Option<String>,
+    },
+    /// SFTP availability for this session (initialised after login).
+    Sftp {
+        state: crate::sftp::SftpState,
     },
 }
 

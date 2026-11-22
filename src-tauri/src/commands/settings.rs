@@ -6,6 +6,7 @@ use tauri::State;
 
 #[tauri::command]
 pub async fn settings_load(state: State<'_, Arc<AppState>>) -> AppResult<Settings> {
+    state.lock.guard()?;
     state.settings.get()
 }
 
@@ -16,8 +17,19 @@ pub async fn settings_save(
     state: State<'_, Arc<AppState>>,
     settings: Settings,
 ) -> AppResult<Settings> {
+    state.lock.guard()?;
+    if settings.security.app_lock.enabled && !state.lock.has_password() {
+        return Err(crate::error::AppError::Validation(
+            "Set a lock password before enabling the application lock.".into(),
+        ));
+    }
     let previous = state.settings.get()?;
     let saved = state.settings.save(settings)?;
+    state.lock.configure(
+        saved.security.app_lock.enabled,
+        saved.security.app_lock.inactivity_minutes,
+        false,
+    );
 
     if previous != saved {
         // Sidebar drags save the layout often; keep those out of the Info log.

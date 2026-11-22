@@ -19,6 +19,8 @@ import type {
   Folder,
   FolderInput,
   KnownHost,
+  LockView,
+  UnlockOutcome,
   LoggingStatus,
   Settings,
   Uuid,
@@ -92,6 +94,16 @@ export const ipc = {
     theme: 'dark' | 'light',
     colors: { caption: string; text: string; border: string },
   ) => call<'colored' | 'themeOnly'>('window_apply_theme', { theme, ...colors }),
+
+  lockStatus: () => call<LockView>('lock_status'),
+  /** The password goes to Rust and is never stored or logged by the renderer. */
+  lockUnlock: (password: string) => call<UnlockOutcome>('lock_unlock', { password }),
+  lockNow: () => call<void>('lock_now'),
+  lockSetPassword: (newPassword: string, currentPassword?: string) =>
+    call<void>('lock_set_password', { newPassword, currentPassword: currentPassword ?? null }),
+  lockRemovePassword: (currentPassword: string) =>
+    call<void>('lock_remove_password', { currentPassword }),
+  lockTouch: () => call<void>('lock_touch'),
 
   settingsLoad: () => call<Settings>('settings_load'),
   settingsSave: (settings: Settings) => call<Settings>('settings_save', { settings }),

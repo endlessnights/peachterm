@@ -14,6 +14,7 @@ type AppStateRef<'a> = State<'a, Arc<AppState>>;
 
 #[tauri::command]
 pub async fn connections_load(state: AppStateRef<'_>) -> AppResult<ConnectionTree> {
+    state.lock.guard()?;
     state.connections.load()
 }
 
@@ -22,6 +23,7 @@ pub async fn connections_save(
     state: AppStateRef<'_>,
     connection: ConnectionInput,
 ) -> AppResult<Connection> {
+    state.lock.guard()?;
     let created = connection.id.is_none();
     let saved = state.connections.save_connection(connection)?;
     tracing::info!(
@@ -41,6 +43,7 @@ pub async fn connections_save(
 
 #[tauri::command]
 pub async fn connections_delete(state: AppStateRef<'_>, id: Uuid) -> AppResult<()> {
+    state.lock.guard()?;
     state.connections.delete_connection(id)?;
     tracing::info!(event = "connection.deleted", connection_id = %id);
     let app = Arc::clone(&state);
@@ -49,6 +52,7 @@ pub async fn connections_delete(state: AppStateRef<'_>, id: Uuid) -> AppResult<(
 
 #[tauri::command]
 pub async fn connections_duplicate(state: AppStateRef<'_>, id: Uuid) -> AppResult<Connection> {
+    state.lock.guard()?;
     let copy = state.connections.duplicate_connection(id)?;
     tracing::info!(event = "connection.duplicated", connection_id = %copy.id);
     Ok(copy)
@@ -60,11 +64,13 @@ pub async fn connections_move(
     id: Uuid,
     folder_id: Option<Uuid>,
 ) -> AppResult<()> {
+    state.lock.guard()?;
     state.connections.move_connection(id, folder_id)
 }
 
 #[tauri::command]
 pub async fn folders_save(state: AppStateRef<'_>, folder: FolderInput) -> AppResult<Folder> {
+    state.lock.guard()?;
     let saved = state.connections.save_folder(folder)?;
     tracing::debug!(event = "folder.saved");
     Ok(saved)
@@ -72,6 +78,7 @@ pub async fn folders_save(state: AppStateRef<'_>, folder: FolderInput) -> AppRes
 
 #[tauri::command]
 pub async fn folders_delete(state: AppStateRef<'_>, id: Uuid) -> AppResult<()> {
+    state.lock.guard()?;
     state.connections.delete_folder(id)?;
     tracing::info!(event = "folder.deleted");
     Ok(())
@@ -83,6 +90,7 @@ pub async fn connections_rename(
     id: Uuid,
     name: String,
 ) -> AppResult<Connection> {
+    state.lock.guard()?;
     let renamed = state.connections.rename_connection(id, &name)?;
     tracing::info!(event = "connection.updated", connection_id = %id);
     Ok(renamed)
@@ -90,6 +98,7 @@ pub async fn connections_rename(
 
 #[tauri::command]
 pub async fn folders_rename(state: AppStateRef<'_>, id: Uuid, name: String) -> AppResult<Folder> {
+    state.lock.guard()?;
     let renamed = state.connections.rename_folder(id, &name)?;
     tracing::debug!(event = "folder.saved");
     Ok(renamed)
@@ -104,6 +113,7 @@ pub async fn tree_move(
     target_folder_id: Option<Uuid>,
     before: Option<ItemRef>,
 ) -> AppResult<ConnectionTree> {
+    state.lock.guard()?;
     let tree = state
         .connections
         .move_items(&items, target_folder_id, before)?;
@@ -117,6 +127,7 @@ pub async fn tree_delete_preview(
     items: Vec<ItemRef>,
     mode: FolderDeleteMode,
 ) -> AppResult<DeletePlan> {
+    state.lock.guard()?;
     state.connections.plan_delete(&items, mode)
 }
 
@@ -137,6 +148,7 @@ pub async fn tree_delete(
     items: Vec<ItemRef>,
     mode: FolderDeleteMode,
 ) -> AppResult<DeleteOutcome> {
+    state.lock.guard()?;
     let plan = state.connections.delete_items(&items, mode)?;
     let app = Arc::clone(&state);
     let ids = plan.connection_ids.clone();

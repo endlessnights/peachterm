@@ -12,6 +12,7 @@ type AppStateRef<'a> = State<'a, Arc<AppState>>;
 
 #[tauri::command]
 pub async fn credentials_status(state: AppStateRef<'_>) -> AppResult<CredentialStatus> {
+    state.lock.guard()?;
     let app = Arc::clone(&state);
     super::blocking(move || Ok(app.credentials.status())).await
 }
@@ -23,6 +24,7 @@ pub async fn credentials_set_password(
     connection_id: Uuid,
     secret: SecretString,
 ) -> AppResult<()> {
+    state.lock.guard()?;
     let connection = state.connections.get(connection_id)?;
     if !connection.save_password {
         return Err(AppError::Validation(
@@ -47,6 +49,7 @@ pub async fn credentials_set_password(
 
 #[tauri::command]
 pub async fn credentials_clear(state: AppStateRef<'_>, connection_id: Uuid) -> AppResult<()> {
+    state.lock.guard()?;
     state.connections.get(connection_id)?;
     let app = Arc::clone(&state);
     super::blocking(move || app.credentials.delete(&connection_account(&connection_id))).await?;
@@ -64,6 +67,7 @@ pub struct ClearedCount {
 
 #[tauri::command]
 pub async fn credentials_clear_all(state: AppStateRef<'_>) -> AppResult<ClearedCount> {
+    state.lock.guard()?;
     let tree = state.connections.load()?;
     let ids: Vec<Uuid> = tree
         .connections
@@ -89,11 +93,13 @@ pub async fn credentials_clear_all(state: AppStateRef<'_>) -> AppResult<ClearedC
 
 #[tauri::command]
 pub async fn known_hosts_list(state: AppStateRef<'_>) -> AppResult<Vec<KnownHost>> {
+    state.lock.guard()?;
     state.known_hosts.list()
 }
 
 #[tauri::command]
 pub async fn known_hosts_remove(state: AppStateRef<'_>, host: String, port: u16) -> AppResult<()> {
+    state.lock.guard()?;
     let removed = state.known_hosts.remove(&host, port)?;
     tracing::info!(event = "known_hosts.removed", count = removed as u64);
     Ok(())

@@ -12,6 +12,7 @@ import {
   type ActionId,
   type Combo,
 } from '../shared/shortcuts';
+import { isLocked } from '../features/lock/store';
 import { runAction } from './commands';
 import { useDialogs } from './dialogs';
 
@@ -74,6 +75,7 @@ export function useShortcuts() {
     if (recording) return;
     const table = buildTable(overrides);
     const onKeyDown = (e: KeyboardEvent) => {
+      if (isLocked()) return; // the lock screen owns the keyboard
       if (e.isComposing || e.repeat) {
         if (isWebViewDefault(e)) e.preventDefault();
         return;

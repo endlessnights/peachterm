@@ -17,6 +17,8 @@ pub enum AppError {
     CredentialsUnavailable(String),
     #[error("credential storage error: {0}")]
     Credentials(String),
+    #[error("PeachTerm is locked")]
+    Locked,
     #[error("{0} is not implemented yet")]
     NotImplemented(&'static str),
 }
@@ -30,6 +32,7 @@ impl AppError {
             AppError::Storage(_) => "storage",
             AppError::CredentialsUnavailable(_) => "credentials_unavailable",
             AppError::Credentials(_) => "credentials",
+            AppError::Locked => "locked",
             AppError::NotImplemented(_) => "not_implemented",
         }
     }

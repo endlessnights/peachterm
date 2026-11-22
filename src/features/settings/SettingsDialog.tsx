@@ -8,7 +8,9 @@ import { ipc, isTauri, toAppError } from '../../shared/ipc';
 import { checkBindings } from '../../shared/shortcuts';
 import type { Accent, AuthMethod, EditorPreset, KnownHost, Settings } from '../../shared/types';
 import { useConnections } from '../connections/store';
+import { useLock } from '../lock/store';
 import { Field, Segmented, numberInput, type PageProps } from './controls';
+import { ApplicationLockSection } from './ApplicationLockSection';
 import { DiagnosticsPage } from './DiagnosticsPage';
 import { ShortcutsPage } from './ShortcutsPage';
 import { useCredentialStatus } from '../connections/useCredentialStatus';
@@ -86,6 +88,8 @@ export function SettingsDialog({
       setBaseline(result);
       setDraft(result);
       setApplied((n) => n + 1);
+      // The lock may have been turned on/off or re-timed by this save.
+      await useLock.getState().refresh();
       return true;
     } catch (e) {
       setError(toAppError(e).message);
@@ -162,7 +166,7 @@ export function SettingsDialog({
           )}
           {page === 'ssh' && <SshPage draft={draft} patch={patch} replace={replace} />}
           {page === 'sftp' && <SftpPage draft={draft} patch={patch} replace={replace} />}
-          {page === 'security' && <SecurityPage />}
+          {page === 'security' && <SecurityPage draft={draft} patch={patch} replace={replace} />}
           {page === 'diagnostics' && (
             <DiagnosticsPage draft={draft} patch={patch} replace={replace} appliedTick={applied} />
           )}
@@ -476,7 +480,7 @@ function ArgsInput({ args, onChange }: { args: string[]; onChange: (args: string
   );
 }
 
-function SecurityPage() {
+function SecurityPage({ draft, patch, replace }: PageProps) {
   const credentials = useCredentialStatus();
   const refreshConnections = useConnections((s) => s.refresh);
   const [hosts, setHosts] = useState<KnownHost[] | null>(null);
@@ -498,6 +502,8 @@ function SecurityPage() {
 
   return (
     <>
+      <ApplicationLockSection draft={draft} patch={patch} replace={replace} />
+
       <h3>Credential storage</h3>
       {credentials ? (
         <div className={credentials.available ? 'notice' : 'notice notice-warn'}>

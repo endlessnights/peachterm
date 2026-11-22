@@ -23,7 +23,12 @@ pub async fn app_info(state: State<'_, Arc<AppState>>) -> AppResult<AppInfo> {
         version: env!("CARGO_PKG_VERSION"),
         os: crate::platform::os_name(),
         arch: std::env::consts::ARCH,
-        issues: state.startup_issues.clone(),
+        // Notes can name data files, so they are withheld while locked.
+        issues: if state.lock.is_locked() {
+            Vec::new()
+        } else {
+            state.startup_issues.clone()
+        },
     })
 }
 

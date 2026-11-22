@@ -12,6 +12,7 @@ type AppStateRef<'a> = State<'a, Arc<AppState>>;
 
 #[tauri::command]
 pub async fn logging_status(state: AppStateRef<'_>) -> AppResult<LoggingStatus> {
+    state.lock.guard()?;
     let app = Arc::clone(&state);
     super::blocking(move || Ok(app.logging.status())).await
 }
@@ -19,6 +20,7 @@ pub async fn logging_status(state: AppStateRef<'_>) -> AppResult<LoggingStatus> 
 /// Opens the *effective* log directory (never a renderer-supplied path).
 #[tauri::command]
 pub async fn logging_open_dir(state: AppStateRef<'_>) -> AppResult<()> {
+    state.lock.guard()?;
     let app = Arc::clone(&state);
     super::blocking(move || {
         let dir = app.logging.effective_dir();
@@ -32,6 +34,7 @@ pub async fn logging_open_dir(state: AppStateRef<'_>) -> AppResult<()> {
 /// Which files an export would contain, so the user can review it first.
 #[tauri::command]
 pub async fn logging_export_preview(state: AppStateRef<'_>) -> AppResult<ExportPreview> {
+    state.lock.guard()?;
     let app = Arc::clone(&state);
     super::blocking(move || {
         app.logging.flush();
@@ -53,6 +56,7 @@ pub struct ExportOutcome {
 /// renderer cannot make the backend write to an arbitrary path.
 #[tauri::command]
 pub async fn logging_export(app: AppHandle, state: AppStateRef<'_>) -> AppResult<ExportOutcome> {
+    state.lock.guard()?;
     let shared = Arc::clone(&state);
     super::blocking(move || {
         shared.logging.flush();
@@ -125,6 +129,7 @@ pub async fn logging_export(app: AppHandle, state: AppStateRef<'_>) -> AppResult
 /// Show the most recent archive's folder (only the path remembered by Rust).
 #[tauri::command]
 pub async fn logging_reveal_export(state: AppStateRef<'_>) -> AppResult<()> {
+    state.lock.guard()?;
     let last = state.last_export.lock().ok().and_then(|l| l.clone());
     let Some(folder) = last.and_then(|p| p.parent().map(|d| d.to_path_buf())) else {
         return Err(AppError::NotFound("exported archive".into()));

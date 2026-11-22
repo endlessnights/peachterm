@@ -39,6 +39,7 @@ tracing-log = { version = "0.2", default-features = false, features = ["std"] }
 # machinery (and its Debug-printing of arbitrary fields) is deliberately absent.
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["registry", "std", "tracing-log"] }
 zip = { version = "9", default-features = false, features = ["deflate"] }
+argon2 = { version = "0.5.3", features = ["std", "password-hash", "rand"] }
 zeroize = { version = "1.9", features = ["zeroize_derive"] }
 sha2 = "0.11"
 # SSH transport (Phase 2) and SFTP (Phase 3). Pulled in now to validate that the
@@ -70,3 +71,9 @@ lto = "thin"
 codegen-units = 1
 strip = "symbols"
 opt-level = "s"
+
+# Argon2 is deliberately slow; an unoptimised debug build would make unlocking take minutes.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3

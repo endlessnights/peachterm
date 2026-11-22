@@ -6,6 +6,7 @@
 mod commands;
 mod editor;
 mod error;
+mod lock;
 mod logging;
 mod platform;
 mod security;
@@ -24,7 +25,7 @@ use std::sync::{Arc, Mutex};
 use storage::atomic::ConfigIssue;
 use storage::connections::ConnectionStore;
 use storage::settings::{DiagnosticsSettings, SettingsStore};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 /// Process-wide services, shared with commands via `State<Arc<AppState>>`.
 pub struct AppState {
@@ -37,6 +38,7 @@ pub struct AppState {
     #[allow(dead_code)] // driven by the SSH service (Phase 2)
     pub sessions: SessionRegistry,
     pub logging: Arc<LogController>,
+    pub lock: Arc<lock::LockService>,
     /// Human-readable, secret-free notes about recoverable start-up problems.
     pub startup_issues: Vec<String>,
     /// Last diagnostic archive written by this process (for "show in folder").
@@ -59,6 +61,7 @@ impl AppState {
         let settings = SettingsStore::open(paths.settings_file())?;
         let known_hosts = KnownHostsStore::open(paths.known_hosts_file())?;
 
+        let lock = lock::LockService::open(paths.config_dir.join("lock.json"), lock::Kdf::STRONG);
         let logging = start_logging(paths.log_dir.clone(), &settings.get()?.diagnostics);
         tracing::info!(
             event = "app.start",
@@ -91,6 +94,17 @@ impl AppState {
             }
             startup_issues.push(issue.describe());
         }
+        // The lock starts engaged whenever it is enabled; an unlocked state is
+        // never restored from disk. Enabled without a password cannot lock
+        // anything, so say so instead of pretending.
+        let wanted = settings.get()?.security.app_lock;
+        if !lock.configure(wanted.enabled, wanted.inactivity_minutes, true) && wanted.enabled {
+            startup_issues.push(
+                "Application lock is turned on but its password file is missing, so the lock is off. Set a password in Settings \u{2192} Security."
+                    .to_owned(),
+            );
+        }
+        lock.spawn_timer();
         tracing::info!(
             event = "config.loaded",
             file = "connections.json",
@@ -108,8 +122,9 @@ impl AppState {
             settings,
             known_hosts,
             credentials,
-            sessions: SessionRegistry::new(),
+            sessions: SessionRegistry::with_lock(lock.flag()),
             logging,
+            lock,
             startup_issues,
             last_export: Mutex::new(None),
             paths,
@@ -166,7 +181,18 @@ pub fn run() {
                 LogController::init,
             )?;
             apply_startup_title_bar(app, &state);
-            app.manage(Arc::new(state));
+            let state = Arc::new(state);
+            // Whenever the lock engages (button, shortcut or inactivity timer):
+            // forget in-memory upload permissions and tell the UI.
+            let handle = app.handle().clone();
+            let shared = Arc::clone(&state);
+            state.lock.set_notifier(Box::new(move |locked| {
+                if locked {
+                    let _ = shared.sessions.reset_write_policies();
+                }
+                let _ = handle.emit("lock-state-changed", locked);
+            }));
+            app.manage(state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -187,6 +213,12 @@ pub fn run() {
             commands::settings::settings_load,
             commands::settings::settings_save,
             commands::window::window_apply_theme,
+            commands::lock::lock_status,
+            commands::lock::lock_unlock,
+            commands::lock::lock_now,
+            commands::lock::lock_set_password,
+            commands::lock::lock_remove_password,
+            commands::lock::lock_touch,
             commands::security::credentials_status,
             commands::security::credentials_set_password,
             commands::security::credentials_clear,
@@ -435,5 +467,130 @@ mod tests {
             .filter(|e| e.file_name().to_string_lossy().contains(".corrupt-"))
             .count();
         assert_eq!(backups, 3);
+    }
+
+    /// Every IPC command must refuse while locked, except this short, reviewed
+    /// list. A new command that forgets the guard fails this test.
+    #[test]
+    fn every_ipc_command_enforces_the_lock_except_the_allowlist() {
+        const ALLOWED: &[&str] = &[
+            "lock_status",        // the lock screen needs it
+            "lock_unlock",        // how a locked app is opened
+            "lock_now",           // idempotent; locking while locked is harmless
+            "lock_touch",         // no-op while locked
+            "app_info",           // withholds start-up notes while locked
+            "window_apply_theme", // cosmetic, reveals nothing
+            "editor_presets",     // static list of editor names
+        ];
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/commands");
+        let mut checked = 0;
+        for entry in std::fs::read_dir(dir).unwrap().flatten() {
+            let text = std::fs::read_to_string(entry.path())
+                .unwrap()
+                .replace("\r\n", "\n");
+            for part in text.split("#[tauri::command]").skip(1) {
+                let name = part
+                    .split("pub async fn ")
+                    .nth(1)
+                    .and_then(|r| r.split('(').next())
+                    .unwrap()
+                    .trim()
+                    .to_owned();
+                // The guard must come before any other work: within the first lines of the body.
+                let body_start = part.find("{\n").unwrap();
+                let head: String = part[body_start..]
+                    .lines()
+                    .take(6)
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                if !ALLOWED.contains(&name.as_str()) {
+                    assert!(
+                        head.contains("lock.guard()"),
+                        "command `{name}` does not call lock.guard() first"
+                    );
+                }
+                checked += 1;
+            }
+        }
+        assert!(checked >= 25, "scan found only {checked} commands");
+    }
+
+    fn start_in(dir: &Path) -> AppState {
+        AppState::initialize(
+            AppPaths::under(dir),
+            Arc::new(MemoryCredentialStore::new()),
+            Vec::new(),
+            LogController::detached,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn enabled_lock_starts_locked_after_every_restart_and_blocks_the_backend() {
+        use security::secret::SecretString;
+        let dir = tempfile::tempdir().unwrap();
+        let password = SecretString::new("correct horse".into());
+        {
+            let state = start_in(dir.path());
+            assert!(!state.lock.is_locked(), "disabled by default");
+            state.lock.set_password(&password, None).unwrap();
+            let mut s = state.settings.get().unwrap();
+            s.security.app_lock.enabled = true;
+            state.settings.save(s).unwrap();
+            state.lock.configure(true, 0, false);
+            assert!(!state.lock.is_locked(), "enabling does not lock by itself");
+        }
+        // Restart: locked again, regardless of how the previous run ended.
+        let state = start_in(dir.path());
+        assert!(state.lock.is_locked());
+        assert_eq!(state.lock.guard().unwrap_err().code(), "locked");
+        assert_eq!(
+            state
+                .sessions
+                .open(uuid::Uuid::new_v4())
+                .unwrap_err()
+                .code(),
+            "locked"
+        );
+        // The persisted files never record an unlocked state or the password.
+        for entry in std::fs::read_dir(dir.path().join("config"))
+            .unwrap()
+            .flatten()
+        {
+            let text = std::fs::read_to_string(entry.path()).unwrap_or_default();
+            assert!(!text.contains("correct horse"));
+            assert!(!text.to_lowercase().contains("unlocked"));
+        }
+        assert!(matches!(
+            state
+                .lock
+                .unlock(&SecretString::new("wrong password".into()))
+                .unwrap(),
+            lock::UnlockOutcome::Wrong { .. }
+        ));
+        assert!(state.lock.is_locked());
+        state.lock.unlock(&password).unwrap();
+        assert!(state.lock.guard().is_ok());
+        assert!(state.sessions.open(uuid::Uuid::new_v4()).is_ok());
+    }
+
+    #[test]
+    fn enabled_without_a_password_file_is_reported_and_does_not_lock() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join("config");
+        std::fs::create_dir_all(&config).unwrap();
+        std::fs::write(
+            config.join("settings.json"),
+            r#"{"security":{"appLock":{"enabled":true,"inactivityMinutes":5}}}"#,
+        )
+        .unwrap();
+        let state = start_in(dir.path());
+        assert!(!state.lock.is_locked());
+        assert!(
+            state
+                .startup_issues
+                .iter()
+                .any(|n| n.contains("password file is missing"))
+        );
     }
 }

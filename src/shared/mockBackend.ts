@@ -36,6 +36,12 @@ export interface MockOptions {
   loggingError?: string;
   /** Start-up notes returned by `app_info`. */
   issues?: string[];
+  /** Pretend a lock password exists (the lock is off until settings enable it). */
+  lockPassword?: string;
+  /** Start with the lock enabled and engaged (as after a restart). */
+  startLocked?: boolean;
+  /** Start with the lock enabled but unlocked. */
+  lockEnabled?: boolean;
 }
 
 export function createMockBackend(
@@ -49,6 +55,19 @@ export function createMockBackend(
   };
   let settings: Settings = structuredClone(DEFAULT_SETTINGS);
   const saves: Settings[] = [];
+  let lockPassword: string | null = options.lockPassword ?? null;
+  let locked = !!options.startLocked && lockPassword !== null;
+  let failed = 0;
+  if (options.startLocked || options.lockEnabled) settings.security.appLock.enabled = true;
+  const lockOpen = new Set([
+    'lock_status',
+    'lock_unlock',
+    'lock_now',
+    'lock_touch',
+    'app_info',
+    'window_apply_theme',
+    'editor_presets',
+  ]);
 
   const findConnection = (id: unknown) => {
     const c = tree.connections.find((x) => x.id === id);
@@ -57,6 +76,55 @@ export function createMockBackend(
   };
 
   const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
+    lock_status: () => ({
+      enabled: settings.security.appLock.enabled && lockPassword !== null,
+      configured: lockPassword !== null,
+      locked,
+      lockoutSeconds: failed >= 3 ? 5 : 0,
+      inactivityMinutes: settings.security.appLock.inactivityMinutes,
+      theme: settings.appearance.theme,
+      accent: settings.appearance.accent,
+    }),
+    lock_unlock: ({ password }) => {
+      if (failed >= 3) return { result: 'lockedOut', lockoutSeconds: 5 };
+      if (password === lockPassword) {
+        locked = false;
+        failed = 0;
+        return { result: 'unlocked' };
+      }
+      failed += 1;
+      return {
+        result: 'wrong',
+        attemptsLeftBeforeDelay: Math.max(0, 3 - failed),
+        lockoutSeconds: failed >= 3 ? 5 : 0,
+      };
+    },
+    lock_now: () => {
+      if (!(settings.security.appLock.enabled && lockPassword !== null)) {
+        throw {
+          code: 'validation',
+          message: 'Application lock is not set up. Set a lock password first.',
+        };
+      }
+      locked = true;
+    },
+    lock_touch: () => undefined,
+    lock_set_password: ({ newPassword, currentPassword }) => {
+      if (String(newPassword).length < 8) {
+        throw { code: 'validation', message: 'The lock password must have at least 8 characters.' };
+      }
+      if (lockPassword !== null && currentPassword !== lockPassword) {
+        throw { code: 'validation', message: 'The current lock password is wrong.' };
+      }
+      lockPassword = String(newPassword);
+    },
+    lock_remove_password: ({ currentPassword }) => {
+      if (currentPassword !== lockPassword) {
+        throw { code: 'validation', message: 'The lock password is wrong.' };
+      }
+      lockPassword = null;
+      settings.security.appLock.enabled = false;
+    },
     app_info: () => ({
       name: 'PeachTerm',
       version: '0.0.0-dev',
@@ -182,6 +250,12 @@ export function createMockBackend(
     settings_load: () => structuredClone(settings),
     settings_save: ({ settings: next }) => {
       const incoming = next as Settings;
+      if (incoming.security.appLock.enabled && lockPassword === null) {
+        throw {
+          code: 'validation',
+          message: 'Set a lock password before enabling the application lock.',
+        };
+      }
       // Mirrors the Rust validation: conflicting/reserved shortcuts are refused.
       const problem = checkBindings(incoming.shortcuts ?? {})[0];
       if (problem)
@@ -238,6 +312,7 @@ export function createMockBackend(
   };
 
   const invoke = async <T>(command: string, args: Record<string, unknown> = {}): Promise<T> => {
+    if (locked && !lockOpen.has(command)) throw { code: 'locked', message: 'PeachTerm is locked' };
     const handler = handlers[command];
     if (!handler) throw { code: 'not_implemented', message: `${command} is not implemented` };
     return handler(args) as T;

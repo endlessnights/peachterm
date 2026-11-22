@@ -156,6 +156,11 @@ pub const IDENT_VOCABULARY: &[&str] = &[
 pub const EVENTS: &[&str] = &[
     // application
     "app.start",
+    "lock.locked",
+    "lock.unlocked",
+    "lock.unlock_failed",
+    "lock.password_set",
+    "lock.password_removed",
     "window.theme_applied",
     "app.shutdown",
     "app.panic",

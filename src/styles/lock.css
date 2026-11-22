@@ -1,0 +1,40 @@
+/* ---------- application lock ---------- */
+
+.app[data-locked] {
+  visibility: hidden;
+}
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: var(--surface-0);
+  user-select: none;
+}
+.lock-card {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  width: min(320px, calc(100vw - 32px));
+  text-align: center;
+}
+.lock-card .logo {
+  width: 56px;
+  height: 56px;
+}
+.lock-card h1 {
+  margin: 4px 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.lock-card .input,
+.lock-card .btn {
+  width: 100%;
+  height: 34px;
+}
+.lock-message {
+  min-height: 18px;
+  color: var(--text-2);
+  font-size: 12px;
+}

@@ -8,6 +8,7 @@
 
 use crate::editor::policy::{self, Decision, RemoteWritePolicy, UserAnswer, WriteRequest};
 use crate::error::{AppError, AppResult};
+use crate::lock::LockFlag;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -46,12 +47,30 @@ pub struct ConnectionSession {
 #[derive(Default)]
 pub struct SessionRegistry {
     sessions: Mutex<HashMap<SessionId, ConnectionSession>>,
+    lock: LockFlag,
 }
 
 #[allow(dead_code)] // driven by the SSH service from Phase 2 on
 impl SessionRegistry {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Registry whose operations are refused while the application is locked.
+    pub fn with_lock(lock: LockFlag) -> Self {
+        Self {
+            sessions: Mutex::default(),
+            lock,
+        }
+    }
+
+    /// Called when the application locks: every "Yes to all" override is
+    /// dropped, so uploads need a fresh confirmation after unlocking.
+    pub fn reset_write_policies(&self) -> AppResult<()> {
+        for session in self.lock()?.values_mut() {
+            session.write_policy = RemoteWritePolicy::AlwaysAsk;
+        }
+        Ok(())
     }
 
     fn lock(&self) -> AppResult<std::sync::MutexGuard<'_, HashMap<SessionId, ConnectionSession>>> {
@@ -63,6 +82,7 @@ impl SessionRegistry {
     /// Start a new session. The policy is always `AlwaysAsk`; there is no
     /// parameter to start in any other state.
     pub fn open(&self, connection_id: Uuid) -> AppResult<SessionId> {
+        self.lock.guard()?;
         let id = SessionId::new();
         self.lock()?.insert(
             id,
@@ -88,6 +108,7 @@ impl SessionRegistry {
     }
 
     pub fn evaluate_write(&self, request: &WriteRequest) -> AppResult<Decision> {
+        self.lock.guard()?;
         let policy = self.write_policy(request.session)?;
         Ok(policy::evaluate(policy, request))
     }
@@ -97,6 +118,7 @@ impl SessionRegistry {
         request: &WriteRequest,
         answer: UserAnswer,
     ) -> AppResult<Option<policy::UploadAuthorization>> {
+        self.lock.guard()?;
         let mut sessions = self.lock()?;
         let session = sessions
             .get_mut(&request.session)
@@ -203,5 +225,54 @@ mod tests {
                 .answer_write(&req(SessionId::new()), UserAnswer::Yes)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn locking_blocks_session_operations_and_forgets_yes_to_all() {
+        let lock = crate::lock::LockService::open(
+            std::env::temp_dir().join(format!("peachterm-lock-{}.json", Uuid::new_v4())),
+            crate::lock::Kdf::FAST,
+        );
+        lock.set_password(
+            &crate::security::secret::SecretString::new("correct horse".into()),
+            None,
+        )
+        .unwrap();
+        lock.configure(true, 0, false);
+        let registry = SessionRegistry::with_lock(lock.flag());
+        let id = registry.open(Uuid::new_v4()).unwrap();
+        registry
+            .answer_write(&req(id), UserAnswer::YesToAll)
+            .unwrap();
+        assert!(matches!(
+            registry.evaluate_write(&req(id)).unwrap(),
+            Decision::Upload(_)
+        ));
+
+        lock.lock().unwrap();
+        registry.reset_write_policies().unwrap();
+        assert_eq!(
+            registry.evaluate_write(&req(id)).unwrap_err().code(),
+            "locked"
+        );
+        assert_eq!(
+            registry
+                .answer_write(&req(id), UserAnswer::Yes)
+                .unwrap_err()
+                .code(),
+            "locked"
+        );
+        assert_eq!(registry.open(Uuid::new_v4()).unwrap_err().code(), "locked");
+
+        lock.unlock(&crate::security::secret::SecretString::new(
+            "correct horse".into(),
+        ))
+        .unwrap();
+        // after unlocking, a fresh confirmation is required again
+        assert_eq!(
+            registry.write_policy(id).unwrap(),
+            RemoteWritePolicy::AlwaysAsk
+        );
+        assert_eq!(registry.evaluate_write(&req(id)).unwrap(), Decision::Prompt);
     }
 }

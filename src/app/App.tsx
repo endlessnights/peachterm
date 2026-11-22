@@ -13,7 +13,10 @@ import { describeReason } from '../features/settings/DiagnosticsPage';
 import { SettingsDialog } from '../features/settings/SettingsDialog';
 import { useSettings } from '../features/settings/store';
 import { TerminalWorkspace } from '../features/terminal/TerminalWorkspace';
-import { ipc, toAppError } from '../shared/ipc';
+import { LockScreen } from '../features/lock/LockScreen';
+import { useLock } from '../features/lock/store';
+import { useActivityTouch } from '../features/lock/useActivityTouch';
+import { ipc, isTauri, toAppError } from '../shared/ipc';
 import { useDialogs } from './dialogs';
 import { StatusBar } from './StatusBar';
 import { useShortcuts } from './useShortcuts';
@@ -25,17 +28,29 @@ export function App() {
   const setUi = useSettings((s) => s.setUi);
   const persistUi = useSettings((s) => s.persistUi);
   const connections = useConnections((s) => s.tree.connections);
+  const lock = useLock((s) => s.view);
+  const locked = lock?.locked === true;
   const [version, setVersion] = useState('');
   const [fatal, setFatal] = useState<string | null>(null);
 
+  // While locked and nothing is loaded yet, the lock screen borrows the theme
+  // from the lock status; otherwise the normal (possibly previewed) appearance.
   const preview = useSettings((s) => s.preview);
-  useTheme(preview ?? settings.appearance);
+  useTheme(
+    settingsLoaded
+      ? (preview ?? settings.appearance)
+      : { ...settings.appearance, theme: lock?.theme ?? 'dark', accent: lock?.accent ?? 'peach' },
+  );
   useShortcuts();
+  useActivityTouch();
 
-  useEffect(() => {
-    Promise.all([useSettings.getState().load(), useConnections.getState().load()]).catch((e) =>
-      setFatal(toAppError(e).message),
-    );
+  const bootstrap = async () => {
+    try {
+      await Promise.all([useSettings.getState().load(), useConnections.getState().load()]);
+    } catch (e) {
+      setFatal(toAppError(e).message);
+      return;
+    }
     ipc
       .appInfo()
       .then((info) => {
@@ -58,7 +73,42 @@ export function App() {
         }
       })
       .catch(() => undefined);
+  };
+
+  // Ask the backend first: a locked application loads nothing until unlocked
+  // (the backend would refuse anyway).
+  useEffect(() => {
+    useLock
+      .getState()
+      .refresh()
+      .then((view) => {
+        if (!view.locked) void bootstrap();
+      })
+      .catch((e) => setFatal(toAppError(e).message));
+    // The backend tells us when the timer or another window locks the app.
+    let stop: (() => void) | undefined;
+    if (isTauri()) {
+      void import('@tauri-apps/api/event').then(({ listen }) =>
+        listen<boolean>('lock-state-changed', (event) => {
+          useLock.getState().setLocked(event.payload);
+          void useLock.getState().refresh();
+        }).then((un) => (stop = un)),
+      );
+    }
+    return () => stop?.();
   }, []);
+
+  // Locking clears everything transient: open dialogs (which may hold typed
+  // secrets), toasts and key recording. Unlocking loads the data if it was not
+  // loaded yet (application started locked).
+  useEffect(() => {
+    if (locked) {
+      useDialogs.getState().close();
+      useToasts.setState({ toasts: [] });
+    } else if (useLock.getState().view && !useSettings.getState().loaded) {
+      queueMicrotask(() => void bootstrap());
+    }
+  }, [locked]);
 
   // Tab titles follow edits of their saved connection.
   useEffect(() => {
@@ -76,35 +126,46 @@ export function App() {
       </div>
     );
   }
-  if (!settingsLoaded) return null;
+  if (!lock) return null;
+  if (!settingsLoaded && !locked) return null;
 
   const { ui } = settings;
   return (
-    <div className="app">
-      <div className="main">
-        {ui.sidebarVisible && (
-          <>
-            <Sidebar width={ui.sidebarWidth} />
-            <ResizeHandle
-              label="Resize sidebar"
-              value={ui.sidebarWidth}
-              min={160}
-              max={640}
-              direction={1}
-              onChange={(sidebarWidth) => setUi({ sidebarWidth })}
-              onCommit={() => void persistUi().catch(reportError)}
-            />
-          </>
-        )}
-        <main className="workspace">
-          <TabBar />
-          <TerminalWorkspace />
-        </main>
+    <>
+      {/* While locked the workspace stays mounted (tabs and sessions are kept)
+          but is inert and invisible: no input, no focus, nothing to read. */}
+      <div
+        className="app"
+        data-locked={locked || undefined}
+        inert={locked}
+        aria-hidden={locked || undefined}
+      >
+        <div className="main">
+          {ui.sidebarVisible && (
+            <>
+              <Sidebar width={ui.sidebarWidth} />
+              <ResizeHandle
+                label="Resize sidebar"
+                value={ui.sidebarWidth}
+                min={160}
+                max={640}
+                direction={1}
+                onChange={(sidebarWidth) => setUi({ sidebarWidth })}
+                onCommit={() => void persistUi().catch(reportError)}
+              />
+            </>
+          )}
+          <main className="workspace">
+            <TabBar />
+            <TerminalWorkspace />
+          </main>
+        </div>
+        <StatusBar version={version} />
+        {!locked && <DialogHost />}
+        {!locked && <Toasts />}
       </div>
-      <StatusBar version={version} />
-      <DialogHost />
-      <Toasts />
-    </div>
+      {locked && <LockScreen />}
+    </>
   );
 }
 

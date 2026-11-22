@@ -6,6 +6,7 @@ import { useConnections } from '../features/connections/store';
 import { useTabs } from '../features/sessions/store';
 import { useSettings } from '../features/settings/store';
 import type { ActionId } from '../shared/shortcuts';
+import { useLock } from '../features/lock/store';
 import { connect, newFolder, requestCloseTab } from './actions';
 import { openConnectionEditor, openSettings } from './dialogs';
 
@@ -37,6 +38,23 @@ function rename() {
   useConnections
     .getState()
     .startRename(item.kind === 'folder' ? item.folder.id : item.connection.id);
+}
+
+/**
+ * Lock now if the lock is set up; otherwise guide the user to set a password
+ * instead of "locking" with nothing behind it.
+ */
+export function lockApplication() {
+  const view = useLock.getState().view;
+  if (view?.enabled && view.configured) {
+    useLock
+      .getState()
+      .lockNow()
+      .catch((e) => notify(e?.message ?? 'Could not lock PeachTerm.'));
+    return;
+  }
+  notify('Set up the application lock first: choose a password in Settings → Security.');
+  openSettings('security');
 }
 
 export function toggleSidebar() {
@@ -72,7 +90,7 @@ export function runAction(id: ActionId) {
     case 'rename':
       return rename();
     case 'lockApp':
-      return openSettings('security');
+      return lockApplication();
     case 'nextTab':
       return useTabs.getState().activateNext(1);
     case 'prevTab':

@@ -4,6 +4,7 @@ import { __resetTitleBarCache } from '../app/useTheme';
 import { useDialogs } from '../app/dialogs';
 import { useToasts } from '../components/Toasts';
 import { useConnections } from '../features/connections/store';
+import { useLock } from '../features/lock/store';
 import { useTabs } from '../features/sessions/store';
 import { useSettings } from '../features/settings/store';
 import { __setBackendForTests } from '../shared/ipc';
@@ -41,6 +42,7 @@ export function mountApp(
   __resetTitleBarCache();
   useTabs.setState({ tabs: [], activeId: null });
   useConnections.setState({
+    tree: { version: 2, folders: [], connections: [] },
     query: '',
     loaded: false,
     selectedId: null,
@@ -48,6 +50,7 @@ export function mountApp(
   });
   useSettings.setState({ loaded: false, startupSnapshot: null, preview: null });
   useDialogs.setState({ dialog: null });
+  useLock.setState({ view: null });
   useToasts.setState({ toasts: [] });
   return { backend, ...render(<App />) };
 }

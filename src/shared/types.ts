@@ -191,6 +191,24 @@ export interface LoggingStatus {
   maxTotalMb: number;
 }
 
+export interface LockView {
+  /** The lock is on (it can only be on while a password exists). */
+  enabled: boolean;
+  /** A lock password has been set. */
+  configured: boolean;
+  locked: boolean;
+  lockoutSeconds: number;
+  inactivityMinutes: number;
+  /** For the lock screen only. */
+  theme: ThemeMode;
+  accent: Accent;
+}
+
+export type UnlockOutcome =
+  | { result: 'unlocked' }
+  | { result: 'wrong'; attemptsLeftBeforeDelay: number; lockoutSeconds: number }
+  | { result: 'lockedOut'; lockoutSeconds: number };
+
 export interface ExportPreview {
   files: { name: string; bytes: number }[];
   totalBytes: number;

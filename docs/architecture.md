@@ -104,7 +104,7 @@ fallback.** Passwords travel renderer→Rust once (when typed) and are never
 returned to the renderer. Private keys stay where the user keeps them; only the
 path is stored.
 
-## 5. SSH / terminal data path (Phase 2 design)
+## 5. SSH / terminal data path
 
 ```
 xterm.js ──onData──► invoke("ssh_write", {sessionId, data})  ─► mpsc ─► russh channel
@@ -113,14 +113,16 @@ xterm.js ◄─write──── Channel<TerminalEvent> (tauri::ipc::Channel) �
 
 - Output is streamed through a per-session `tauri::ipc::Channel`, written
   straight into the xterm instance — **never through React state**.
-- A Rust pump coalesces bytes (≤ 64 KiB or 8 ms) to cap IPC overhead; a bounded
-  channel provides backpressure (the SSH read loop stops reading when the
-  renderer falls behind, so memory is bounded).
+- A Rust pump coalesces bytes (≤ 64 KiB or 8 ms) to cap IPC overhead. Flow
+  control is credit based: the renderer acknowledges rendered bytes (`ssh_ack`)
+  and the SSH read loop stops reading once 512 KiB are unacknowledged, so
+  memory is bounded. While the application is locked output is held (≤ 256 KiB,
+  newest wins) and not forwarded.
 - Each tab owns an independent Tokio task; no global lock on the hot path.
 - SFTP reuses the authenticated `russh` handle on a second channel
   (`request_subsystem("sftp")`); failure leaves the shell untouched.
 
-## 6. Host-key verification (Phase 2, store implemented in Phase 1)
+## 6. Host-key verification
 
 `known_hosts.json` maps `host:port` → algorithm + SHA-256 fingerprint.
 `KnownHosts::check()` returns `Matched | Unknown | Changed{previous}`.
@@ -131,8 +133,8 @@ separate, explicit "replace" action. There is no setting to disable this.
 
 ## 7. Remote-write confirmation policy (core invariant)
 
-Implemented in `editor::policy` and `sessions` (Phase 1 types + tests,
-wired to uploads in Phase 4).
+Implemented in `editor::policy` and `sessions`, enforced by `editor::service`
+(see [editor.md](editor.md)).
 
 - Every `ConnectionSession` is created with
   `RemoteWritePolicy::AlwaysAsk`. The type has **no** `Serialize`/`Deserialize`
@@ -147,15 +149,15 @@ wired to uploads in Phase 4).
 
 ## 8. Platform abstraction
 
-| Concern        | Shared interface                 | Per-OS leaf                                |
-| -------------- | -------------------------------- | ------------------------------------------ |
-| App dirs       | `platform::AppPaths`             | Tauri path resolver                        |
-| Credentials    | `CredentialStore`                | `keyring` backend features per target      |
-| Editor presets | `editor::presets()`              | `platform/{windows,linux,macos}.rs`        |
-| Editor launch  | `EditorCommand` (program + args) | macOS `open -a` handled in macOS leaf      |
-| File watching  | `notify` (Phase 4)               | ReadDirectoryChangesW / inotify / FSEvents |
-| Shortcuts      | `src/shared/platform.ts` (`Mod`) | Ctrl on Win/Linux, Cmd on macOS            |
-| File dialogs   | `tauri-plugin-dialog`            | native                                     |
+| Concern        | Shared interface                 | Per-OS leaf                                          |
+| -------------- | -------------------------------- | ---------------------------------------------------- |
+| App dirs       | `platform::AppPaths`             | Tauri path resolver                                  |
+| Credentials    | `CredentialStore`                | `keyring` backend features per target                |
+| Editor presets | `editor::presets()`              | `platform/{windows,linux,macos}.rs`                  |
+| Editor launch  | `EditorCommand` (program + args) | macOS `open -a` handled in macOS leaf                |
+| File watching  | polling (`editor::service`)      | identical on every OS; survives atomic-replace saves |
+| Shortcuts      | `src/shared/platform.ts` (`Mod`) | Ctrl on Win/Linux, Cmd on macOS                      |
+| File dialogs   | `tauri-plugin-dialog`            | native                                               |
 
 ## 9. Renderer state
 

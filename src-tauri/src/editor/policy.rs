@@ -25,7 +25,6 @@ pub enum RemoteWritePolicy {
 /// The user's answer to a "Remote file modified" prompt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)] // wired to `remote_write_answer` in Phase 4
 pub enum UserAnswer {
     Yes,
     YesToAll,
@@ -50,7 +49,6 @@ pub struct UploadAuthorization {
     content_sha256: [u8; 32],
 }
 
-#[allow(dead_code)] // consumed by the upload pipeline in Phase 4
 impl UploadAuthorization {
     pub fn session(&self) -> SessionId {
         self.session
@@ -91,7 +89,6 @@ pub fn evaluate(policy: RemoteWritePolicy, request: &WriteRequest) -> Decision {
 
 /// Apply an explicit answer. "Yes to all" upgrades the *session's* in-memory
 /// policy; "No"/"Cancel" never authorise anything.
-#[allow(dead_code)] // wired to `remote_write_answer` in Phase 4
 pub fn apply_answer(
     policy: &mut RemoteWritePolicy,
     answer: UserAnswer,

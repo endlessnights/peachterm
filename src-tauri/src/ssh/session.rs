@@ -25,6 +25,10 @@ pub const MAX_OUTSTANDING: usize = 512 * 1024;
 /// Output is batched up to this size or [`BATCH_DELAY`], whichever comes first.
 pub const BATCH_BYTES: usize = 64 * 1024;
 pub const BATCH_DELAY: Duration = Duration::from_millis(8);
+/// While the application is locked, output is held (newest bytes win) up to this
+/// size instead of reaching the renderer, and delivered after unlocking.
+pub const HELD_LIMIT: usize = 256 * 1024;
+const HOLD_RECHECK: Duration = Duration::from_millis(250);
 
 pub trait Sink: Send + Sync + 'static {
     fn send(&self, event: TerminalEvent);
@@ -128,6 +132,8 @@ pub struct StartParams {
     /// Typed into the shell once it is up (`cd -- '<dir>'`), if configured.
     pub initial_directory: Option<String>,
     pub sink: Arc<dyn Sink>,
+    /// Output is not forwarded to the renderer while this says "locked".
+    pub lock: crate::lock::LockFlag,
     /// Called exactly once when the session ends for any reason.
     pub on_end: Arc<dyn Fn(SessionId) + Send + Sync>,
 }
@@ -163,6 +169,7 @@ pub fn start(params: StartParams) -> Arc<SshSession> {
             params.rows,
             params.initial_directory,
             sink.clone(),
+            params.lock.clone(),
             rx,
         )
         .await;
@@ -196,6 +203,7 @@ async fn run(
     rows: u16,
     initial_directory: Option<String>,
     sink: Arc<dyn Sink>,
+    lock: crate::lock::LockFlag,
     mut control: mpsc::Receiver<Control>,
 ) -> Result<(), SshError> {
     sink.send(TerminalEvent::Status {
@@ -244,15 +252,33 @@ async fn run(
 
     let mut batch: Vec<u8> = Vec::new();
     let mut deadline: Option<Instant> = None;
-    let flush = |batch: &mut Vec<u8>| {
+    // Output that arrived while the application was locked (bounded).
+    let mut held: Vec<u8> = Vec::new();
+    // Returns true while output is being held back.
+    let flush = |batch: &mut Vec<u8>, held: &mut Vec<u8>| -> bool {
+        if lock.is_locked() {
+            held.extend_from_slice(batch);
+            batch.clear();
+            if held.len() > HELD_LIMIT {
+                let excess = held.len() - HELD_LIMIT;
+                held.drain(..excess);
+            }
+            return !held.is_empty();
+        }
+        if !held.is_empty() {
+            let mut all = std::mem::take(held);
+            all.extend_from_slice(batch);
+            *batch = all;
+        }
         if batch.is_empty() {
-            return;
+            return false;
         }
         session.credits.add(batch.len());
         sink.send(TerminalEvent::Data {
             data: encode(batch),
         });
         batch.clear();
+        false
     };
     let outcome = loop {
         let room = session.credits.has_room();
@@ -268,8 +294,7 @@ async fn run(
                 Some(Control::Close) | None => break Ok(()),
             },
             _ = async { tokio::time::sleep_until(deadline.unwrap()).await }, if deadline.is_some() => {
-                flush(&mut batch);
-                deadline = None;
+                deadline = flush(&mut batch, &mut held).then(|| Instant::now() + HOLD_RECHECK);
             }
             // Unacknowledged output reached the limit: stop reading until the UI catches up.
             _ = session.credits.wake.notified(), if !room => {}
@@ -277,14 +302,16 @@ async fn run(
                 Some(ChannelMsg::Data { data }) | Some(ChannelMsg::ExtendedData { data, .. }) => {
                     if batch.is_empty() { deadline = Some(Instant::now() + BATCH_DELAY); }
                     batch.extend_from_slice(&data);
-                    if batch.len() >= BATCH_BYTES { flush(&mut batch); deadline = None; }
+                    if batch.len() >= BATCH_BYTES {
+                        deadline = flush(&mut batch, &mut held).then(|| Instant::now() + HOLD_RECHECK);
+                    }
                 }
                 Some(ChannelMsg::Close) | None => break Ok(()),
                 Some(_) => {}
             },
         }
     };
-    flush(&mut batch);
+    flush(&mut batch, &mut held);
     let _ = channel.close().await;
     let _ = handle
         .disconnect(russh::Disconnect::ByApplication, "", "en")

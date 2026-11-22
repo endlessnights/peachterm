@@ -16,6 +16,7 @@ import { reportError } from '../../components/Toasts';
 import { ipc, toAppError } from '../../shared/ipc';
 import type { SessionState, TerminalEvent } from '../../shared/types';
 import { useSettings } from '../settings/store';
+import { useEditor } from '../editor/store';
 import { usePrompts } from '../ssh/promptStore';
 import { useTabs, type Tab, type TabStatus } from '../sessions/store';
 import { TERMINAL_SEARCH_EVENT } from './events';
@@ -134,6 +135,7 @@ export function TerminalView({ tab, active }: Props) {
     unacked.current = 0;
     if (id) {
       usePrompts.getState().dropSession(id);
+      useEditor.getState().dropSession(id);
       if (closeBackend) void ipc.sshClose(id).catch(() => undefined);
     }
   }, []);

@@ -53,7 +53,7 @@ off").
 - **Remote writes:** locking drops every in-memory "Yes to all" override, so a
   fresh confirmation is required after unlocking (and the policy was already
   per-session and never persisted).
-- **Terminal output while locked (Phase 2 requirement):** existing SSH
+- **Terminal output while locked (implemented):** existing SSH
   connections may stay open; the output pump must either buffer a bounded
   amount (drop-oldest) or discard, never forward to the renderer, and the UI
   accepts no input (`inert`). Nothing is exposed through previews: the locked

@@ -36,22 +36,23 @@ Deliverables and acceptance criteria:
 | Cross-platform       | CI: Windows, Linux, macOS builds; no Windows-only APIs in shared modules                                                                                    |
 | Docs                 | Architecture, IPC, roadmap, platform matrix, README build instructions                                                                                      |
 
-## Phase 2 — SSH
+## Phase 2 — Core MVP (SSH + SFTP + external editor) ✅
 
-russh client service, auth (password, key + passphrase, keyboard-interactive, agent),
-host-key prompts, xterm.js + fit/search addons, Channel streaming, resize, multiple tabs,
-disconnect/reconnect, cleanup; integration tests against a Docker `openssh-server`.
+Delivered as one milestone: russh client (password, key + passphrase,
+keyboard-interactive, agent), strict host-key verification, xterm.js terminal
+with back-pressure, multiple tabs and reconnect; integrated SFTP browser and
+transfers; external-editor round trip with Rust-enforced confirmation, conflict
+detection and safe uploads; in-process SSH/SFTP test servers and the mandatory
+"Yes to all" security regression test. See [ssh.md](ssh.md), [sftp.md](sftp.md),
+[editor.md](editor.md).
 
-## Phase 3 — SFTP
+## Phase 3 — SFTP (delivered with Phase 2)
 
-Auto-init SFTP subsystem on the same transport; listing, sort, hidden files, mkdir,
-rename, delete (confirm), upload/download, panel left/right/collapse/resize.
+See above.
 
-## Phase 4 — External editor
+## Phase 4 — External editor (delivered with Phase 2)
 
-Temp file management, editor launch, `notify` watcher with debounce + hashing,
-Rust-enforced confirmation flow, conflict detection, safe upload, mandatory
-security regression test (connect → Yes to all → reconnect → must ask → restart → must ask).
+See above.
 
 ## Phase 5 — Split view and polish
 

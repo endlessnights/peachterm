@@ -102,8 +102,22 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
     refreshRef.current = refresh;
   });
   const open = (entry: RemoteEntry) => {
-    if (isDir(entry)) void load(entry.path);
-    else onOpenFile?.(entry);
+    if (isDir(entry)) {
+      void load(entry.path);
+    } else if (onOpenFile) {
+      onOpenFile(entry);
+    } else if (sessionId) {
+      ipc
+        .editorOpenRemote(sessionId, entry.path)
+        .then((opened) =>
+          notify(
+            opened.alreadyOpen
+              ? `${opened.name} is already open; the editor was started again.`
+              : `Opened ${opened.name} in your editor. Save there to upload.`,
+          ),
+        )
+        .catch(reportError);
+    }
   };
   const toggleSort = (key: SortKey) =>
     setSort((s) => (s.key === key ? { key, ascending: !s.ascending } : { key, ascending: true }));

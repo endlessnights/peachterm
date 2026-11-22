@@ -28,6 +28,9 @@ use storage::settings::{DiagnosticsSettings, SettingsStore};
 use tauri::{Emitter, Manager};
 
 /// Process-wide services, shared with commands via `State<Arc<AppState>>`.
+pub type EditorEmitter =
+    Arc<std::sync::OnceLock<Box<dyn Fn(editor::service::EditorEvent) + Send + Sync>>>;
+
 pub type PromptEmitter =
     Arc<std::sync::OnceLock<Box<dyn Fn(ssh::prompt::PromptEvent) + Send + Sync>>>;
 
@@ -39,7 +42,9 @@ pub struct AppState {
     pub known_hosts: Arc<KnownHostsStore>,
     pub credentials: Arc<dyn CredentialStore>,
     #[allow(dead_code)] // driven by the SSH service (Phase 2)
-    pub sessions: SessionRegistry,
+    pub sessions: Arc<SessionRegistry>,
+    pub editor: editor::service::EditorService,
+    pub editor_emitter: EditorEmitter,
     pub logging: Arc<LogController>,
     pub lock: Arc<lock::LockService>,
     pub ssh: ssh::session::SshManager,
@@ -79,6 +84,25 @@ impl AppState {
             }
         }));
         let lock = lock::LockService::open(paths.config_dir.join("lock.json"), lock::Kdf::STRONG);
+        let sessions = Arc::new(SessionRegistry::with_lock(lock.flag()));
+        let editor_emitter: EditorEmitter = Arc::default();
+        let editor_emit_handle = editor_emitter.clone();
+        let editor = editor::service::EditorService::new(
+            sessions.clone(),
+            lock.flag(),
+            Arc::new(move |event| {
+                if let Some(emit) = editor_emit_handle.get() {
+                    emit(event);
+                }
+            }),
+            editor::service::Timing::default(),
+        );
+        // Copies of files edited in earlier runs that nobody can still be
+        // working in are removed.
+        editor::tempfiles::purge_stale(
+            &editor::temp_root(&settings.get()?.editor),
+            std::time::SystemTime::now(),
+        );
         let logging = start_logging(paths.log_dir.clone(), &settings.get()?.diagnostics);
         tracing::info!(
             event = "app.start",
@@ -139,7 +163,9 @@ impl AppState {
             settings,
             known_hosts,
             credentials,
-            sessions: SessionRegistry::with_lock(lock.flag()),
+            sessions,
+            editor,
+            editor_emitter,
             logging,
             lock,
             ssh: ssh::session::SshManager::default(),
@@ -207,6 +233,10 @@ pub fn run() {
             let _ = state.prompt_emitter.set(Box::new(move |event| {
                 let _ = prompt_handle.emit("ssh-prompt", event);
             }));
+            let editor_handle = app.handle().clone();
+            let _ = state.editor_emitter.set(Box::new(move |event| {
+                let _ = editor_handle.emit("editor-event", event);
+            }));
             // Whenever the lock engages (button, shortcut or inactivity timer):
             // forget in-memory upload permissions and tell the UI.
             let handle = app.handle().clone();
@@ -214,6 +244,7 @@ pub fn run() {
             state.lock.set_notifier(Box::new(move |locked| {
                 if locked {
                     let _ = shared.sessions.reset_write_policies();
+                    tracing::info!(event = "editor.policy_reset");
                 }
                 let _ = handle.emit("lock-state-changed", locked);
             }));
@@ -254,6 +285,11 @@ pub fn run() {
             commands::sftp::sftp_pick_upload,
             commands::sftp::sftp_upload,
             commands::sftp::sftp_cancel,
+            commands::editor::editor_open_remote,
+            commands::editor::editor_answer,
+            commands::editor::editor_resolve_conflict,
+            commands::editor::editor_retry,
+            commands::editor::editor_stop,
             commands::lock::lock_status,
             commands::lock::lock_unlock,
             commands::lock::lock_now,

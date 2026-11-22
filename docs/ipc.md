@@ -90,33 +90,46 @@ There is no `credentials_get`. Secrets are read only inside Rust by the SSH serv
 | ---------------- | ---- | ------------------------------------------------------ | ------ |
 | `editor_presets` | –    | `EditorPreset[] { id, label, program, args }` (per OS) | ✅     |
 
-## SSH sessions (Phase 2)
+## SSH sessions
 
-| Command / event   | Direction        | Shape                                                                             | Status |
-| ----------------- | ---------------- | --------------------------------------------------------------------------------- | ------ |
-| `ssh_open`        | R→Rust           | `{ connectionId, cols, rows, output: Channel<TerminalEvent> }` → `{ sessionId }`  | 🟡     |
-| `ssh_write`       | R→Rust           | `{ sessionId, data: number[] }` (raw bytes)                                       | 🟡     |
-| `ssh_resize`      | R→Rust           | `{ sessionId, cols, rows }`                                                       | 🟡     |
-| `ssh_close`       | R→Rust           | `{ sessionId }`                                                                   | 🟡     |
-| `TerminalEvent`   | Rust→R (Channel) | `{ kind:"data", bytes } \| { kind:"status", state } \| { kind:"closed", reason }` | 🟡     |
-| `host-key-prompt` | Rust→R (event)   | `{ promptId, host, port, algorithm, fingerprint, previous? }`                     | 🟡     |
-| `auth-prompt`     | Rust→R (event)   | keyboard-interactive / passphrase prompt `{ promptId, prompts[] }`                | 🟡     |
-| `auth_respond`    | R→Rust           | `{ promptId, answers[] }`                                                         | 🟡     |
+| Command / event       | Direction        | Shape                                                                                                                                                                                                  |
+| --------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ssh_open`            | R→Rust           | `{ connectionId, cols, rows, onEvent: Channel<TerminalEvent>, attempt? }` → `{ sessionId }`                                                                                                            |
+| `ssh_write`           | R→Rust           | `{ sessionId, data: base64 }` (keyboard input / paste)                                                                                                                                                 |
+| `ssh_resize`          | R→Rust           | `{ sessionId, cols, rows }`                                                                                                                                                                            |
+| `ssh_ack`             | R→Rust           | `{ sessionId, bytes }` flow control: output bytes the terminal has rendered                                                                                                                            |
+| `ssh_close`           | R→Rust           | `{ sessionId }`                                                                                                                                                                                        |
+| `TerminalEvent`       | Rust→R (Channel) | `{ kind:"data", data: base64 } \| { kind:"status", state } \| { kind:"closed", reason } \| { kind:"sftp", state }`                                                                                     |
+| `ssh-prompt`          | Rust→R (event)   | `{ kind:"hostKey", promptId, sessionId, host, port, algorithm, fingerprint, previousFingerprint? }` or `{ kind:"auth", promptId, sessionId, method, name, instructions, prompts[{text,echo}], retry }` |
+| `ssh_answer_host_key` | R→Rust           | `{ promptId, decision: "trustOnce" \| "trustAndSave" \| "replace" \| "reject" }`                                                                                                                       |
+| `ssh_answer_auth`     | R→Rust           | `{ promptId, answers: string[] \| null }` (`null` = cancel)                                                                                                                                            |
 
 `sessionId` is a fresh UUID **per connection attempt**: a reconnect yields a new
-id and therefore a fresh `RemoteWritePolicy::AlwaysAsk`.
+id and therefore a fresh `RemoteWritePolicy::AlwaysAsk`. Prompt ids are
+single-use and expire after 180 s. See [ssh.md](ssh.md).
 
-## SFTP (Phase 3) and editor round trip (Phase 4)
+## SFTP and the editor round trip
 
-| Command                        | Shape                                                                                | Status |
-| ------------------------------ | ------------------------------------------------------------------------------------ | ------ |
-| `sftp_list`                    | `{ sessionId, path }` → `RemoteEntry[]`                                              | 🟡     |
-| `sftp_mkdir / rename / delete` | `{ sessionId, path(s) }`                                                             | 🟡     |
-| `sftp_download / upload`       | `{ sessionId, remotePath, localPath }` (local path chosen via native dialog in Rust) | 🟡     |
-| `editor_open`                  | `{ sessionId, remotePath }` – Rust downloads, hashes, launches editor                | 🟡     |
-| `remote-write-prompt`          | event `{ promptId, sessionId, remotePath, server }`                                  | 🟡     |
-| `remote_write_answer`          | `{ promptId, answer: "yes" \| "yesToAll" \| "no" \| "cancel" }`                      | 🟡     |
-| `remote-conflict-prompt`       | event; answer `"cancel" \| "downloadRemote" \| "overwrite"`                          | 🟡     |
+| Command                        | Shape                                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `sftp_status`                  | `{ sessionId }` → `"pending" \| "ready" \| "unavailable"` (also pushed as a terminal event)            |
+| `sftp_list`                    | `{ sessionId, path \| null }` → `{ path, parent, entries[RemoteEntry] }`                               |
+| `sftp_mkdir`                   | `{ sessionId, parent, name }` → new path                                                               |
+| `sftp_rename`                  | `{ sessionId, path, newName }` (same directory, never replaces)                                        |
+| `sftp_delete`                  | `{ sessionId, path }` → `{ removed }` (trees included; symlinks are removed, not followed)             |
+| `sftp_download`                | `{ sessionId, remotePath, onEvent }` → `bool` (Rust opens the native "save as" dialog)                 |
+| `sftp_pick_upload`             | `{ sessionId }` → `{ pickId, files[{name,size}] } \| null` (native picker; paths stay in Rust)         |
+| `sftp_upload`                  | `{ sessionId, pickId, remoteDir, overwrite, onEvent }` (the pick id is single-use)                     |
+| `sftp_cancel`                  | `{ transferId }`                                                                                       |
+| `editor_open_remote`           | `{ sessionId, remotePath }` → `{ editId, name, alreadyOpen }`                                          |
+| `editor_answer`                | `{ editId, answer: "yes" \| "yesToAll" \| "no" \| "cancel" }` → accepted only for an open prompt       |
+| `editor_resolve_conflict`      | `{ editId, choice: "overwrite" \| "keepLocal" }`                                                       |
+| `editor_retry` / `editor_stop` | `{ editId }`                                                                                           |
+| `editor-event`                 | Rust→R: `opened`, `confirm`, `uploading`, `uploaded`, `uploadFailed`, `conflict`, `declined`, `closed` |
 
-The renderer never passes a local temp path to an upload command; Rust owns the
-mapping `promptId → (session, temp file, remote path, base hash)`.
+`TransferEvent` (Channel): `started`, `progress`, `completed`, `failed{reason,message}`,
+`cancelled`, `finished`. Errors carry `code: "remote"` and a fixed sentence.
+
+The renderer never passes a local path to any upload command; Rust owns the
+mapping `editId → (session, private copy, remote path, base hashes)` and the
+confirmation state. See [sftp.md](sftp.md) and [editor.md](editor.md).

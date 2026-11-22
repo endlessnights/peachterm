@@ -192,9 +192,35 @@ pub struct Started {
 }
 
 pub fn start_session(env: &Env, target: Target, initial_dir: Option<&str>) -> Started {
+    start_session_as(env, SessionId::new(), target, initial_dir)
+}
+
+/// Like [`start_session`] with an id that was handed out by a `SessionRegistry`.
+pub fn start_session_as(
+    env: &Env,
+    id: SessionId,
+    target: Target,
+    initial_dir: Option<&str>,
+) -> Started {
+    start_session_locked(
+        env,
+        id,
+        target,
+        initial_dir,
+        crate::lock::LockFlag::default(),
+    )
+}
+
+/// Like [`start_session_as`] with the application's lock flag.
+pub fn start_session_locked(
+    env: &Env,
+    id: SessionId,
+    target: Target,
+    initial_dir: Option<&str>,
+    lock: crate::lock::LockFlag,
+) -> Started {
     let sink = Arc::new(VecSink::default());
     let ended = Arc::new(Mutex::new(Vec::new()));
-    let id = SessionId::new();
     let mut deps = env.deps();
     deps.session = id.uuid();
     let e = ended.clone();
@@ -207,6 +233,7 @@ pub fn start_session(env: &Env, target: Target, initial_dir: Option<&str>) -> St
         rows: 30,
         initial_directory: initial_dir.map(str::to_owned),
         sink: sink.clone(),
+        lock,
         on_end: Arc::new(move |i| e.lock().unwrap().push(i)),
     });
     Started {
@@ -792,4 +819,83 @@ fn session_events_are_camel_case_and_data_is_base64() {
     .unwrap();
     assert_eq!(json["kind"], "data");
     assert_eq!(json["data"], "aGk=");
+}
+
+fn locking_service(dir: &std::path::Path) -> Arc<crate::lock::LockService> {
+    let svc = crate::lock::LockService::open(dir.join("lock.json"), crate::lock::Kdf::FAST);
+    svc.set_password(&SecretString::new("correct horse".into()), None)
+        .unwrap();
+    svc.configure(true, 0, false);
+    svc
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn output_is_not_forwarded_while_the_application_is_locked() {
+    let server = TestServer::start(password_server("tester", "pw")).await;
+    let env = env(trust_and_password("pw"));
+    let svc = locking_service(env.dir.path());
+    let s = start_session_locked(
+        &env,
+        SessionId::new(),
+        target(server.port, "tester", AuthMethod::Password),
+        None,
+        svc.flag(),
+    );
+    s.sink
+        .wait_until("banner", |k| k.text().contains("ready"))
+        .await;
+
+    svc.lock().unwrap();
+    s.session.write(b"typed-before-lock\n".to_vec()).await;
+    tokio::time::sleep(Duration::from_millis(700)).await;
+    assert!(
+        !s.sink.text().contains("typed-before-lock"),
+        "nothing reaches the renderer while locked"
+    );
+    assert!(s.session.credits.outstanding() == 0 || s.sink.text().len() < 64);
+
+    svc.unlock(&SecretString::new("correct horse".into()))
+        .unwrap();
+    s.sink
+        .wait_until("delivered after unlock", |k| {
+            k.text().contains("typed-before-lock")
+        })
+        .await;
+    s.session.close().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn output_held_while_locked_is_bounded_and_keeps_the_newest_bytes() {
+    use super::session::HELD_LIMIT;
+    let server = TestServer::start(password_server("tester", "pw")).await;
+    let env = env(trust_and_password("pw"));
+    let svc = locking_service(env.dir.path());
+    let s = start_session_locked(
+        &env,
+        SessionId::new(),
+        target(server.port, "tester", AuthMethod::Password),
+        None,
+        svc.flag(),
+    );
+    s.sink
+        .wait_until("banner", |k| k.text().contains("ready"))
+        .await;
+    let before = s.sink.text().len();
+    svc.lock().unwrap();
+    s.session.write(b"flood\n".to_vec()).await; // 2 MiB of output
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+    assert_eq!(
+        s.sink.text().len(),
+        before,
+        "nothing delivered while locked"
+    );
+    svc.unlock(&SecretString::new("correct horse".into()))
+        .unwrap();
+    s.sink
+        .wait_until("tail delivered", |k| k.text().contains("flood-done"))
+        .await;
+    let delivered = s.sink.text().len() - before;
+    assert!(delivered <= HELD_LIMIT + 64, "bounded: {delivered}");
+    assert!(delivered > 1024, "the newest output is still delivered");
+    s.session.close().await;
 }

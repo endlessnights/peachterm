@@ -132,3 +132,14 @@ unwritable / relative / missing directories and recovery; queue overflow;
 custom directory selection; persistence of logging settings across simulated
 restarts; export sanitisation; corrupt-config handling. Frontend tests cover the
 Diagnostics page, status warnings and the export review flow.
+
+## SSH, SFTP and editor events
+
+All of these use only registered event names and fixed tokens (no host names,
+user names, paths, file names, terminal output or file content):
+
+- `ssh.connect_started|connected|connect_failed|disconnected|reconnect_attempt|session_cleanup`
+  (`session_id`, `reason` from a fixed set such as `auth_failed`, `host_key_rejected`)
+- `sftp.init_started|ready|unsupported|list_failed|op_failed` and
+  `sftp.transfer_started|completed|failed` (`transfer_id`, `kind` upload/download, `bytes`, `duration_ms`)
+- `editor.launched|local_change_detected|write_confirmation_requested|upload_approved|upload_declined|upload_completed|upload_failed|conflict_detected|policy_reset`

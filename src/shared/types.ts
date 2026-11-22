@@ -364,3 +364,40 @@ export type TransferEvent =
   | { kind: 'failed'; transferId: Uuid; reason: string; message: string }
   | { kind: 'cancelled'; transferId: Uuid }
   | { kind: 'finished' };
+
+// ---- External editor (Phase 2) -----------------------------------------------
+
+export type UserAnswer = 'yes' | 'yesToAll' | 'no' | 'cancel';
+export type ConflictChoice = 'overwrite' | 'keepLocal';
+
+export interface OpenedEdit {
+  editId: Uuid;
+  name: string;
+  /** The file was already open in this session; the editor was started again. */
+  alreadyOpen: boolean;
+}
+
+/** Events of the edit → confirm → upload round trip (names only, no content). */
+export type EditorEvent =
+  | { kind: 'opened'; editId: Uuid; sessionId: Uuid; name: string; remotePath: string }
+  | {
+      kind: 'confirm';
+      editId: Uuid;
+      sessionId: Uuid;
+      name: string;
+      remotePath: string;
+      size: number;
+    }
+  | { kind: 'uploading'; editId: Uuid; sessionId: Uuid; name: string }
+  | { kind: 'uploaded'; editId: Uuid; sessionId: Uuid; name: string; atomic: boolean }
+  | {
+      kind: 'uploadFailed';
+      editId: Uuid;
+      sessionId: Uuid;
+      name: string;
+      reason: string;
+      message: string;
+    }
+  | { kind: 'conflict'; editId: Uuid; sessionId: Uuid; name: string; remotePath: string }
+  | { kind: 'declined'; editId: Uuid; sessionId: Uuid; name: string }
+  | { kind: 'closed'; editId: Uuid; sessionId: Uuid; name: string; keptLocal: boolean };

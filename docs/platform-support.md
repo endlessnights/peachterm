@@ -14,7 +14,8 @@ what has actually been verified, by whom, and how.
 | Credential store against real OS keychain                     | ✅ Credential Manager: set/clear exercised via the packaged app        | ❌ not yet (Secret Service) | ❌ not yet (Keychain)             |
 | Native "Save as" dialog + diagnostic export                   | ✅ local (archive written and inspected)                               | ❌ not yet                  | ❌ not yet                        |
 | Log directory resolution (`dirs`)                             | ✅ `%LOCALAPPDATA%\PeachTerm\logs`, `%APPDATA%\PeachTerm`              | 🟡 unit-tested shape only   | 🟡 unit-tested shape only         |
-| SSH/SFTP runtime tests                                        | n/a (Phase 2)                                                          | n/a                         | n/a                               |
+| SSH / SFTP / editor integration tests (in-process servers)    | ✅ local + CI (~210 Rust tests)                                        | ✅ CI                       | ✅ CI                             |
+| Against a real OpenSSH server                                 | 🟡 CI job with Docker `openssh-server` (see docs/ssh.md)               | 🟡 same CI job              | ❌ not yet                        |
 | X11 / Wayland                                                 | –                                                                      | ❌ not yet                  | –                                 |
 
 CI history (all jobs: frontend, Rust ×3 OS, app build ×4 targets):

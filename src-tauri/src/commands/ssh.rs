@@ -72,6 +72,7 @@ pub async fn ssh_open(
     let app = Arc::clone(&state);
     let on_end: Arc<dyn Fn(SessionId) + Send + Sync> = Arc::new(move |ended| {
         app.ssh.remove(ended);
+        app.editor.end_session(ended);
         let _ = app.sessions.close(ended);
     });
     let session = session::start(StartParams {
@@ -83,6 +84,7 @@ pub async fn ssh_open(
         rows,
         initial_directory: connection.initial_directory,
         sink: Arc::new(on_event),
+        lock: state.lock.flag(),
         on_end,
     });
     state.ssh.insert(session);

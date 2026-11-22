@@ -42,6 +42,13 @@ export interface MockSsh {
   hostKeyAnswers: { promptId: string; decision: string }[];
   authAnswers: { promptId: string; answers: string[] | null }[];
   emit: (sessionId: string, event: TerminalEvent) => void;
+  editor: {
+    opens: { sessionId: string; remotePath: string }[];
+    answers: { editId: string; answer: string }[];
+    conflicts: { editId: string; choice: string }[];
+    retries: string[];
+    stops: string[];
+  };
   sftp: {
     lists: (string | null)[];
     mkdirs: string[];
@@ -100,6 +107,7 @@ export function createMockBackend(
     hostKeyAnswers: [],
     authAnswers: [],
     emit: (sessionId, event) => channels.get(sessionId)?.(event),
+    editor: { opens: [], answers: [], conflicts: [], retries: [], stops: [] },
     sftp: {
       lists: [],
       mkdirs: [],
@@ -416,6 +424,32 @@ export function createMockBackend(
         promptId: String(args.promptId),
         answers: (args.answers as string[] | null) ?? null,
       });
+    },
+    editor_open_remote: (args) => {
+      ssh.editor.opens.push({
+        sessionId: String(args.sessionId),
+        remotePath: String(args.remotePath),
+      });
+      return {
+        editId: '33333333-3333-4333-8333-333333333333',
+        name: String(args.remotePath).split('/').pop(),
+        alreadyOpen: false,
+      };
+    },
+    editor_answer: (args) => {
+      ssh.editor.answers.push({ editId: String(args.editId), answer: String(args.answer) });
+      return true;
+    },
+    editor_resolve_conflict: (args) => {
+      ssh.editor.conflicts.push({ editId: String(args.editId), choice: String(args.choice) });
+      return true;
+    },
+    editor_retry: (args) => {
+      ssh.editor.retries.push(String(args.editId));
+      return true;
+    },
+    editor_stop: (args) => {
+      ssh.editor.stops.push(String(args.editId));
     },
     sftp_status: () => (options.noSftp ? 'unavailable' : 'ready'),
     sftp_list: (args) => {

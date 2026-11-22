@@ -21,7 +21,10 @@ import type {
   FolderInput,
   HostKeyDecision,
   KnownHost,
+  ConflictChoice,
+  EditorEvent,
   Listing,
+  OpenedEdit,
   PickedUpload,
   SftpState,
   TransferEvent,
@@ -31,6 +34,7 @@ import type {
   Settings,
   SshPrompt,
   TerminalEvent,
+  UserAnswer,
   Uuid,
 } from './types';
 
@@ -199,6 +203,17 @@ export const ipc = {
     }),
   sftpCancel: (transferId: Uuid) => call<void>('sftp_cancel', { transferId }),
 
+  /** Download to a private copy, start the external editor, watch for saves. */
+  editorOpenRemote: (sessionId: Uuid, remotePath: string) =>
+    call<OpenedEdit>('editor_open_remote', { sessionId, remotePath }),
+  /** Answer a "Remote file modified" prompt. Rust ignores answers to prompts that are not open. */
+  editorAnswer: (editId: Uuid, answer: UserAnswer) =>
+    call<boolean>('editor_answer', { editId, answer }),
+  editorResolveConflict: (editId: Uuid, choice: ConflictChoice) =>
+    call<boolean>('editor_resolve_conflict', { editId, choice }),
+  editorRetry: (editId: Uuid) => call<boolean>('editor_retry', { editId }),
+  editorStop: (editId: Uuid) => call<void>('editor_stop', { editId }),
+
   loggingStatus: () => call<LoggingStatus>('logging_status'),
   /** Opens the effective log directory in the OS file manager. */
   loggingOpenDir: () => call<void>('logging_open_dir'),
@@ -219,6 +234,24 @@ export function onSshPrompt(listener: PromptListener): () => void {
   }
   const pending = listen<SshPrompt>('ssh-prompt', (e) => listener(e.payload));
   return () => void pending.then((unlisten) => unlisten());
+}
+
+type EditorListener = (event: EditorEvent) => void;
+const editorTestListeners = new Set<EditorListener>();
+
+/** Progress of the external-editor round trip. Returns an unsubscribe. */
+export function onEditorEvent(listener: EditorListener): () => void {
+  if (!isTauri()) {
+    editorTestListeners.add(listener);
+    return () => editorTestListeners.delete(listener);
+  }
+  const pending = listen<EditorEvent>('editor-event', (e) => listener(e.payload));
+  return () => void pending.then((unlisten) => unlisten());
+}
+
+/** Test/dev hook: deliver an editor event as the backend would. */
+export function __emitEditorEventForTests(event: EditorEvent): void {
+  editorTestListeners.forEach((l) => l(event));
 }
 
 /** Test/dev hook: deliver a prompt as the backend would. */

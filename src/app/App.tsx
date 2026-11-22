@@ -10,6 +10,8 @@ import { useConnections } from '../features/connections/store';
 import { TabBar } from '../features/sessions/TabBar';
 import { useTabs } from '../features/sessions/store';
 import { describeReason } from '../features/settings/DiagnosticsPage';
+import { EditorPromptHost } from '../features/editor/EditorDialogs';
+import { listenForEditor } from '../features/editor/store';
 import { SshPromptHost } from '../features/ssh/PromptDialogs';
 import { listenForPrompts } from '../features/ssh/promptStore';
 import { SettingsDialog } from '../features/settings/SettingsDialog';
@@ -114,6 +116,8 @@ export function App() {
 
   // Host-key and credential questions from the SSH layer.
   useEffect(() => listenForPrompts(), []);
+  // Progress and questions of the external-editor round trip.
+  useEffect(() => listenForEditor(), []);
 
   // Tab titles follow edits of their saved connection.
   useEffect(() => {
@@ -168,6 +172,7 @@ export function App() {
         <StatusBar version={version} />
         {!locked && <DialogHost />}
         {!locked && <SshPromptHost />}
+        {!locked && <EditorPromptHost />}
         {!locked && <Toasts />}
       </div>
       {locked && <LockScreen />}

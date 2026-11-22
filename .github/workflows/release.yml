@@ -1,0 +1,229 @@
+# Release workflow. Ordinary pushes and pull requests never run it: only an
+# explicit version tag (vX.Y.Z, vX.Y.Z-alpha.N / -beta.N / -rc.N) does.
+#
+#   tag push  -> validate tag == app version -> create DRAFT release -> build all
+#                targets and attach installers -> check the expected files exist
+#                -> publish (prereleases are marked as such)
+#   manual run (workflow_dispatch) -> builds every target and keeps the installers
+#                as workflow artifacts only. Nothing is published. Safe test.
+#
+# Installers are NOT code-signed yet; see docs/signing.md.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: '24'
+
+jobs:
+  validate:
+    name: Validate version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+      publish: ${{ steps.mode.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - id: mode
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then echo "publish=true" >> "$GITHUB_OUTPUT"; else echo "publish=false" >> "$GITHUB_OUTPUT"; fi
+      # A tag must be a valid version tag AND equal the version in package.json,
+      # package-lock.json, tauri.conf.json, Cargo.toml and Cargo.lock.
+      - id: check
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            node scripts/check-release-version.mjs "${GITHUB_REF_NAME}"
+          else
+            node scripts/check-release-version.mjs
+          fi
+
+  draft:
+    name: Create draft release
+    needs: validate
+    if: needs.validate.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: create
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          PRERELEASE: ${{ needs.validate.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          # Stop if a release for this tag already exists (published or draft).
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::A release for $TAG already exists. Delete it (and the tag) before retrying."
+            exit 1
+          fi
+          REPO_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          cat > notes.md <<EOF
+          ## PeachTerm ${VERSION}
+
+          A lightweight, cross-platform SSH client with an integrated SFTP browser and local terminals.
+
+          ### Changes
+          See [CHANGELOG.md](${REPO_URL}/blob/${TAG}/CHANGELOG.md) for what is new in this version, including bug fixes.
+
+          ### Downloads
+          | Platform | File |
+          | --- | --- |
+          | Windows x64 | PeachTerm_${VERSION}_x64-setup.exe |
+          | Linux x64 | .deb and .AppImage |
+          | macOS Apple Silicon | PeachTerm_${VERSION}_aarch64.dmg |
+          | macOS Intel | PeachTerm_${VERSION}_x64.dmg |
+
+          ### Known limitations
+          - The installers are **not code-signed or notarized yet**. Windows SmartScreen and macOS Gatekeeper
+            will warn on first launch. See [docs/signing.md](${REPO_URL}/blob/${TAG}/docs/signing.md).
+          - Linux and macOS builds have been compiled and unit-tested in CI but have had less hands-on testing than Windows.
+          - Saving passwords on Linux needs a Secret Service provider (GNOME Keyring or KWallet).
+
+          ### Source and license
+          Source code: ${REPO_URL}/tree/${TAG}
+
+          PeachTerm — Copyright 2026 Bakhti Baymukhamedov. Licensed under Apache-2.0.
+          EOF
+          FLAGS=(--draft --verify-tag --title "PeachTerm ${VERSION}" --notes-file notes.md)
+          if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); fi
+          gh release create "$TAG" "${FLAGS[@]}"
+          ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=30" | jq -r --arg tag "$TAG" '.[] | select(.tag_name==$tag and .draft==true) | .id' | head -n1)"
+          test -n "$ID"
+          echo "release_id=$ID" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: [validate, draft]
+    # Runs after the draft exists (tag) or on its own (manual dry run).
+    if: always() && needs.validate.result == 'success' && (needs.draft.result == 'success' || needs.draft.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-2025
+            args: '--bundles nsis'
+          - name: Linux x64
+            os: ubuntu-24.04
+            args: '--bundles deb,appimage'
+          - name: macOS arm64
+            os: macos-15
+            args: '--target aarch64-apple-darwin --bundles dmg'
+          - name: macOS x64
+            os: macos-15
+            args: '--target x86_64-apple-darwin --bundles dmg'
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev pkg-config
+      - name: Add macOS targets
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          workspaces: src-tauri
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      # Real release: build and attach the installers to the draft release.
+      - name: Build and upload to the draft release
+        if: needs.validate.outputs.publish == 'true'
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # action-v0.6.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          releaseId: ${{ needs.draft.outputs.release_id }}
+          args: ${{ matrix.args }}
+
+      # Manual dry run: the same build, kept as workflow artifacts. Nothing is published.
+      - name: Build (dry run, nothing is published)
+        if: needs.validate.outputs.publish != 'true'
+        run: npx tauri build ${{ matrix.args }}
+      - name: Keep dry-run installers
+        if: needs.validate.outputs.publish != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: dry-run-${{ runner.os }}-${{ strategy.job-index }}
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/*/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Keep diagnostics of a failed build
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: failed-build-${{ runner.os }}-${{ strategy.job-index }}
+          path: |
+            src-tauri/target/**/bundle/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish:
+    name: Publish release
+    needs: [validate, draft, build]
+    if: needs.validate.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      # Only a complete set of installers is published; otherwise the draft stays a draft.
+      - name: Check the attached installers
+        id: assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          names="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${{ needs.draft.outputs.release_id }}" --jq '.assets[].name')"
+          echo "$names"
+          missing=0
+          for suffix in "_x64-setup.exe" "_amd64.deb" "_amd64.AppImage" "_aarch64.dmg" "_x64.dmg"; do
+            if ! echo "$names" | grep -Fxq "PeachTerm_${VERSION}${suffix}"; then
+              echo "::error::Missing installer PeachTerm_${VERSION}${suffix}"
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${{ needs.draft.outputs.release_id }}" -F draft=false

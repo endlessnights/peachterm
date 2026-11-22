@@ -44,7 +44,16 @@
     "targets": ["nsis", "msi", "deb", "appimage", "dmg", "app"],
     "category": "DeveloperTool",
     "shortDescription": "Lightweight SSH client with integrated SFTP",
+    "publisher": "Bakhti Baymukhamedov",
+    "copyright": "Copyright 2026 Bakhti Baymukhamedov",
+    "homepage": "https://github.com/endlessnights/peachterm",
     "license": "Apache-2.0",
+    "licenseFile": "../LICENSE",
+    "resources": {
+      "../LICENSE": "LICENSE",
+      "../NOTICE": "NOTICE",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

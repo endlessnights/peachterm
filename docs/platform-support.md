@@ -60,3 +60,13 @@ to save passwords. Without it PeachTerm still works and prompts every time.
    `~/Library/Application Support/dev.peachterm.app/`.
 3. Settings → Security shows "Keychain" backend as available.
 4. Cmd-based shortcuts (Cmd+, settings, Cmd+B sidebar, Cmd+W close tab).
+
+## Status after the multi-pane / local terminals / themes milestones
+
+- Windows: the packaged NSIS installer was installed, launched and used manually (SSH, SFTP, split view, local
+  PowerShell, themes). The installer contains `LICENSE`, `NOTICE` and `THIRD_PARTY_NOTICES.md`, and the executable
+  carries the publisher and copyright metadata (checked on the built installer).
+- Linux and macOS: compiled, linted and unit/integration-tested in CI only. Local PTY sessions, WSL-free shells,
+  the Secret Service / Keychain and the native title bar have not been exercised by hand yet.
+- The release workflow (`.github/workflows/release.yml`) has not run yet; it can only be fully verified by a real
+  tag or a manual dry run (see docs/releasing.md).

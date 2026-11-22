@@ -1,3 +1,6 @@
+// Copyright 2026 Bakhti Baymukhamedov
+// SPDX-License-Identifier: Apache-2.0
+
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
@@ -29,6 +32,10 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  {
+    files: ['scripts/**/*.mjs', '*.config.js'],
+    languageOptions: { globals: { ...globals.node } },
   },
   {
     files: ['src/shared/ipc.ts'],

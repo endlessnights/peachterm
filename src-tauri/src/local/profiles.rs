@@ -461,6 +461,7 @@ mod tests {
     }
 
     impl Fake {
+        #[cfg(windows)]
         fn windows() -> Self {
             let mut f = Fake {
                 os: Some(Os::Windows),
@@ -481,6 +482,7 @@ mod tests {
             );
             f
         }
+        #[cfg(windows)]
         fn file(mut self, p: PathBuf) -> Self {
             self.files.insert(p);
             self

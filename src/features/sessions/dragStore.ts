@@ -10,7 +10,7 @@ import type { Zone } from './layout';
  */
 interface DragState {
   tabId: string | null;
-  preview: { leafId: string; zone: Zone } | null;
+  preview: { leafId: string; zone: Zone; valid: boolean; reason?: string } | null;
   /** After a drop on the middle of a pane: which split the user wants. */
   chooser: { tabId: string; leafId: string } | null;
   set: (patch: Partial<Pick<DragState, 'tabId' | 'preview' | 'chooser'>>) => void;

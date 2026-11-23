@@ -180,10 +180,11 @@ function PaneArea() {
         <div
           className="drop-preview"
           data-zone={preview.zone}
+          data-invalid={preview.valid ? undefined : true}
           style={paneStyle(previewRect(previewBase, preview.zone))}
           aria-hidden
         >
-          <span>{ZONE_LABEL[preview.zone]}</span>
+          <span>{preview.valid ? ZONE_LABEL[preview.zone] : `Cannot drop: ${preview.reason}`}</span>
         </div>
       )}
 

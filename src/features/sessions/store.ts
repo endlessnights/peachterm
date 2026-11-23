@@ -126,6 +126,8 @@ interface TabsState {
   fillLeafWithNewSession: (leafId: string) => string | null;
   /** Drop a tab on a pane: split towards `zone` (or offer targets for `center`). */
   dropTab: (tabId: string, leafId: string, zone: Exclude<Zone, 'center'>) => SplitResult;
+  /** What `dropTab` would answer, without changing anything (drives the drop preview). */
+  canDrop: (tabId: string, leafId: string, zone: Exclude<Zone, 'center'>) => SplitResult;
   /** Menu command: show `tabId` in a new pane beside the focused pane. */
   moveTabToNewPane: (tabId: string, side: Exclude<Zone, 'center'>) => SplitResult;
   /** Remove a pane (its tab stays open); the neighbour takes its space. */
@@ -230,6 +232,55 @@ function placeNew(s: TabsState, tabId: string): Slice {
   const waiting = all.find((l) => l.tabId === null);
   const target = waiting ?? all.find((l) => l.id === s.focusLeaf) ?? all[0]!;
   return normalize(setLeafTab(layout, target.id, tabId), target.id, tabId);
+}
+
+/**
+ * Decide a tab drop on a pane edge without changing anything. The DRAGGED tab
+ * decides which session moves, whether or not it is the active one. When
+ * nothing is split yet and the dragged tab is the one on screen, the original
+ * pane is taken over by a remaining tab (the one that takes its place in the
+ * tab bar) and the dragged session moves to the new pane: nothing reconnects.
+ */
+function planDrop(
+  s: TabsState,
+  tabId: string,
+  leafId: string,
+  zone: Exclude<Zone, 'center'>,
+): { result: 'ok'; slice: Slice } | { result: Exclude<SplitResult, 'ok'> } {
+  if (!s.tabs.some((t) => t.id === tabId)) return { result: 'none' };
+  const dir = zoneDir(zone)!;
+  let layout: Node | null = s.layout;
+  let targetId = leafId;
+  if (!layout) {
+    // No split yet: the pane being dropped on holds the tab that is on screen.
+    let base = s.activeId;
+    if (base === tabId) {
+      const index = s.tabs.findIndex((t) => t.id === tabId);
+      base = neighbourAfterRemoval(s.tabs, new Set([tabId]), index);
+    }
+    if (!base || base === tabId) return { result: 'none' };
+    const first = makeLeaf(base);
+    layout = first;
+    targetId = first.id;
+  }
+  const target = findLeaf(layout, targetId);
+  if (!target) return { result: 'none' };
+  if (target.tabId === tabId) return { result: 'none' }; // dropping a pane on itself
+  // Moving a visible tab frees its old pane first.
+  const old = findLeafByTab(layout, tabId);
+  const working: Node | null = old ? removeLeaf(layout, old.id) : layout;
+  if (!working || !findLeaf(working, target.id)) return { result: 'none' };
+  if (countLeaves(working) >= MAX_LEAVES) return { result: 'limit' };
+  if (!roomToSplit(working, target.id, dir, s.area)) return { result: 'space' };
+  const fresh = makeLeaf(tabId);
+  const next = splitLeaf(
+    working,
+    target.id,
+    dir,
+    fresh,
+    zone === 'left' || zone === 'top' ? 'before' : 'after',
+  );
+  return { result: 'ok', slice: normalize(next, fresh.id, tabId) };
 }
 
 export const useTabs = create<TabsState>((set, get) => ({
@@ -443,50 +494,18 @@ export const useTabs = create<TabsState>((set, get) => ({
   },
 
   dropTab: (tabId, leafId, zone) => {
-    const s = get();
-    if (!s.tabs.some((t) => t.id === tabId)) return 'none';
-    const dir = zoneDir(zone)!;
-    let layout: Node | null = s.layout;
-    if (!layout) {
-      // No split yet: the pane being dropped on is the active tab.
-      if (!s.activeId || s.activeId === tabId) return 'none';
-      const base = makeLeaf(s.activeId);
-      layout = base;
-      leafId = base.id;
-    }
-    const target = findLeaf(layout, leafId);
-    if (!target) return 'none';
-    if (target.tabId === tabId) return 'none'; // dropping a pane on itself
-    // Moving a visible tab frees its old pane first.
-    const old = findLeafByTab(layout, tabId);
-    let working: Node | null = layout;
-    if (old) working = removeLeaf(layout, old.id);
-    if (!working) return 'none';
-    const targetStillThere = findLeaf(working, target.id);
-    if (!targetStillThere) return 'none';
-    if (countLeaves(working) >= MAX_LEAVES) return 'limit';
-    if (!roomToSplit(working, target.id, dir, s.area)) return 'space';
-    const fresh = makeLeaf(tabId);
-    const next = splitLeaf(
-      working,
-      target.id,
-      dir,
-      fresh,
-      zone === 'left' || zone === 'top' ? 'before' : 'after',
-    );
-    set(normalize(next, fresh.id, tabId));
+    const plan = planDrop(get(), tabId, leafId, zone);
+    if (plan.result !== 'ok') return plan.result;
+    set(plan.slice);
     return 'ok';
   },
+
+  canDrop: (tabId, leafId, zone) => planDrop(get(), tabId, leafId, zone).result,
 
   moveTabToNewPane: (tabId, side) => {
     const s = get();
     if (!s.tabs.some((t) => t.id === tabId)) return 'none';
-    if (!s.layout) {
-      // A single terminal becomes the first pane; the tab becomes the second.
-      if (!s.activeId || s.activeId === tabId) return 'none';
-      const first = makeLeaf(s.activeId);
-      return get().dropTab(tabId, first.id, side);
-    }
+    if (!s.layout) return get().dropTab(tabId, 'single', side);
     const focus = findLeaf(s.layout, s.focusLeaf ?? '') ?? leaves(s.layout)[0]!;
     if (focus.tabId === tabId) {
       // the tab is already the focused pane: use another pane as the anchor

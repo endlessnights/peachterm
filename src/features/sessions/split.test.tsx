@@ -313,7 +313,9 @@ describe('moving tabs between panes (drag-and-drop commands)', () => {
     const { a, b } = await three();
     act(() => useTabs.getState().activate(a.id));
     act(() =>
-      useDrag.getState().set({ tabId: b.id, preview: { leafId: 'single', zone: 'right' } }),
+      useDrag
+        .getState()
+        .set({ tabId: b.id, preview: { leafId: 'single', zone: 'right', valid: true } }),
     );
     const preview = document.querySelector('.drop-preview') as HTMLElement;
     expect(preview.dataset.zone).toBe('right');
@@ -326,7 +328,7 @@ describe('moving tabs between panes (drag-and-drop commands)', () => {
       ['bottom', 'Split below'],
       ['center', 'Drop for options'],
     ] as const) {
-      act(() => useDrag.getState().set({ preview: { leafId: 'single', zone } }));
+      act(() => useDrag.getState().set({ preview: { leafId: 'single', zone, valid: true } }));
       expect((document.querySelector('.drop-preview') as HTMLElement).textContent).toBe(label);
     }
     act(() => useDrag.getState().set({ tabId: null, preview: null }));
@@ -436,5 +438,138 @@ describe('SFTP follows the focused pane', () => {
       expect(within(visibleSlot()).queryByText('This server does not offer SFTP.')).toBeNull(),
     );
     expect(within(visibleSlot()).getByRole('listbox', { name: 'Remote files' })).toBeTruthy();
+  });
+});
+
+describe('dragging the ACTIVE tab into a split zone', () => {
+  async function tabsOpen(names: string[]) {
+    const m = await mount();
+    for (const n of names) await m.open(n);
+    await sessionsReady();
+    return { ...m, tabs: useTabs.getState().tabs };
+  }
+  type T = ReturnType<typeof useTabs.getState>['tabs'][number];
+  const snapshot = (ssh: MockSsh) => ({
+    opens: ssh.opens.length,
+    closes: ssh.closes.length,
+    terminals: fakeTerminals.slice(),
+  });
+  const consistent = () => {
+    expect(validate(layout())).toEqual([]);
+    const ids = shown();
+    expect(new Set(ids).size).toBe(ids.length); // no session shown twice
+  };
+
+  it('two tabs, active tab dragged: it moves to the new pane and the other one stays', async () => {
+    const { ssh, tabs } = await tabsOpen(['alpha', 'beta']);
+    const [pve1, pve2] = tabs as [T, T];
+    expect(useTabs.getState().activeId).toBe(pve2.id);
+    const before = snapshot(ssh);
+    expect(useTabs.getState().dropTab(pve2.id, 'single', 'right')).toBe('ok');
+    expect(shown()).toEqual([pve1.id, pve2.id]); // original pane: pve1, new pane: pve2
+    expect(useTabs.getState().activeId).toBe(pve2.id);
+    expect(findLeafByTab(layout()!, pve2.id)!.id).toBe(useTabs.getState().focusLeaf);
+    expect(snapshot(ssh)).toEqual(before); // no reconnect, no close, same terminals
+    consistent();
+  });
+
+  it('two tabs, inactive tab dragged: unchanged behaviour', async () => {
+    const { ssh, tabs } = await tabsOpen(['alpha', 'beta']);
+    const [pve1, pve2] = tabs as [T, T];
+    const before = snapshot(ssh);
+    expect(useTabs.getState().dropTab(pve1.id, 'single', 'right')).toBe('ok');
+    expect(shown()).toEqual([pve2.id, pve1.id]);
+    expect(useTabs.getState().activeId).toBe(pve1.id);
+    expect(snapshot(ssh)).toEqual(before);
+    consistent();
+  });
+
+  it.each(['left', 'right', 'top', 'bottom'] as const)('active tab dragged to %s', async (zone) => {
+    const { tabs } = await tabsOpen(['alpha', 'beta']);
+    const [pve1, pve2] = tabs as [T, T];
+    expect(useTabs.getState().dropTab(pve2.id, 'single', zone)).toBe('ok');
+    const order = zone === 'left' || zone === 'top' ? [pve2.id, pve1.id] : [pve1.id, pve2.id];
+    expect(shown()).toEqual(order);
+    const dir = zone === 'left' || zone === 'right' ? 'row' : 'column';
+    expect((layout() as { dir: string }).dir).toBe(dir);
+    consistent();
+  });
+
+  it('several tabs: the tab that takes its place in the bar fills the original pane', async () => {
+    const { ssh, tabs } = await tabsOpen(['alpha', 'beta', 'alpha']);
+    const [a, b, c] = tabs as [T, T, T];
+    act(() => useTabs.getState().activate(b.id));
+    const before = snapshot(ssh);
+    expect(useTabs.getState().dropTab(b.id, 'single', 'left')).toBe('ok');
+    expect(shown()).toEqual([b.id, c.id]); // c took b's place; a stays a background tab
+    expect(useTabs.getState().tabs.map((t) => t.id)).toEqual([a.id, b.id, c.id]);
+    expect(snapshot(ssh)).toEqual(before);
+    consistent();
+  });
+
+  it('a lone tab cannot be split off itself', async () => {
+    const { tabs } = await tabsOpen(['alpha']);
+    expect(useTabs.getState().dropTab(tabs[0]!.id, 'single', 'right')).toBe('none');
+    expect(layout()).toBeNull();
+    expect(useTabs.getState().activeId).toBe(tabs[0]!.id);
+  });
+
+  it('moving the focused tab between existing panes keeps a valid tree', async () => {
+    const { ssh, tabs } = await tabsOpen(['alpha', 'beta', 'alpha']);
+    const [a, b, c] = tabs as [T, T, T];
+    act(() => useTabs.getState().activate(a.id));
+    useTabs.getState().dropTab(b.id, 'single', 'right'); // [a | b]
+    useTabs.getState().dropTab(c.id, findLeafByTab(layout()!, b.id)!.id, 'bottom'); // [a | b / c]
+    const before = snapshot(ssh);
+    const focused = useTabs.getState().activeId!;
+    const other = shown().find((t) => t !== focused)!;
+    const target = findLeafByTab(layout()!, other)!.id;
+    expect(useTabs.getState().dropTab(focused, target, 'top')).toBe('ok');
+    expect(shown()).toHaveLength(3);
+    expect(useTabs.getState().activeId).toBe(focused);
+    expect(snapshot(ssh)).toEqual(before);
+    consistent();
+  });
+
+  it('canDrop never changes anything and a cancelled drag leaves the selection alone', async () => {
+    const { tabs } = await tabsOpen(['alpha', 'beta']);
+    expect(useTabs.getState().canDrop(tabs[1]!.id, 'single', 'right')).toBe('ok');
+    expect(useTabs.getState().layout).toBeNull();
+    expect(useTabs.getState().activeId).toBe(tabs[1]!.id);
+    act(() => useDrag.getState().set({ tabId: tabs[0]!.id, preview: null }));
+    act(() => useDrag.getState().set({ tabId: null, preview: null })); // what a cancel does
+    expect(useTabs.getState().activeId).toBe(tabs[1]!.id);
+    expect(useTabs.getState().layout).toBeNull();
+  });
+
+  it('at six panes the drop is refused, nothing closes and the preview says so', async () => {
+    const m = await mount();
+    for (let i = 0; i < 7; i += 1) await m.open('alpha');
+    await sessionsReady();
+    const all = useTabs.getState().tabs;
+    act(() => useTabs.getState().activate(all[0]!.id));
+    useTabs.getState().dropTab(all[1]!.id, 'single', 'right');
+    for (let i = 2; i < MAX_LEAVES; i += 1) {
+      const last = leaves(layout()!).at(-1)!.id;
+      expect(useTabs.getState().dropTab(all[i]!.id, last, 'right')).toBe('ok');
+    }
+    expect(countLeaves(layout()!)).toBe(MAX_LEAVES);
+    const hidden = all[6]!;
+    const before = layout();
+    const target = leaves(layout()!)[0]!.id;
+    expect(useTabs.getState().canDrop(hidden.id, target, 'left')).toBe('limit');
+    expect(useTabs.getState().dropTab(hidden.id, target, 'left')).toBe('limit');
+    expect(layout()).toBe(before);
+    expect(m.ssh.closes).toEqual([]);
+    act(() =>
+      useDrag.getState().set({
+        tabId: hidden.id,
+        preview: { leafId: target, zone: 'left', valid: false, reason: 'At most 6 panes' },
+      }),
+    );
+    const preview = document.querySelector('.drop-preview') as HTMLElement;
+    expect(preview.dataset.invalid).toBe('true');
+    expect(preview.textContent).toContain('Cannot drop');
+    act(() => useDrag.getState().set({ tabId: null, preview: null }));
   });
 });

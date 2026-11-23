@@ -25,6 +25,12 @@ import { useTabs } from './store';
 
 const PANE_PREFIX = 'pane:';
 
+const INVALID_REASON = {
+  none: 'Already shown here',
+  limit: 'At most 6 panes',
+  space: 'Not enough room',
+} as const;
+
 /** Inside the tab bar tabs sort; over the workspace panes are drop targets. */
 const collision: CollisionDetection = (args) => {
   const pointer = args.pointerCoordinates;
@@ -65,8 +71,24 @@ export function WorkspaceDnd({ children }: { children: ReactNode }) {
     const r = over.rect;
     const zone = zoneFor({ x: r.left, y: r.top, w: r.width, h: r.height }, x, y);
     const leafId = String(over.id).slice(PANE_PREFIX.length);
+    // Never promise a split that cannot happen: ask the store what the drop would do.
+    const result =
+      zone === 'center'
+        ? 'ok'
+        : useTabs
+            .getState()
+            .canDrop(String(event.active.id), leafId, zone as Exclude<Zone, 'center'>);
+    const valid = result === 'ok';
+    const reason = valid ? undefined : INVALID_REASON[result];
     const current = useDrag.getState().preview;
-    if (current?.leafId !== leafId || current.zone !== zone) set({ preview: { leafId, zone } });
+    if (
+      current?.leafId !== leafId ||
+      current.zone !== zone ||
+      current.valid !== valid ||
+      current.reason !== reason
+    ) {
+      set({ preview: { leafId, zone, valid, reason } });
+    }
   };
 
   const onDragEnd = (event: DragEndEvent) => {
@@ -74,6 +96,13 @@ export function WorkspaceDnd({ children }: { children: ReactNode }) {
     const tabId = String(event.active.id);
     set({ tabId: null, preview: null });
     if (preview) {
+      if (!preview.valid) {
+        // Nothing moves and the selected tab stays as it was; a refusal is explained.
+        if (preview.zone !== 'center') {
+          dropTab(tabId, preview.leafId, preview.zone as Exclude<Zone, 'center'>);
+        }
+        return;
+      }
       if (preview.zone === 'center') {
         // "Drop onto a pane": offer the valid targets for it
         set({ chooser: { tabId, leafId: preview.leafId } });

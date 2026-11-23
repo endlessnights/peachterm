@@ -5,9 +5,9 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.1.0-beta.1] - 2026-11-23
+## [0.2.0] - 2026-11-23
 
-_First public prerelease. Installers are not code-signed yet._
+_Installers are not code-signed yet._
 
 ### Added
 

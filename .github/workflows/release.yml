@@ -19,6 +19,11 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional (run from main): create this version tag on the current main commit and publish a real release. Leave empty for a dry run.'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -39,28 +44,61 @@ jobs:
       version: ${{ steps.check.outputs.version }}
       prerelease: ${{ steps.check.outputs.prerelease }}
       publish: ${{ steps.mode.outputs.publish }}
+      tag: ${{ steps.mode.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
       - id: mode
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then echo "publish=true" >> "$GITHUB_OUTPUT"; else echo "publish=false" >> "$GITHUB_OUTPUT"; fi
+          TAG=""
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          elif [ -n "${INPUT_TAG}" ]; then
+            if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+              echo "::error::Creating a release tag is only allowed when run from main."
+              exit 1
+            fi
+            TAG="${INPUT_TAG}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          if [ -n "${TAG}" ]; then echo "publish=true" >> "$GITHUB_OUTPUT"; else echo "publish=false" >> "$GITHUB_OUTPUT"; fi
       # A tag must be a valid version tag AND equal the version in package.json,
       # package-lock.json, tauri.conf.json, Cargo.toml and Cargo.lock.
       - id: check
+        env:
+          TAG: ${{ steps.mode.outputs.tag }}
         run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            node scripts/check-release-version.mjs "${GITHUB_REF_NAME}"
+          if [ -n "${TAG}" ]; then
+            node scripts/check-release-version.mjs "${TAG}"
           else
             node scripts/check-release-version.mjs
           fi
 
+  # Manual run with a tag input: create the tag on this commit (tags made with
+  # GITHUB_TOKEN do not start another workflow run).
+  tag:
+    name: Create tag
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && needs.validate.outputs.tag != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" -f "ref=refs/tags/${TAG}" -f "sha=${GITHUB_SHA}"
+
   draft:
     name: Create draft release
-    needs: validate
-    if: needs.validate.outputs.publish == 'true'
+    needs: [validate, tag]
+    if: always() && needs.validate.result == 'success' && needs.validate.outputs.publish == 'true' && (needs.tag.result == 'success' || needs.tag.result == 'skipped')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -73,9 +111,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.validate.outputs.version }}
           PRERELEASE: ${{ needs.validate.outputs.prerelease }}
+          TAG: ${{ needs.validate.outputs.tag }}
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
           # Stop if a release for this tag already exists (published or draft).
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "::error::A release for $TAG already exists. Delete it (and the tag) before retrying."
@@ -118,9 +156,9 @@ jobs:
 
   build:
     name: Build ${{ matrix.name }}
-    needs: [validate, draft]
+    needs: [validate, tag, draft]
     # Runs after the draft exists (tag) or on its own (manual dry run).
-    if: always() && needs.validate.result == 'success' && (needs.draft.result == 'success' || needs.draft.result == 'skipped')
+    if: always() && needs.validate.result == 'success' && (needs.tag.result == 'success' || needs.tag.result == 'skipped') && (needs.draft.result == 'success' || needs.draft.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:

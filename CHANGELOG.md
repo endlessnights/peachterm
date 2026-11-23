@@ -5,6 +5,21 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-23
+
+_Installers are not code-signed yet._
+
+### Fixed
+
+- Split view: dragging the active tab into a split zone now works like dragging an inactive one (it used to do
+  nothing when no split existed yet). The dragged tab decides which session moves.
+- When the active tab is dragged out, the original pane is taken over by the tab that takes its place in the
+  tab bar.
+- The drop preview no longer promises a split that cannot happen: an impossible drop (pane limit, not enough
+  room, dropping a pane on itself) is shown as unavailable together with the reason.
+- Moving a tab only rearranges panes: existing SSH sessions keep running without reconnecting and keep their
+  scrollback.
+
 ## [0.2.0] - 2026-11-23
 
 _Installers are not code-signed yet._

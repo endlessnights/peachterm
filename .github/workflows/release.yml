@@ -109,10 +109,10 @@ jobs:
 
           PeachTerm — Copyright 2026 Bakhti Baymukhamedov. Licensed under Apache-2.0.
           EOF
-          FLAGS=(--draft --verify-tag --title "PeachTerm ${VERSION}" --notes-file notes.md)
-          if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); fi
-          gh release create "$TAG" "${FLAGS[@]}"
-          ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=30" | jq -r --arg tag "$TAG" '.[] | select(.tag_name==$tag and .draft==true) | .id' | head -n1)"
+          # Create the draft through the API so the response carries the release id.
+          # (Listing releases right after `gh release create` can miss the new draft.)
+          ARGS=(-f "tag_name=${TAG}" -f "name=PeachTerm ${VERSION}" -F "body=@notes.md" -F draft=true -F "prerelease=${PRERELEASE}")
+          ID="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" "${ARGS[@]}" --jq '.id')"
           test -n "$ID"
           echo "release_id=$ID" >> "$GITHUB_OUTPUT"
 

@@ -85,6 +85,10 @@ damaged list entries are reported as `ConfigIssue`s, replaced by defaults
 field-by-field, and the original file is copied aside, so a bad value never
 discards valid data and never prevents start-up.
 
+Export, import and encrypted backups of this data live in `portability/` (see
+[import-export.md](import-export.md) and [backup-format.md](backup-format.md)); they reuse the stores
+above and add no persistence of their own.
+
 Never persisted: plaintext passwords, private-key contents, remote-write
 permission overrides, host-key decisions that were not explicitly confirmed.
 

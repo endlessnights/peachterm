@@ -216,6 +216,12 @@ pub const EVENTS: &[&str] = &[
     "credentials.cleared_all",
     "credentials.unavailable",
     "known_hosts.removed",
+    // data portability: counts only, never names, paths or secrets
+    "portability.connections_exported",
+    "portability.connections_imported",
+    "portability.backup_created",
+    "portability.backup_restored",
+    "portability.failed",
     // SSH sessions (Phase 2)
     "ssh.connect_started",
     "ssh.connected",

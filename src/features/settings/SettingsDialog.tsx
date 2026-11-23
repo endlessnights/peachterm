@@ -27,6 +27,7 @@ import { TerminalColorsSection } from './TerminalColorsSection';
 import { AboutPage } from './AboutPage';
 import { LocalShellPage } from './LocalShellPage';
 import { DiagnosticsPage } from './DiagnosticsPage';
+import { DataBackupPage } from './portability/DataBackupPage';
 import { ShortcutsPage } from './ShortcutsPage';
 import { useCredentialStatus } from '../connections/useCredentialStatus';
 import { useActivity } from '../exit/activity';
@@ -40,6 +41,7 @@ const PAGES: { id: SettingsPage; label: string }[] = [
   { id: 'ssh', label: 'SSH' },
   { id: 'sftp', label: 'SFTP & editor' },
   { id: 'security', label: 'Security' },
+  { id: 'data', label: 'Data & Backup' },
   { id: 'diagnostics', label: 'Diagnostics' },
   { id: 'about', label: 'About' },
 ];
@@ -192,6 +194,7 @@ export function SettingsDialog({
           {page === 'ssh' && <SshPage draft={draft} patch={patch} replace={replace} />}
           {page === 'sftp' && <SftpPage draft={draft} patch={patch} replace={replace} />}
           {page === 'security' && <SecurityPage draft={draft} patch={patch} replace={replace} />}
+          {page === 'data' && <DataBackupPage />}
           {page === 'about' && <AboutPage />}
           {page === 'diagnostics' && (
             <DiagnosticsPage draft={draft} patch={patch} replace={replace} appliedTick={applied} />

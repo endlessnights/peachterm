@@ -7,6 +7,10 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Settings → Data & Backup: export/import of connection profiles as portable JSON (no passwords or secrets,
+  preview and duplicate handling before anything changes) and password-protected `.peachbackup` backups
+  (Argon2id + XChaCha20-Poly1305) that restore across Windows, Linux and macOS, with optional saved passwords
+  and a guarded restore wizard. See `docs/import-export.md` and `docs/backup-format.md`.
 - Split view with up to six panes (side-by-side, stacked, nested), resizable dividers, and drag-and-drop of
   tabs onto pane edges; moving a tab moves its running session.
 - Local terminals (Windows PowerShell, PowerShell 7, cmd, WSL distributions, Linux/macOS shells) through a

@@ -65,6 +65,25 @@ unknown fields are ignored on load, so such a flag cannot be injected.
 
 `error` is a fixed token (`permission_denied`, `relative_path`, …), never a path.
 
+## Data portability (`portability`)
+
+See [import-export.md](import-export.md) and [backup-format.md](backup-format.md).
+No command takes a file path: Rust opens the native dialogs. Every command
+enforces the Application Lock; staged state is wiped when the lock engages.
+Secrets travel renderer → Rust only (the backup passphrase) and never back.
+
+| Command                     | Args                                        | Returns                                                 | Status |
+| --------------------------- | ------------------------------------------- | ------------------------------------------------------- | ------ |
+| `connections_export`        | `ids \| null`, `includeKeyPaths`            | `{ savedTo \| null, connections, folders, keyPaths }`   | ✅     |
+| `connections_import_pick`   | –                                           | `ImportPreview \| null` (staged in Rust behind a token) | ✅     |
+| `connections_import_apply`  | `token`, `{ duplicates, update[] }`         | `RestoreResult`                                         | ✅     |
+| `backup_choose_destination` | –                                           | `{ token, path } \| null`                               | ✅     |
+| `backup_create`             | `token`, `options`, `passphrase`, `confirm` | `BackupSummary` (counts, skipped credentials, verified) | ✅     |
+| `restore_pick`              | –                                           | `{ token, fileName, sizeBytes, formatVersion } \| null` | ✅     |
+| `restore_unlock`            | `token`, `passphrase`                       | `RestorePreview` — redacted, no credential values       | ✅     |
+| `restore_apply`             | `token`, `RestoreOptions`                   | `RestoreResult` (counts only)                           | ✅     |
+| `portability_cancel`        | `token`                                     | `()` — discards the staged operation                    | ✅     |
+
 ## Credentials (`security::credentials`)
 
 | Command                    | Args                       | Returns                           | Status |

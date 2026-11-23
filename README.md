@@ -16,6 +16,8 @@ No telemetry, no accounts, no session limits.
 - **Themes**: Dark, Light, System, Industrial Olive and Source Gray, each with a matching terminal palette;
   ten built-in terminal palettes, custom terminal colours and per-tab palettes.
 - **Security**: credentials in the OS keychain, optional application lock, no secrets in logs or settings files.
+- **Data & Backup**: export/import connection profiles (no secrets) and create encrypted `.peachbackup` files
+  that restore on any supported OS ([docs](docs/backup-format.md)).
 - Saved connections in folders, search, recent sessions, interface scale, terminal font picker, customisable shortcuts.
 
 ## Status
@@ -66,6 +68,7 @@ Screenshots will be added to this section with the first public release.
 - [Releasing](docs/releasing.md) and [code signing](docs/signing.md)
 - [Native title bar](docs/title-bar.md) — themed on Windows 11, macOS and Linux
 - [Diagnostic logging](docs/logging.md)
+- [Connection export and import](docs/import-export.md), [encrypted backups](docs/backup-format.md)
 - [FTPeach review notes](docs/ftpeach-review.md)
 
 ## Prerequisites (all platforms)

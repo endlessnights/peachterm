@@ -15,6 +15,7 @@ export type SettingsPage =
   | 'ssh'
   | 'sftp'
   | 'security'
+  | 'data'
   | 'diagnostics'
   | 'about';
 

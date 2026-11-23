@@ -300,3 +300,129 @@
   font-size: 12px;
   line-height: 1.9;
 }
+
+/* Settings -> Data & Backup. Tokens only, so every theme works. */
+.data-group {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--surface-1);
+}
+.data-group p {
+  margin: 0;
+}
+.data-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wizard-step {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.fieldset {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+}
+.fieldset legend {
+  padding: 0 4px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+.stat-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stat {
+  display: grid;
+  min-width: 78px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+.stat strong {
+  font-size: 15px;
+  color: var(--text-1);
+}
+.stat span {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.stat-warn strong {
+  color: var(--warn);
+}
+.preview-table {
+  display: grid;
+  max-height: 200px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+}
+.preview-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.preview-row:last-child {
+  border-bottom: 0;
+}
+.preview-pick {
+  width: 18px;
+}
+.preview-main {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.preview-main > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.badge {
+  padding: 1px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.badge-duplicate,
+.badge-changed {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+}
+.badge-new {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+}
+.pw-meter {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.pw-meter span {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-4);
+}
+.pw-meter .on-1 {
+  background: var(--danger);
+}
+.pw-meter .on-2 {
+  background: var(--warn);
+}
+.pw-meter .on-3,
+.pw-meter .on-4 {
+  background: var(--ok);
+}

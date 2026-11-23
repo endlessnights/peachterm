@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-restore-unlock"
+description = "Enables the restore_unlock command without any pre-configured scope."
+commands.allow = ["restore_unlock"]
+
+[[permission]]
+identifier = "deny-restore-unlock"
+description = "Denies the restore_unlock command without any pre-configured scope."
+commands.deny = ["restore_unlock"]

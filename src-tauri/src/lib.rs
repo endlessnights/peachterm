@@ -15,6 +15,7 @@ mod logging;
 #[cfg(test)]
 mod openssh_ci;
 mod platform;
+mod portability;
 mod security;
 mod sessions;
 mod sftp;
@@ -67,6 +68,8 @@ pub struct AppState {
     pub startup_issues: Vec<String>,
     /// Last diagnostic archive written by this process (for "show in folder").
     pub last_export: Mutex<Option<PathBuf>>,
+    /// Connection export/import and encrypted backups (see `portability`).
+    pub portability: portability::PortabilityService,
 }
 
 impl AppState {
@@ -189,6 +192,7 @@ impl AppState {
             prompt_emitter,
             startup_issues,
             last_export: Mutex::new(None),
+            portability: portability::PortabilityService::default(),
             paths,
         })
     }
@@ -271,6 +275,8 @@ pub fn run() {
             let shared = Arc::clone(&state);
             state.lock.set_notifier(Box::new(move |locked| {
                 if locked {
+                    // Decrypted backups and staged imports do not survive a lock.
+                    shared.portability.clear();
                     let _ = shared.sessions.reset_write_policies();
                     tracing::info!(event = "editor.policy_reset");
                 }
@@ -296,6 +302,15 @@ pub fn run() {
             commands::connections::tree_move,
             commands::connections::tree_delete_preview,
             commands::connections::tree_delete,
+            commands::portability::connections_export,
+            commands::portability::connections_import_pick,
+            commands::portability::connections_import_apply,
+            commands::portability::backup_choose_destination,
+            commands::portability::backup_create,
+            commands::portability::restore_pick,
+            commands::portability::restore_unlock,
+            commands::portability::restore_apply,
+            commands::portability::portability_cancel,
             commands::settings::settings_load,
             commands::settings::settings_save,
             commands::window::window_apply_theme,

@@ -22,9 +22,9 @@ Notes:
 
 | License (Rust crates)                               | Count |
 | --------------------------------------------------- | ----: |
-| MIT OR Apache-2.0                                   |   297 |
+| MIT OR Apache-2.0                                   |   301 |
 | MIT                                                 |   131 |
-| Apache-2.0 OR MIT                                   |    90 |
+| Apache-2.0 OR MIT                                   |    93 |
 | Unicode-3.0                                         |    18 |
 | MIT/Apache-2.0                                      |    17 |
 | Zlib OR Apache-2.0 OR MIT                           |    17 |
@@ -52,7 +52,7 @@ Notes:
 | Apache-2.0 AND ISC                                  |     1 |
 | BSD-2-Clause OR Apache-2.0                          |     1 |
 | Apache-2.0 WITH LLVM-exception                      |     1 |
-| (MIT OR Apache-2.0) AND Unicode-3.0                 |     1 |
+| (MIT OR Apache-2.0) AND Unicode-3.0                 |     2 |
 
 | License (npm packages) | Count |
 | ---------------------- | ----: |
@@ -68,6 +68,7 @@ Notes:
 | ---------------------------- | ----------------------------- | --------------------------------------------------- |
 | adler2                       | 2.0.1                         | 0BSD OR MIT OR Apache-2.0                           |
 | aead                         | 0.6.1                         | MIT OR Apache-2.0                                   |
+| aead                         | 0.5.2                         | MIT OR Apache-2.0                                   |
 | aes                          | 0.8.4                         | MIT OR Apache-2.0                                   |
 | aes                          | 0.9.4                         | MIT OR Apache-2.0                                   |
 | aes-gcm                      | 0.11.1                        | Apache-2.0 OR MIT                                   |
@@ -135,6 +136,8 @@ Notes:
 | cfg_aliases                  | 0.1.1                         | MIT                                                 |
 | cfg_aliases                  | 0.2.2                         | MIT                                                 |
 | chacha20                     | 0.10.2                        | MIT OR Apache-2.0                                   |
+| chacha20                     | 0.9.1                         | Apache-2.0 OR MIT                                   |
+| chacha20poly1305             | 0.10.1                        | Apache-2.0 OR MIT                                   |
 | chrono                       | 0.4.45                        | MIT OR Apache-2.0                                   |
 | cipher                       | 0.4.4                         | MIT OR Apache-2.0                                   |
 | cipher                       | 0.5.2                         | MIT OR Apache-2.0                                   |
@@ -383,6 +386,7 @@ Notes:
 | objc2-user-notifications     | 0.3.2                         | Zlib OR Apache-2.0 OR MIT                           |
 | objc2-web-kit                | 0.3.2                         | Zlib OR Apache-2.0 OR MIT                           |
 | once_cell                    | 1.21.4                        | MIT OR Apache-2.0                                   |
+| opaque-debug                 | 0.3.1                         | MIT OR Apache-2.0                                   |
 | option-ext                   | 0.2.0                         | MPL-2.0                                             |
 | ordered-stream               | 0.2.0                         | MIT OR Apache-2.0                                   |
 | p256                         | 0.14.0                        | Apache-2.0 OR MIT                                   |
@@ -420,6 +424,7 @@ Notes:
 | png                          | 0.18.1                        | MIT OR Apache-2.0                                   |
 | polling                      | 3.11.0                        | Apache-2.0 OR MIT                                   |
 | poly1305                     | 0.9.1                         | Apache-2.0 OR MIT                                   |
+| poly1305                     | 0.8.0                         | Apache-2.0 OR MIT                                   |
 | polyval                      | 0.7.3                         | Apache-2.0 OR MIT                                   |
 | portable-atomic              | 1.15.0                        | Apache-2.0 OR MIT                                   |
 | portable-atomic-util         | 0.2.8                         | Apache-2.0 OR MIT                                   |
@@ -595,8 +600,10 @@ Notes:
 | typenum                      | 1.20.1                        | MIT OR Apache-2.0                                   |
 | uds_windows                  | 1.2.1                         | MIT                                                 |
 | unicode-ident                | 1.0.27                        | (MIT OR Apache-2.0) AND Unicode-3.0                 |
+| unicode-normalization        | 0.1.26                        | (MIT OR Apache-2.0) AND Unicode-3.0                 |
 | unicode-segmentation         | 1.13.3                        | MIT OR Apache-2.0                                   |
 | universal-hash               | 0.6.1                         | MIT OR Apache-2.0                                   |
+| universal-hash               | 0.5.1                         | MIT OR Apache-2.0                                   |
 | untrusted                    | 0.9.0                         | ISC                                                 |
 | url                          | 2.5.9                         | MIT OR Apache-2.0                                   |
 | urlpattern                   | 0.6.0                         | MIT                                                 |

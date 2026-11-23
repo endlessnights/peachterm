@@ -15,15 +15,19 @@ import {
   planDelete,
 } from '../features/connections/treeOps';
 import type {
+  BackupFileInfo,
   Connection,
   ConnectionInput,
   ConnectionTree,
   Folder,
   FolderDeleteMode,
   FolderInput,
+  ImportPreview,
   ItemRef,
   LocalProfile,
   LoggingStatus,
+  RestorePreview,
+  RestoreResult,
   SavedNode,
   Settings,
   TerminalEvent,
@@ -62,6 +66,28 @@ export interface MockSsh {
     acks: { sessionId: string; bytes: number }[];
     closes: string[];
     profileLoads: number;
+  };
+  /** Data portability traffic (the dialogs and the crypto are not simulated). */
+  portability: {
+    exports: { ids: string[] | null; includeKeyPaths: boolean }[];
+    /** What the next "choose a file" dialog yields (null = the user cancels). */
+    nextImport: ImportPreview | null;
+    imports: { token: string; duplicates: string; update: number[] }[];
+    nextDestination: string | null;
+    backups: {
+      token: string;
+      includeSettings: boolean;
+      includeCredentials: boolean;
+      passphrase: string;
+      confirm: string;
+    }[];
+    nextRestoreFile: BackupFileInfo | null;
+    /** The preview that a correct passphrase unlocks. */
+    restorePreview: RestorePreview | null;
+    unlocks: { token: string; passphrase: string }[];
+    restores: { token: string; options: Record<string, unknown> }[];
+    cancels: string[];
+    restoreResult: RestoreResult | null;
   };
   /** How many times the application was asked to quit. */
   quits: number;
@@ -162,6 +188,19 @@ export function createMockBackend(
     scales: [],
     workspaceSaves: [],
     local: { opens: [], writes: [], resizes: [], acks: [], closes: [], profileLoads: 0 },
+    portability: {
+      exports: [],
+      nextImport: null,
+      imports: [],
+      nextDestination: null,
+      backups: [],
+      nextRestoreFile: null,
+      restorePreview: null,
+      unlocks: [],
+      restores: [],
+      cancels: [],
+      restoreResult: null,
+    },
     quits: 0,
     links: [],
     hostKeyAnswers: [],
@@ -735,6 +774,120 @@ export function createMockBackend(
     },
     sftp_cancel: (args) => {
       ssh.sftp.cancels.push(String(args.transferId));
+    },
+    connections_export: ({ ids, includeKeyPaths }) => {
+      const list = (ids as string[] | null) ?? tree.connections.map((c) => c.id);
+      ssh.portability.exports.push({
+        ids: ids as string[] | null,
+        includeKeyPaths: Boolean(includeKeyPaths),
+      });
+      return {
+        savedTo: '(browser dev mock)/peachterm-connections.json',
+        connections: list.length,
+        folders: ids === null ? tree.folders.length : 0,
+        keyPaths: includeKeyPaths ? list.length : 0,
+      };
+    },
+    connections_import_pick: () => {
+      const next = ssh.portability.nextImport;
+      ssh.portability.nextImport = null;
+      return next;
+    },
+    connections_import_apply: ({ token, options }) => {
+      const o = options as { duplicates: string; update: number[] };
+      ssh.portability.imports.push({
+        token: String(token),
+        duplicates: o.duplicates,
+        update: o.update,
+      });
+      return {
+        created: 1,
+        copied: 0,
+        updated: o.update.length,
+        skipped: 0,
+        failed: 0,
+        foldersCreated: 0,
+        settingsRestored: false,
+        credentials: { restored: 0, replaced: 0, keptExisting: 0, skipped: 0, failed: 0 },
+        safetyCopy: false,
+        warnings: [],
+      } satisfies RestoreResult;
+    },
+    backup_choose_destination: () => {
+      const path = ssh.portability.nextDestination;
+      ssh.portability.nextDestination = null;
+      return path ? { token: 'dest-1', path } : null;
+    },
+    backup_create: ({ token, options, passphrase, confirm }) => {
+      const o = options as { includeSettings: boolean; includeCredentials: boolean };
+      ssh.portability.backups.push({
+        token: String(token),
+        includeSettings: o.includeSettings,
+        includeCredentials: o.includeCredentials,
+        passphrase: String(passphrase),
+        confirm: String(confirm),
+      });
+      if (String(passphrase) !== String(confirm)) {
+        throw { code: 'validation', message: 'The passphrases do not match.' };
+      }
+      if (String(passphrase).length < 12) {
+        throw {
+          code: 'validation',
+          message: 'The passphrase must be at least 12 characters long.',
+        };
+      }
+      const withSecret = tree.connections.filter((c) => c.hasStoredSecret).length;
+      return {
+        savedTo: '(browser dev mock)/peachterm-backup.peachbackup',
+        connections: tree.connections.length,
+        folders: tree.folders.length,
+        settingsIncluded: o.includeSettings,
+        credentialsRequested: o.includeCredentials,
+        credentialsIncluded: o.includeCredentials ? withSecret : 0,
+        credentialsSkipped: 0,
+        credentialsUnreadable: 0,
+        formatVersion: 1,
+        sizeBytes: 4096,
+        verified: true,
+      };
+    },
+    restore_pick: () => {
+      const next = ssh.portability.nextRestoreFile;
+      ssh.portability.nextRestoreFile = null;
+      return next;
+    },
+    restore_unlock: ({ token, passphrase }) => {
+      ssh.portability.unlocks.push({ token: String(token), passphrase: String(passphrase) });
+      if (String(passphrase) !== 'correct horse battery' || !ssh.portability.restorePreview) {
+        throw {
+          code: 'validation',
+          message: 'The passphrase is wrong, or the backup file has been damaged or modified.',
+        };
+      }
+      return ssh.portability.restorePreview;
+    },
+    restore_apply: ({ token, options }) => {
+      ssh.portability.restores.push({
+        token: String(token),
+        options: options as Record<string, unknown>,
+      });
+      return (
+        ssh.portability.restoreResult ?? {
+          created: 1,
+          copied: 0,
+          updated: 0,
+          skipped: 0,
+          failed: 0,
+          foldersCreated: 0,
+          settingsRestored: false,
+          credentials: { restored: 0, replaced: 0, keptExisting: 0, skipped: 0, failed: 0 },
+          safetyCopy: false,
+          warnings: [],
+        }
+      );
+    },
+    portability_cancel: ({ token }) => {
+      ssh.portability.cancels.push(String(token));
     },
     known_hosts_list: () => [],
     known_hosts_remove: () => undefined,

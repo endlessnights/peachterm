@@ -20,10 +20,10 @@ use uuid::Uuid;
 
 /// 2: added manual ordering (`sortOrder`). Version-1 files load unchanged.
 const DOC_VERSION: u32 = 2;
-const MAX_NAME: usize = 128;
-const MAX_HOST: usize = 255;
-const MAX_USER: usize = 256;
-const MAX_PATH: usize = 4096;
+pub(crate) const MAX_NAME: usize = 128;
+pub(crate) const MAX_HOST: usize = 255;
+pub(crate) const MAX_USER: usize = 256;
+pub(crate) const MAX_PATH: usize = 4096;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -135,7 +135,11 @@ fn now_millis() -> u64 {
         .unwrap_or(0)
 }
 
-fn optional_text(value: Option<String>, max: usize, field: &str) -> AppResult<Option<String>> {
+pub(crate) fn optional_text(
+    value: Option<String>,
+    max: usize,
+    field: &str,
+) -> AppResult<Option<String>> {
     match value.map(|v| v.trim().to_owned()) {
         Some(v) if v.is_empty() => Ok(None),
         Some(v) if v.chars().count() > max => {
@@ -146,7 +150,7 @@ fn optional_text(value: Option<String>, max: usize, field: &str) -> AppResult<Op
     }
 }
 
-fn required_text(value: &str, max: usize, field: &str) -> AppResult<String> {
+pub(crate) fn required_text(value: &str, max: usize, field: &str) -> AppResult<String> {
     let v = value.trim();
     if v.is_empty() {
         return Err(AppError::Validation(format!("{field} is required")));
@@ -159,7 +163,7 @@ fn required_text(value: &str, max: usize, field: &str) -> AppResult<String> {
 
 /// Host names, IPv4 and IPv6 literals (optionally bracketed). No whitespace or
 /// characters that could be mistaken for user/port/path separators.
-fn validate_host(raw: &str) -> AppResult<String> {
+pub(crate) fn validate_host(raw: &str) -> AppResult<String> {
     let host = required_text(raw, MAX_HOST, "Host")?;
     let host = host
         .strip_prefix('[')
@@ -192,7 +196,7 @@ impl ConnectionTree {
     }
 
     /// Position that places a new item after its siblings.
-    fn next_order(&self, parent: Option<Uuid>, folders: bool) -> i64 {
+    pub(crate) fn next_order(&self, parent: Option<Uuid>, folders: bool) -> i64 {
         let max = if folders {
             self.folders
                 .iter()
@@ -270,6 +274,10 @@ impl ConnectionStore {
         &self.issues
     }
 
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+
     fn with_doc<R>(&self, f: impl FnOnce(&mut ConnectionTree) -> AppResult<R>) -> AppResult<R> {
         let mut guard = self
             .doc
@@ -284,6 +292,26 @@ impl ConnectionStore {
             *guard = draft;
         }
         Ok(result)
+    }
+
+    /// Replace the whole document, but only if it is still exactly `expected`
+    /// (so a restore never overwrites an edit made after it was planned).
+    /// One atomic file write; on failure memory and disk are unchanged.
+    pub fn replace_if_unchanged(
+        &self,
+        expected: &ConnectionTree,
+        mut new: ConnectionTree,
+    ) -> AppResult<()> {
+        new.version = DOC_VERSION;
+        self.with_doc(|doc| {
+            if doc != expected {
+                return Err(AppError::Validation(
+                    "Your connections changed while the operation was prepared. Nothing was changed; please try again.".into(),
+                ));
+            }
+            *doc = new;
+            Ok(())
+        })
     }
 
     pub fn load(&self) -> AppResult<ConnectionTree> {

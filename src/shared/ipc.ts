@@ -10,6 +10,15 @@ import type {
   LocalProfileList,
   AppError,
   AppInfo,
+  BackupDestination,
+  BackupFileInfo,
+  BackupSummary,
+  ConnectionsExportOutcome,
+  DuplicateChoice,
+  ImportPreview,
+  RestoreOptions,
+  RestorePreview,
+  RestoreResult,
   Connection,
   ConnectionInput,
   DeleteOutcome,
@@ -114,6 +123,27 @@ export const ipc = {
     call<DeletePlan>('tree_delete_preview', { items, mode }),
   treeDelete: (items: ItemRef[], mode: FolderDeleteMode) =>
     call<DeleteOutcome>('tree_delete', { items, mode }),
+
+  // Data portability. Paths come from native dialogs opened by Rust; the renderer
+  // never supplies one, and secrets only ever travel renderer -> Rust.
+  connectionsExport: (ids: Uuid[] | null, includeKeyPaths: boolean) =>
+    call<ConnectionsExportOutcome>('connections_export', { ids, includeKeyPaths }),
+  connectionsImportPick: () => call<ImportPreview | null>('connections_import_pick'),
+  connectionsImportApply: (token: string, duplicates: DuplicateChoice, update: number[]) =>
+    call<RestoreResult>('connections_import_apply', { token, options: { duplicates, update } }),
+  backupChooseDestination: () => call<BackupDestination | null>('backup_choose_destination'),
+  backupCreate: (
+    token: string,
+    options: { includeSettings: boolean; includeCredentials: boolean },
+    passphrase: string,
+    confirm: string,
+  ) => call<BackupSummary>('backup_create', { token, options, passphrase, confirm }),
+  restorePick: () => call<BackupFileInfo | null>('restore_pick'),
+  restoreUnlock: (token: string, passphrase: string) =>
+    call<RestorePreview>('restore_unlock', { token, passphrase }),
+  restoreApply: (token: string, options: RestoreOptions) =>
+    call<RestoreResult>('restore_apply', { token, options }),
+  portabilityCancel: (token: string) => call<void>('portability_cancel', { token }),
 
   /** Colour the native title bar like the application theme. */
   windowApplyTheme: (

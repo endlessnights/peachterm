@@ -498,3 +498,139 @@ export interface WorkspaceLayout {
 
 export const INTERFACE_SCALES = [70, 80, 90, 100, 110, 120, 130, 140, 150] as const;
 export const RECENT_LIMITS = [3, 5, 10, 15, 20] as const;
+
+// ---------------------------------------------------------------------------
+// Data portability (connection JSON, encrypted backups)
+//
+// Everything here is redacted by construction: Rust never sends a password,
+// a passphrase or decrypted backup content, only counts and profile summaries.
+// ---------------------------------------------------------------------------
+
+export type DuplicateChoice = 'skip' | 'copy' | 'update';
+export type KeyPathState = 'none' | 'present' | 'missing' | 'unchecked';
+export type ItemStatus = 'new' | 'duplicate' | 'changed';
+
+export interface ConnectionsExportOutcome {
+  /** null when the user cancelled the save dialog. */
+  savedTo: string | null;
+  connections: number;
+  folders: number;
+  keyPaths: number;
+}
+
+export interface PreviewItem {
+  /** Position in the staged file; used to name profiles in the apply call. */
+  index: number;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  folderPath: string;
+  status: ItemStatus;
+  existingName: string | null;
+  keyPath: KeyPathState;
+  hasCredential: boolean;
+}
+
+export interface ImportPreview {
+  token: string;
+  fileName: string;
+  formatVersion: number;
+  exportedAt: string | null;
+  folderCount: number;
+  connectionCount: number;
+  newCount: number;
+  duplicateCount: number;
+  changedCount: number;
+  invalidCount: number;
+  relocatedCount: number;
+  unsupportedFields: string[];
+  keyPathsPresent: number;
+  keyPathsMissing: number;
+  needsKey: number;
+  invalid: { kind: 'connection' | 'folder'; index: number; reason: string }[];
+  items: PreviewItem[];
+  itemsTruncated: boolean;
+}
+
+export interface BackupDestination {
+  token: string;
+  path: string;
+}
+
+export interface BackupSummary {
+  savedTo: string;
+  connections: number;
+  folders: number;
+  settingsIncluded: boolean;
+  credentialsRequested: boolean;
+  credentialsIncluded: number;
+  credentialsSkipped: number;
+  credentialsUnreadable: number;
+  formatVersion: number;
+  sizeBytes: number;
+  verified: boolean;
+}
+
+export interface BackupFileInfo {
+  token: string;
+  fileName: string;
+  sizeBytes: number;
+  formatVersion: number;
+}
+
+export interface RestorePreview {
+  token: string;
+  createdAt: string;
+  appVersion: string;
+  connectionCount: number;
+  folderCount: number;
+  invalidCount: number;
+  newCount: number;
+  duplicateCount: number;
+  changedCount: number;
+  settingsIncluded: boolean;
+  credentialsRequested: boolean;
+  credentialCount: number;
+  credentialStoreAvailable: boolean;
+  keyPathsPresent: number;
+  keyPathsMissing: number;
+  needsKey: number;
+  unsupportedFields: string[];
+  items: PreviewItem[];
+  itemsTruncated: boolean;
+}
+
+export type RestoreMode = 'merge' | 'selected' | 'replace';
+export type CredentialConflict = 'keep' | 'replace' | 'skip';
+
+export interface RestoreOptions {
+  mode: RestoreMode;
+  selected: number[];
+  duplicates: DuplicateChoice;
+  update: number[];
+  restoreSettings: boolean;
+  restoreCredentials: boolean;
+  credentialConflict: CredentialConflict;
+  confirmReplaceCredentials: boolean;
+  confirmReplaceAll: boolean;
+}
+
+export interface RestoreResult {
+  created: number;
+  copied: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  foldersCreated: number;
+  settingsRestored: boolean;
+  credentials: {
+    restored: number;
+    replaced: number;
+    keptExisting: number;
+    skipped: number;
+    failed: number;
+  };
+  safetyCopy: boolean;
+  warnings: string[];
+}

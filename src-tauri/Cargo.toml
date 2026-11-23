@@ -43,7 +43,11 @@ tracing-log = { version = "0.2", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["registry", "std", "tracing-log"] }
 zip = { version = "9", default-features = false, features = ["deflate"] }
 argon2 = { version = "0.5.3", features = ["std", "password-hash", "rand"] }
-zeroize = { version = "1.9", features = ["zeroize_derive"] }
+zeroize = { version = "1.9", features = ["zeroize_derive", "serde"] }
+# Encrypted backups (.peachbackup): XChaCha20-Poly1305 AEAD; Argon2id (above) derives the key.
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+# Passphrases are NFC-normalised so the same typed text opens a backup on every OS.
+unicode-normalization = "0.1"
 sha2 = "0.11"
 # SSH transport (Phase 2) and SFTP (Phase 3). Pulled in now to validate that the
 # dependency graph builds on all three platforms. `ring` instead of the default

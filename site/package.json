@@ -1,0 +1,27 @@
+{
+  "name": "peachterm-site",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Official website of PeachTerm (static, GitHub Pages)",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Bakhti Baymukhamedov",
+    "url": "https://github.com/endlessnights"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "prebuild": "node scripts/fetch-release.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "check:links": "node scripts/check-links.mjs"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "vite": "^8.3.8"
+  }
+}

@@ -10,3 +10,7 @@ coverage/
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+site/node_modules/
+site/dist/
+site/src/generated/

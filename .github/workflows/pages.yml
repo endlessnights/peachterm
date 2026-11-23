@@ -1,0 +1,90 @@
+# Builds the static website in site/ and deploys it with GitHub Pages.
+#
+# One-time setup in the repository: Settings -> Pages -> Build and deployment ->
+# Source: "GitHub Actions". Nothing else is needed; no custom domain is configured.
+#
+# The website is rebuilt when:
+#   - something under site/ (or this workflow) changes on main,
+#   - a GitHub Release is published or edited, or the Release workflow finishes (so the
+#     download area follows the real release automatically, without touching the site code),
+#   - someone starts it by hand (workflow_dispatch).
+# Pull requests only BUILD the site (to catch errors); they never deploy.
+
+name: Website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  release:
+    types: [published, edited, deleted]
+  # A release published by the Release workflow uses the built-in token, which does not
+  # start other workflows by itself; this makes the site follow those releases too.
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  pull_request:
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  build:
+    name: Build site
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      # Gives the public address (project sub-path or a custom domain, if one is set later).
+      - id: pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v6
+      - run: npm ci
+      - run: npm run typecheck
+      # SITE_BASE stays "./" (relative URLs), so the site works at /<repo>/ and at a custom domain.
+      - name: Build
+        env:
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run build
+      - run: npm run check:links
+      - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request'
+        with:
+          path: site/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

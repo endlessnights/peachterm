@@ -4,3 +4,6 @@ src-tauri/target
 src-tauri/gen
 package-lock.json
 src-tauri/Cargo.lock
+site/dist
+site/node_modules
+site/src/generated

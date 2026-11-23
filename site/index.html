@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en" class="no-js">
+  <!--
+    Copyright 2026 Bakhti Baymukhamedov
+    SPDX-License-Identifier: Apache-2.0
+  -->
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PeachTerm — SSH, SFTP and local terminal client</title>
+    <meta
+      name="description"
+      content="PeachTerm is a lightweight, open-source SSH and SFTP client for Windows, Linux and macOS with split views, local terminals, an integrated file browser and a clean interface."
+    />
+    <meta name="theme-color" content="#121212" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link
+      rel="preload"
+      href="./fonts/jetbrains-mono-latin-400-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PeachTerm" />
+    <meta property="og:title" content="PeachTerm — Your servers. Your workspace." />
+    <meta
+      property="og:description"
+      content="A lightweight, cross-platform SSH and SFTP client with split views, local terminals and themes. Open source (Apache-2.0)."
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="PeachTerm showing three terminals in a split view in the Industrial Olive theme"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="tabbar">
+      <a class="brand" href="#overview" aria-label="PeachTerm, back to the top">
+        <img src="./favicon.svg" width="18" height="18" alt="" />PeachTerm
+      </a>
+      <nav id="site-nav" aria-label="Main">
+        <a class="on" href="#overview" aria-current="true">Overview</a>
+        <a href="#features">Features</a>
+        <a href="#screenshots">Screenshots</a>
+        <a href="#themes">Themes</a>
+        <a href="#download">Download</a>
+      </nav>
+      <a class="ext" href="<!--REPO_URL-->">GitHub ↗</a>
+    </header>
+
+    <main id="main" class="ws">
+      <div class="split" id="overview">
+        <section class="pane" aria-labelledby="hero-title">
+          <div class="pane-h"><i></i><span>Overview</span><span>Apache-2.0</span></div>
+          <div class="pane-b">
+            <h1 id="hero-title">Your servers.<br />Your workspace.</h1>
+            <p class="dim">
+              A lightweight, cross-platform SSH and SFTP client with powerful split views,
+              integrated file browsing, and a clean interface.
+            </p>
+            <div class="row"><!--HERO_CTA--></div>
+            <p class="fine">Open source · no telemetry · no accounts</p>
+          </div>
+        </section>
+        <section class="pane hero-shot" aria-label="Application screenshot">
+          <div class="pane-h">
+            <i></i><span>web-01 · api-gateway · Windows PowerShell</span><span>split view</span>
+          </div>
+          <figure class="shot">
+            <img
+              src="./screenshots/split-dark.webp"
+              srcset="./screenshots/split-dark-720.webp 720w, ./screenshots/split-dark.webp 1440w"
+              sizes="(min-width: 961px) 62vw, 100vw"
+              width="1440"
+              height="900"
+              fetchpriority="high"
+              decoding="async"
+              alt="PeachTerm split view in the Dark theme: a local PowerShell and two SSH sessions side by side"
+            />
+          </figure>
+        </section>
+      </div>
+
+      <section class="pane" id="features" aria-labelledby="features-title">
+        <div class="pane-h">
+          <i></i><span id="features-title">Features</span
+          ><span>everything listed exists today</span>
+        </div>
+        <div class="trip">
+          <div class="pane">
+            <div class="pane-b">
+              <ul class="list">
+                <li>
+                  <h3>SSH terminal</h3>
+                  <p>
+                    xterm.js terminal with host-key verification; password, key,
+                    keyboard-interactive or SSH-agent login.
+                  </p>
+                </li>
+                <li>
+                  <h3>Integrated SFTP</h3>
+                  <p>
+                    Browse, upload, download, rename and delete beside the terminal, with drag and
+                    drop and context menus.
+                  </p>
+                </li>
+                <li>
+                  <h3>Your own editor</h3>
+                  <p>
+                    Edit remote files in the editor you use. Every upload is confirmed first, and
+                    approval is not remembered across reconnects.
+                  </p>
+                </li>
+                <li>
+                  <h3>Independent sessions</h3>
+                  <p>
+                    Any number of tabs, even to one server; each has its own connection and state.
+                  </p>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="pane">
+            <div class="pane-b">
+              <ul class="list">
+                <li>
+                  <h3>Split view</h3>
+                  <p>Up to six panes. Drag a tab onto a pane edge; moving it keeps the session.</p>
+                </li>
+                <li>
+                  <h3>Local terminals</h3>
+                  <p>
+                    PowerShell, PowerShell 7, cmd, WSL, bash, zsh and fish, plus your own shell
+                    profiles.
+                  </p>
+                </li>
+                <li>
+                  <h3>Saved connections</h3>
+                  <p>
+                    Folders, search and recent sessions. Passwords stay in the operating system's
+                    keychain.
+                  </p>
+                </li>
+                <li>
+                  <h3>Themes and palettes</h3>
+                  <p>Four themes, ten terminal palettes, custom colors and per-tab palettes.</p>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="pane">
+            <div class="pane-b">
+              <ul class="list">
+                <li>
+                  <h3>Keyboard shortcuts</h3>
+                  <p>Customizable, and kept clear of terminal programs such as vim and tmux.</p>
+                </li>
+                <li>
+                  <h3>Private by design</h3>
+                  <p>
+                    No telemetry, no accounts. Logs never contain secrets or terminal content, and a
+                    guided action removes all saved passwords.
+                  </p>
+                </li>
+                <li>
+                  <h3>Readable</h3>
+                  <p>Any installed monospace font, interface scale 70–150%, optional status bar.</p>
+                </li>
+                <li>
+                  <h3>Application lock</h3>
+                  <p>An optional password lock for the whole application.</p>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="pane" id="screenshots" aria-labelledby="shots-title">
+        <div class="pane-h">
+          <i></i><span id="shots-title">Screenshots</span
+          ><span>packaged app · demo server · select to enlarge</span>
+        </div>
+        <ul class="duo" id="gallery">
+          <li class="pane">
+            <button
+              type="button"
+              class="shot"
+              data-full="./screenshots/workspace.webp"
+              data-alt="SSH terminal with the SFTP file browser beside it (Dark theme)"
+            >
+              <img
+                src="./screenshots/workspace-720.webp"
+                srcset="./screenshots/workspace-720.webp 720w, ./screenshots/workspace.webp 1440w"
+                sizes="(min-width: 961px) 45vw, 100vw"
+                width="720"
+                height="450"
+                loading="lazy"
+                decoding="async"
+                alt="SSH terminal with the SFTP file browser beside it (Dark theme)"
+              />
+            </button>
+            <p class="cap">SSH terminal and SFTP browser</p>
+          </li>
+          <li class="pane">
+            <button
+              type="button"
+              class="shot"
+              data-full="./screenshots/split-dark.webp"
+              data-alt="Split view with a local PowerShell and two SSH sessions (Dark theme)"
+            >
+              <img
+                src="./screenshots/split-dark-720.webp"
+                srcset="./screenshots/split-dark-720.webp 720w, ./screenshots/split-dark.webp 1440w"
+                sizes="(min-width: 961px) 45vw, 100vw"
+                width="720"
+                height="450"
+                loading="lazy"
+                decoding="async"
+                alt="Split view with a local PowerShell and two SSH sessions (Dark theme)"
+              />
+            </button>
+            <p class="cap">Split view, three sessions</p>
+          </li>
+          <li class="pane">
+            <button
+              type="button"
+              class="shot"
+              data-full="./screenshots/local-powershell.webp"
+              data-alt="A local Windows PowerShell terminal"
+            >
+              <img
+                src="./screenshots/local-powershell-720.webp"
+                srcset="
+                  ./screenshots/local-powershell-720.webp  720w,
+                  ./screenshots/local-powershell.webp     1440w
+                "
+                sizes="(min-width: 961px) 45vw, 100vw"
+                width="720"
+                height="450"
+                loading="lazy"
+                decoding="async"
+                alt="A local Windows PowerShell terminal"
+              />
+            </button>
+            <p class="cap">Local PowerShell</p>
+          </li>
+          <li class="pane">
+            <button
+              type="button"
+              class="shot"
+              data-full="./screenshots/appearance.webp"
+              data-alt="Settings, Appearance: terminal color palette with a live preview"
+            >
+              <img
+                src="./screenshots/appearance-720.webp"
+                srcset="./screenshots/appearance-720.webp 720w, ./screenshots/appearance.webp 1440w"
+                sizes="(min-width: 961px) 45vw, 100vw"
+                width="720"
+                height="450"
+                loading="lazy"
+                decoding="async"
+                alt="Settings, Appearance: terminal color palette with a live preview"
+              />
+            </button>
+            <p class="cap">Terminal palettes with a live preview</p>
+          </li>
+          <li class="pane">
+            <button
+              type="button"
+              class="shot"
+              data-full="./screenshots/split-olive.webp"
+              data-alt="Split view in the Industrial Olive theme"
+            >
+              <img
+                src="./screenshots/split-olive-720.webp"
+                srcset="
+                  ./screenshots/split-olive-720.webp  720w,
+                  ./screenshots/split-olive.webp     1440w
+                "
+                sizes="(min-width: 961px) 45vw, 100vw"
+                width="720"
+                height="450"
+                loading="lazy"
+                decoding="async"
+                alt="Split view in the Industrial Olive theme"
+              />
+            </button>
+            <p class="cap">Industrial Olive</p>
+          </li>
+          <li class="pane">
+            <button
+              type="button"
+              class="shot"
+              data-full="./screenshots/split-gray.webp"
+              data-alt="Split view in the Source Gray theme"
+            >
+              <img
+                src="./screenshots/split-gray-720.webp"
+                srcset="./screenshots/split-gray-720.webp 720w, ./screenshots/split-gray.webp 1440w"
+                sizes="(min-width: 961px) 45vw, 100vw"
+                width="720"
+                height="450"
+                loading="lazy"
+                decoding="async"
+                alt="Split view in the Source Gray theme"
+              />
+            </button>
+            <p class="cap">Source Gray</p>
+          </li>
+        </ul>
+      </section>
+
+      <section class="pane" id="themes" aria-labelledby="themes-title">
+        <div class="pane-h">
+          <i></i><span id="themes-title">Themes</span><span>screenshots only</span>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Application theme preview" id="theme-tabs">
+          <button
+            type="button"
+            role="tab"
+            id="tab-dark"
+            aria-controls="theme-panel"
+            aria-selected="true"
+            data-theme="dark"
+          >
+            Dark
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-light"
+            aria-controls="theme-panel"
+            aria-selected="false"
+            data-theme="light"
+            tabindex="-1"
+          >
+            Light
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-olive"
+            aria-controls="theme-panel"
+            aria-selected="false"
+            data-theme="olive"
+            tabindex="-1"
+          >
+            Industrial Olive
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-gray"
+            aria-controls="theme-panel"
+            aria-selected="false"
+            data-theme="gray"
+            tabindex="-1"
+          >
+            Source Gray
+          </button>
+        </div>
+        <div id="theme-panel" role="tabpanel" aria-labelledby="tab-dark" tabindex="0">
+          <figure class="shot">
+            <img
+              id="theme-image"
+              src="./screenshots/split-dark.webp"
+              width="1440"
+              height="900"
+              loading="lazy"
+              decoding="async"
+              alt="PeachTerm split view in the Dark theme"
+            />
+          </figure>
+          <p id="theme-caption" class="cap">
+            Dark is the default: neutral near-black panels with a soft peach accent.
+          </p>
+        </div>
+        <p class="cap">
+          Industrial Olive and Source Gray are original designs inspired by early-2000s game-engine
+          interfaces; no third-party artwork. Terminal palettes: PeachTerm Dark and Light,
+          Industrial Olive Console, Source Gray Console, Classic Dark, Green Phosphor, Amber
+          Phosphor, One Dark, Nord, Solarized Dark.
+        </p>
+      </section>
+
+      <div class="split split-wide-left" id="download">
+        <section class="pane" aria-labelledby="platforms-title">
+          <div class="pane-h">
+            <i></i><span id="platforms-title">Platforms</span><span>built ≠ tested</span>
+          </div>
+          <div class="pane-b">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Platform</th>
+                    <th scope="col">Installer built by CI</th>
+                    <th scope="col">Tested in practice</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Windows 10/11 x64</th>
+                    <td>NSIS installer (.exe)</td>
+                    <td class="ok">Yes — developed and used daily</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Linux x64</th>
+                    <td>.deb and AppImage</td>
+                    <td>Automated tests only (Ubuntu CI). Little hands-on use.</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">macOS arm64 and x64</th>
+                    <td>.dmg for each architecture</td>
+                    <td>Compiled and unit-tested in CI only. Not tried by hand yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="fine">
+              "Builds in CI" does not mean "fully tested". Please report problems on Linux and
+              macOS.
+            </p>
+            <!--DOWNLOAD_PANEL-->
+          </div>
+        </section>
+        <section class="pane" id="open-source" aria-labelledby="oss-title">
+          <div class="pane-h">
+            <i></i><span id="oss-title">Open source</span><span>Apache-2.0</span>
+          </div>
+          <div class="pane-b">
+            <p>
+              PeachTerm is an independent open-source desktop application created and maintained by
+              <strong>Bakhti Baymukhamedov</strong>, under the
+              <a href="<!--REPO_URL-->/blob/main/LICENSE">Apache License 2.0</a>: use, modify and
+              redistribute it, including commercially, under the terms of that license.
+            </p>
+            <p class="dim">
+              Built with Tauri 2, React, TypeScript, Rust and xterm.js. Parts of the code were
+              written with an AI coding assistant under the author's direction and review; the
+              project is independent and not owned or endorsed by any AI provider. It has not had a
+              formal security audit.
+            </p>
+            <ul class="links">
+              <li><a href="<!--REPO_URL-->">Source code</a></li>
+              <li><a href="<!--REPO_URL-->/releases">Releases</a></li>
+              <li><a href="<!--REPO_URL-->/issues">Issues</a></li>
+              <li><a href="<!--REPO_URL-->/blob/main/LICENSE">License</a></li>
+              <li><a href="<!--REPO_URL-->/blob/main/CONTRIBUTING.md">Contributing</a></li>
+              <li><a href="<!--REPO_URL-->/blob/main/SECURITY.md">Security policy</a></li>
+              <li><a href="https://github.com/endlessnights">Author on GitHub</a></li>
+              <li><a href="https://t.me/pycarrot2">Author on Telegram</a></li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="sb">
+      <div class="in">
+        <span>PeachTerm — Copyright 2026 Bakhti Baymukhamedov · Apache-2.0</span>
+        <span class="sp"></span>
+        <!--FOOTER_VERSION-->
+        <a href="<!--REPO_URL-->">GitHub</a>
+        <a href="<!--REPO_URL-->/releases">Releases</a>
+        <a href="<!--REPO_URL-->/blob/main/LICENSE">License</a>
+        <a href="<!--REPO_URL-->/issues/new">Report a bug</a>
+      </div>
+    </footer>
+
+    <dialog id="lightbox" class="lightbox" aria-label="Screenshot">
+      <form method="dialog" class="lightbox-bar">
+        <p id="lightbox-caption"></p>
+        <button type="button" id="lightbox-prev" aria-label="Previous screenshot">‹</button>
+        <button type="button" id="lightbox-next" aria-label="Next screenshot">›</button>
+        <button value="close" aria-label="Close">✕</button>
+      </form>
+      <img id="lightbox-image" alt="" width="1440" height="900" />
+    </dialog>
+  </body>
+</html>

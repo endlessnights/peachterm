@@ -8,7 +8,17 @@ import globals from 'globals';
 import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
-  { ignores: ['dist', 'src-tauri/target', 'src-tauri/gen', 'node_modules'] },
+  {
+    ignores: [
+      'dist',
+      'src-tauri/target',
+      'src-tauri/gen',
+      'node_modules',
+      'site/dist',
+      'site/node_modules',
+      'site/src/generated',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -34,7 +44,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.mjs', '*.config.js'],
+    files: ['scripts/**/*.mjs', 'site/scripts/**/*.mjs', '*.config.js'],
     languageOptions: { globals: { ...globals.node } },
   },
   {

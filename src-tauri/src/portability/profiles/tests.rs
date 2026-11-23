@@ -848,6 +848,15 @@ fn preserve_ids_keeps_free_ids_and_never_collides() {
     assert_eq!(ids.len(), r.tree.connections.len());
 }
 
+/// A local absolute path that does not exist, valid on the platform running the test.
+fn missing_absolute_path() -> (tempfile::TempDir, String) {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("no-such-folder").join("key");
+    assert!(missing.is_absolute());
+    let text = missing.to_str().unwrap().to_owned();
+    (dir, text)
+}
+
 #[test]
 fn key_path_probe_never_touches_network_or_relative_paths() {
     assert_eq!(key_path_state(None), KeyPathState::None);
@@ -863,15 +872,78 @@ fn key_path_probe_never_touches_network_or_relative_paths() {
         key_path_state(Some("relative/key")),
         KeyPathState::Unchecked
     );
-    assert_eq!(
-        key_path_state(Some("/definitely/not/here/key")),
-        KeyPathState::Missing
-    );
+    assert_eq!(key_path_state(Some("")), KeyPathState::Unchecked);
+    assert_eq!(key_path_state(Some("bad\0path")), KeyPathState::Unchecked);
+    // A genuinely local absolute path is looked at, whatever the platform.
+    let (_dir, missing) = missing_absolute_path();
+    assert_eq!(key_path_state(Some(&missing)), KeyPathState::Missing);
     let dir = tempfile::tempdir().unwrap();
     let key = dir.path().join("k");
     std::fs::write(&key, "x").unwrap();
     assert_eq!(
         key_path_state(Some(key.to_str().unwrap())),
         KeyPathState::Present
+    );
+    // A folder is not a key file.
+    assert_eq!(
+        key_path_state(Some(dir.path().to_str().unwrap())),
+        KeyPathState::Missing
+    );
+}
+
+/// Windows: a rooted path without a drive (`\foo`, `/foo`) is not absolute
+/// there, so it is never probed; UNC and device namespaces are never probed.
+#[cfg(windows)]
+#[test]
+fn windows_paths_are_classified_by_windows_rules() {
+    for unsafe_path in [
+        "/definitely/not/here/key",
+        "\\definitely\\not\\here",
+        "\\\\server\\share\\key",
+        "\\\\?\\UNC\\server\\share\\key",
+        "\\\\.\\pipe\\name",
+        "\\\\?\\C:\\Windows\\key",
+        "//server/share/key",
+        "C:key",
+        "key.pem",
+        "..\\key",
+    ] {
+        assert_eq!(
+            key_path_state(Some(unsafe_path)),
+            KeyPathState::Unchecked,
+            "{unsafe_path}"
+        );
+    }
+    assert_eq!(
+        key_path_state(Some("C:\\definitely\\not\\here\\key")),
+        KeyPathState::Missing
+    );
+}
+
+/// Unix: drive-letter and backslash paths are ordinary relative names there.
+#[cfg(unix)]
+#[test]
+fn unix_paths_are_classified_by_unix_rules() {
+    for path in [
+        "C:\\Users\\me\\key",
+        "\\\\server\\share",
+        "~/key",
+        "./key",
+        "../key",
+    ] {
+        assert_eq!(
+            key_path_state(Some(path)),
+            KeyPathState::Unchecked,
+            "{path}"
+        );
+    }
+    assert_eq!(
+        key_path_state(Some("/definitely/not/here/key")),
+        KeyPathState::Missing
+    );
+    assert_eq!(
+        key_path_state(Some("//server/share/key")),
+        KeyPathState::Unchecked,
+        "a leading // is never probed, even though Unix treats it as a local path"
     );
 }

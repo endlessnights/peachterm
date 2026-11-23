@@ -5,6 +5,10 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0-beta.1] - 2026-11-23
+
+_First public prerelease. Installers are not code-signed yet._
+
 ### Added
 
 - Settings → Data & Backup: export/import of connection profiles as portable JSON (no passwords or secrets,

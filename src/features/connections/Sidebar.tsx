@@ -326,13 +326,17 @@ export function Sidebar({ width }: { width: number }) {
         icon: 'plus',
         onSelect: () => openConnectionEditor(null, f.id),
       },
-      {
-        kind: 'item',
-        label: atLimit ? `New sub-folder… (limit: ${MAX_FOLDER_DEPTH} levels)` : 'New sub-folder…',
-        icon: 'folderPlus',
-        disabled: atLimit,
-        onSelect: () => newFolder(f.id),
-      },
+      // At the deepest allowed level the entry is simply absent (the backend still enforces the limit).
+      ...(atLimit
+        ? []
+        : [
+            {
+              kind: 'item',
+              label: 'New sub-folder…',
+              icon: 'folderPlus',
+              onSelect: () => newFolder(f.id),
+            } as MenuEntry,
+          ]),
       { kind: 'separator' },
       ...common,
       ...order,

@@ -357,6 +357,54 @@
   align-items: center;
   gap: 2px;
 }
+.update-dot {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  cursor: pointer;
+}
+.update-dot::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.85;
+}
+.update-dot:hover {
+  background: var(--accent-soft);
+}
+.update-notice {
+  position: fixed;
+  z-index: 40;
+  left: 12px;
+  bottom: 42px;
+  width: min(320px, calc(100vw - 24px));
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-m, 8px);
+  background: var(--surface-2);
+  color: var(--text-1);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  font-size: 12.5px;
+}
+.update-notice p {
+  margin: 0;
+}
+.update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
 .app-buttons-compact .icon-btn {
   width: 22px;
   height: 22px;

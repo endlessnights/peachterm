@@ -15,8 +15,19 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
 
+/// What the test server does with `direct-tcpip` (port forwarding) requests.
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub enum Forwarding {
+    /// Connect to the requested destination and relay bytes.
+    #[default]
+    Allow,
+    /// Refuse every request (like `AllowTcpForwarding no`).
+    Deny,
+}
+
 #[derive(Default, Clone)]
 pub struct Opts {
+    pub forwarding: Forwarding,
     pub users: Vec<(String, String)>,
     pub keys: Vec<PublicKey>,
     /// (user, [(prompt, expected answer)])
@@ -35,6 +46,8 @@ pub struct Recorded {
     pub shells: AtomicUsize,
     /// Every authentication attempt the server saw (any method).
     pub auth_attempts: AtomicUsize,
+    /// `direct-tcpip` requests received (accepted or not).
+    pub forward_requests: AtomicUsize,
 }
 
 pub struct TestServer {
@@ -74,6 +87,11 @@ impl TestServer {
         let config = Arc::new(server::Config {
             keys: vec![host_key],
             methods,
+            channel_buffer_size: 2048,
+            // A small window keeps what the client may have in flight below the socket
+            // buffers, so two in-process russh loops cannot block each other on bulk
+            // full-duplex transfers (a real sshd reads independently of its writes).
+            window_size: 128 * 1024,
             auth_rejection_time: std::time::Duration::from_millis(10),
             auth_rejection_time_initial: Some(std::time::Duration::from_millis(0)),
             ..Default::default()
@@ -190,6 +208,72 @@ impl Handler for H {
     ) -> Result<(), Self::Error> {
         reply.accept().await;
         self.channels.insert(channel.id(), channel);
+        Ok(())
+    }
+
+    async fn channel_open_direct_tcpip(
+        &mut self,
+        channel: Channel<Msg>,
+        host_to_connect: &str,
+        port_to_connect: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        reply: server::ChannelOpenHandle,
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        self.rec.forward_requests.fetch_add(1, Ordering::SeqCst);
+        if self.opts.forwarding == Forwarding::Deny {
+            reply
+                .reject(russh::ChannelOpenFailure::AdministrativelyProhibited)
+                .await;
+            return Ok(());
+        }
+        let Ok(port) = u16::try_from(port_to_connect) else {
+            reply.reject(russh::ChannelOpenFailure::ConnectFailed).await;
+            return Ok(());
+        };
+        match tokio::net::TcpStream::connect((host_to_connect, port)).await {
+            Ok(tcp) => {
+                reply.accept().await;
+                tokio::spawn(async move {
+                    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                    let (mut rd, wr) = channel.split();
+                    let (mut tcp_r, mut tcp_w) = tcp.into_split();
+                    let up = async {
+                        while let Some(msg) = rd.wait().await {
+                            match msg {
+                                russh::ChannelMsg::Data { data } => {
+                                    if tcp_w.write_all(&data).await.is_err() {
+                                        break;
+                                    }
+                                }
+                                russh::ChannelMsg::Eof | russh::ChannelMsg::Close => break,
+                                _ => {}
+                            }
+                        }
+                        let _ = tcp_w.shutdown().await;
+                    };
+                    let down = async {
+                        let mut buf = vec![0u8; 16 * 1024];
+                        loop {
+                            match tcp_r.read(&mut buf).await {
+                                Ok(0) | Err(_) => break,
+                                Ok(n) => {
+                                    if wr.data(&buf[..n]).await.is_err() {
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                        let _ = wr.eof().await;
+                    };
+                    tokio::join!(up, down);
+                });
+            }
+            Err(_) => {
+                reply.reject(russh::ChannelOpenFailure::ConnectFailed).await;
+            }
+        }
         Ok(())
     }
 

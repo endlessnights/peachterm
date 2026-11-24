@@ -262,6 +262,18 @@ function GeneralPage({ draft, patch }: PageProps) {
         />
         Show status bar
       </label>
+      <h3>Updates</h3>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={g.checkUpdates}
+          onChange={(e) => patch('general', { checkUpdates: e.target.checked })}
+        />
+        Automatically check for updates
+      </label>
+      <p className="hint">
+        Check for new PeachTerm versions periodically. Updates are never installed automatically.
+      </p>
       <h3>Tabs</h3>
       <label className="check">
         <input

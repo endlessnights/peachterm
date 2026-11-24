@@ -15,6 +15,11 @@ import {
   planDelete,
 } from '../features/connections/treeOps';
 import type {
+  TunnelDef,
+  TunnelInput,
+  UpdateCheckOutcome,
+  UpdateInfo,
+  UpdateDownloadEvent,
   BackupFileInfo,
   Connection,
   ConnectionInput,
@@ -43,7 +48,44 @@ type Invoke = (<T>(command: string, args?: Record<string, unknown>) => Promise<T
 };
 
 /** Recorded SSH traffic of the mock backend, plus a way to push events. */
+export interface MockUpdates {
+  /** Pretend the build has an update key (official builds). */
+  configured: boolean;
+  platform: 'windows' | 'macos' | 'linuxAppimage' | 'linuxPackage';
+  /** What the next check answers. */
+  next: UpdateCheckOutcome;
+  /** Make the next download fail with this fixed token. */
+  failDownload: string | null;
+  /** Make the next install fail. */
+  failInstall: boolean;
+  /** Events a download emits (a real percentage needs a `total`). */
+  downloadEvents: UpdateDownloadEvent[];
+  /** Keep a download open until `release()` (to test the in-flight state). */
+  hold: boolean;
+  release: () => void;
+  checks: number;
+  downloads: number;
+  installs: number;
+  notes: number;
+  lastCheckAt: number | null;
+}
+
+export interface MockTunnels {
+  defs: TunnelDef[];
+  /** tunnel id -> owning session id */
+  running: Record<string, string>;
+  /** Fixed sentence to refuse the next start with (a port conflict, for example). */
+  failStart: string | null;
+  starts: { sessionId: string; tunnelId: string }[];
+  stops: string[];
+  browser: string[];
+  /** Last failure sentence per tunnel (shown in the list). */
+  lastError: Record<string, string>;
+}
+
 export interface MockSsh {
+  updates: MockUpdates;
+  tunnels: MockTunnels;
   opens: { sessionId: string; connectionId: string; cols: number; rows: number; attempt: number }[];
   writes: { sessionId: string; text: string }[];
   resizes: { sessionId: string; cols: number; rows: number }[];
@@ -179,6 +221,35 @@ export function createMockBackend(
   let pendingClear: { token: string; wrong: number } | null = null;
   let clearCounter = 0;
   const ssh: MockSsh = {
+    updates: {
+      configured: true,
+      platform: 'windows',
+      next: { state: 'upToDate' },
+      failDownload: null,
+      failInstall: false,
+      downloadEvents: [
+        { kind: 'started', total: 1000 },
+        { kind: 'progress', downloaded: 500 },
+        { kind: 'progress', downloaded: 1000 },
+        { kind: 'finished' },
+      ],
+      hold: false,
+      release: () => undefined,
+      checks: 0,
+      downloads: 0,
+      installs: 0,
+      notes: 0,
+      lastCheckAt: null,
+    },
+    tunnels: {
+      defs: [],
+      running: {},
+      failStart: null,
+      starts: [],
+      stops: [],
+      browser: [],
+      lastError: {},
+    },
     opens: [],
     writes: [],
     resizes: [],
@@ -239,6 +310,7 @@ export function createMockBackend(
     'lock_now',
     'lock_touch',
     'app_info',
+    'tunnel_counts',
     'window_apply_theme',
     'editor_presets',
   ]);
@@ -249,6 +321,8 @@ export function createMockBackend(
     return c;
   };
 
+  let pendingUpdate: UpdateInfo | null = null;
+  let updateDownloaded = false;
   const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     lock_status: () => ({
       enabled: settings.security.appLock.enabled && lockPassword !== null,
@@ -544,6 +618,116 @@ export function createMockBackend(
     },
     app_quit: () => {
       ssh.quits += 1;
+    },
+    update_status: () => ({
+      currentVersion: '0.0.0-dev',
+      configured: ssh.updates.configured,
+      platform: ssh.updates.platform,
+      canInstall: ssh.updates.platform !== 'linuxPackage',
+      lastCheckAt: ssh.updates.lastCheckAt,
+      pending: pendingUpdate,
+      downloaded: updateDownloaded,
+    }),
+    update_check: () => {
+      ssh.updates.checks += 1;
+      if (!ssh.updates.configured) return { state: 'unavailable', reason: 'not_configured' };
+      const outcome = ssh.updates.next;
+      if (outcome.state === 'available') pendingUpdate = outcome.info;
+      if (outcome.state !== 'unavailable' && outcome.state !== 'busy') {
+        ssh.updates.lastCheckAt = Math.floor(Date.now() / 1000);
+      }
+      return outcome;
+    },
+    update_download: async (args) => {
+      ssh.updates.downloads += 1;
+      const send = args.onEvent as { onmessage: ((e: UpdateDownloadEvent) => void) | null };
+      if (ssh.updates.hold) {
+        await new Promise<void>((resolve) => {
+          ssh.updates.release = resolve;
+        });
+      }
+      if (ssh.updates.failDownload) {
+        const token = ssh.updates.failDownload;
+        ssh.updates.failDownload = null;
+        throw { code: 'remote', message: 'The update could not be downloaded.', token };
+      }
+      for (const event of ssh.updates.downloadEvents) send.onmessage?.(event);
+      updateDownloaded = true;
+    },
+    update_install: () => {
+      ssh.updates.installs += 1;
+      if (ssh.updates.failInstall) {
+        throw { code: 'remote', message: 'The update could not be installed.' };
+      }
+    },
+    update_open_notes: () => {
+      ssh.updates.notes += 1;
+    },
+    tunnel_counts: () => ({ running: Object.keys(ssh.tunnels.running).length }),
+    tunnel_list: ({ connectionId }) =>
+      ssh.tunnels.defs
+        .filter((d) => d.connectionId === connectionId)
+        .map((d) => {
+          const owner = ssh.tunnels.running[d.id] ?? null;
+          return {
+            ...d,
+            status: {
+              state: owner ? 'listening' : 'stopped',
+              ownerSession: owner,
+              activeConnections: 0,
+              lastError: ssh.tunnels.lastError[d.id] ?? null,
+            },
+          };
+        }),
+    tunnel_save: ({ connectionId, input }) => {
+      const i = input as TunnelInput;
+      const clash = ssh.tunnels.defs.find(
+        (d) => d.id !== i.id && d.bindAddress === i.bindAddress && d.localPort === i.localPort,
+      );
+      if (clash) {
+        throw {
+          code: 'validation',
+          message: `The local port ${i.localPort} is already used by the tunnel "${clash.name}".`,
+        };
+      }
+      if (i.id && ssh.tunnels.running[i.id]) {
+        throw { code: 'validation', message: 'Stop the tunnel before editing it.' };
+      }
+      const def: TunnelDef = {
+        id: i.id ?? uuid(),
+        connectionId: String(connectionId),
+        kind: 'local',
+        name: i.name.trim(),
+        bindAddress: i.bindAddress,
+        localPort: i.localPort,
+        remoteHost: i.remoteHost.trim(),
+        remotePort: i.remotePort,
+        autoStart: i.autoStart,
+      };
+      const at = ssh.tunnels.defs.findIndex((d) => d.id === def.id);
+      if (at >= 0) ssh.tunnels.defs[at] = def;
+      else ssh.tunnels.defs.push(def);
+      return def;
+    },
+    tunnel_delete: ({ tunnelId }) => {
+      delete ssh.tunnels.running[String(tunnelId)];
+      ssh.tunnels.defs = ssh.tunnels.defs.filter((d) => d.id !== tunnelId);
+    },
+    tunnel_start: ({ sessionId, tunnelId }) => {
+      ssh.tunnels.starts.push({ sessionId: String(sessionId), tunnelId: String(tunnelId) });
+      if (ssh.tunnels.failStart) {
+        const message = ssh.tunnels.failStart;
+        ssh.tunnels.failStart = null;
+        throw { code: 'validation', message };
+      }
+      ssh.tunnels.running[String(tunnelId)] = String(sessionId);
+    },
+    tunnel_stop: ({ tunnelId }) => {
+      ssh.tunnels.stops.push(String(tunnelId));
+      delete ssh.tunnels.running[String(tunnelId)];
+    },
+    tunnel_open_browser: ({ tunnelId }) => {
+      ssh.tunnels.browser.push(String(tunnelId));
     },
     local_profiles: () => {
       ssh.local.profileLoads += 1;

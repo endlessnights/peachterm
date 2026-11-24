@@ -103,6 +103,10 @@ export function tabColorsDialog(tabId: string) {
   useDialogs.getState().open({ kind: 'tabColors', tabId });
 }
 
+export function tunnelsDialog(tabId: string) {
+  useDialogs.getState().open({ kind: 'tunnels', tabId });
+}
+
 export function renameTabDialog(tabId: string) {
   useDialogs.getState().open({ kind: 'renameTab', tabId });
 }

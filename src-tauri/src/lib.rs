@@ -21,6 +21,8 @@ mod sessions;
 mod sftp;
 mod ssh;
 mod storage;
+mod tunnel;
+mod update;
 
 use logging::LogController;
 use platform::AppPaths;
@@ -70,9 +72,27 @@ pub struct AppState {
     pub last_export: Mutex<Option<PathBuf>>,
     /// Connection export/import and encrypted backups (see `portability`).
     pub portability: portability::PortabilityService,
+    /// Saved SSH tunnel definitions (`tunnels.json`) and the running forwards.
+    pub tunnels: tunnel::TunnelStore,
+    pub tunnel_engine: tunnel::TunnelEngine,
+    /// In-app updates (the last check time and the pending update, in memory).
+    pub update: update::UpdateService,
 }
 
 impl AppState {
+    /// A deleted connection takes its tunnels with it: running ones are stopped
+    /// and the saved definitions are removed.
+    pub async fn tunnel_engine_forget(&self, connection_id: uuid::Uuid) {
+        for def in self
+            .tunnels
+            .for_connection(connection_id)
+            .unwrap_or_default()
+        {
+            self.tunnel_engine.stop(def.id).await;
+        }
+        let _ = self.tunnels.delete_for_connection(connection_id);
+    }
+
     /// `start_logging` receives the default log directory and the loaded
     /// diagnostics settings, so logging honours the user's choices from the
     /// very first event. Tests pass a closure that avoids global state.
@@ -99,6 +119,8 @@ impl AppState {
             }
         }));
         let lock = lock::LockService::open(paths.config_dir.join("lock.json"), lock::Kdf::STRONG);
+        let tunnel_lock = lock.flag();
+        let tunnels = tunnel::TunnelStore::open(paths.config_dir.join("tunnels.json"))?;
         let sessions = Arc::new(SessionRegistry::with_lock(lock.flag()));
         let editor_emitter: EditorEmitter = Arc::default();
         let editor_emit_handle = editor_emitter.clone();
@@ -131,6 +153,7 @@ impl AppState {
             .iter()
             .chain(connections.issues())
             .chain(known_hosts.issues())
+            .chain(tunnels.issues())
             .collect();
         for issue in &issues {
             match issue.field.as_deref() {
@@ -193,6 +216,9 @@ impl AppState {
             startup_issues,
             last_export: Mutex::new(None),
             portability: portability::PortabilityService::default(),
+            tunnels,
+            tunnel_engine: tunnel::TunnelEngine::new(tunnel_lock),
+            update: update::UpdateService::open(paths.config_dir.join("updates.json")),
             paths,
         })
     }
@@ -282,6 +308,15 @@ pub fn run() {
                 }
                 let _ = handle.emit("lock-state-changed", locked);
             }));
+            // The updater plugin needs a public key in the application config
+            // (official release builds add it). Without one, no updater exists:
+            // there is no unsigned or unverified fallback.
+            let updater_configured = app.config().plugins.0.contains_key("updater");
+            if updater_configured {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
+            state.update.set_configured(updater_configured);
             app.manage(state);
             Ok(())
         })
@@ -321,6 +356,18 @@ pub fn run() {
             commands::ssh::ssh_close,
             commands::ssh::ssh_answer_host_key,
             commands::ssh::ssh_answer_auth,
+            commands::tunnels::tunnel_list,
+            commands::tunnels::tunnel_save,
+            commands::tunnels::tunnel_delete,
+            commands::tunnels::tunnel_start,
+            commands::tunnels::tunnel_stop,
+            commands::tunnels::tunnel_open_browser,
+            commands::tunnels::tunnel_counts,
+            commands::update::update_status,
+            commands::update::update_check,
+            commands::update::update_download,
+            commands::update::update_install,
+            commands::update::update_open_notes,
             commands::local::local_profiles,
             commands::local::local_open,
             commands::local::local_write,
@@ -620,6 +667,7 @@ mod tests {
             "window_apply_theme", // cosmetic, reveals nothing
             "window_apply_scale", // cosmetic zoom, reveals nothing
             "editor_presets",     // static list of editor names
+            "tunnel_counts",      // a number, so exit/update warnings stay accurate while locked
         ];
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/commands");
         let mut checked = 0;

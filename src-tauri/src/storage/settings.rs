@@ -75,6 +75,8 @@ pub struct GeneralSettings {
     pub recent_sessions_limit: u32,
     /// Show the bottom status bar.
     pub show_status_bar: bool,
+    /// Look for a new version now and then. Never installs anything by itself.
+    pub check_updates: bool,
 }
 
 impl Default for GeneralSettings {
@@ -86,6 +88,7 @@ impl Default for GeneralSettings {
             language: "en".into(),
             recent_sessions_limit: 3,
             show_status_bar: true,
+            check_updates: true,
         }
     }
 }
@@ -677,6 +680,33 @@ mod tests {
         assert_eq!(parsed.appearance.scrollback, 9000);
     }
     use super::*;
+
+    /// Updating from an older version must keep every saved value and only add
+    /// the new settings with their defaults (nothing is moved or reset).
+    #[test]
+    fn settings_from_an_older_version_survive_and_gain_the_new_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{"general":{"showStatusBar":false,"recentSessionsLimit":9,"language":"en"},
+                "appearance":{"theme":"light","terminalFontSize":18},
+                "shortcuts":{"openSettings":"Ctrl+K"}}"#,
+        )
+        .unwrap();
+        let store = SettingsStore::open(path).unwrap();
+        let s = store.get().unwrap();
+        assert!(!s.general.show_status_bar);
+        assert_eq!(s.general.recent_sessions_limit, 9);
+        assert_eq!(s.appearance.theme, ThemeMode::Light);
+        assert_eq!(s.appearance.terminal_font_size, 18);
+        assert_eq!(
+            s.shortcuts.get("openSettings").map(String::as_str),
+            Some("Ctrl+K")
+        );
+        assert!(s.general.check_updates, "new setting: on by default");
+        assert!(store.issues().is_empty(), "{:?}", store.issues());
+    }
 
     #[test]
     fn defaults_round_trip() {

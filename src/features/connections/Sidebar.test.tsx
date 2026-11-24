@@ -301,3 +301,36 @@ describe('moving without the mouse', () => {
     expect(tree().folders).toHaveLength(4);
   });
 });
+
+describe('folder context menu and the nesting limit', () => {
+  const menuLabels = () =>
+    within(screen.getByRole('menu'))
+      .getAllByRole('menuitem')
+      .map((m) => m.textContent);
+
+  it('offers a plain "New sub-folder…" where nesting is allowed and hides it at the deepest level', async () => {
+    mountApp({
+      folders: [fld('f1', 'L1'), fld('f2', 'L2', 'f1'), fld('f3', 'L3', 'f2')],
+      connections: [],
+    });
+    await screen.findByText('L3');
+    for (const name of ['L1', 'L2']) {
+      fireEvent.contextMenu(row(name));
+      const labels = menuLabels();
+      expect(labels).toContain('New sub-folder…');
+      expect(labels.join(' ')).not.toMatch(/limit/i);
+      fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    }
+    fireEvent.contextMenu(row('L3'));
+    const labels = menuLabels();
+    expect(labels).toContain('New connection here…');
+    expect(labels.join(' ')).not.toMatch(/sub-folder|limit|levels/i);
+    // no dangling or doubled separators after the entry disappeared
+    const kids = [...screen.getByRole('menu').children].map((c) =>
+      c.getAttribute('role') === 'separator' ? '-' : 'i',
+    );
+    expect(kids[0]).toBe('i');
+    expect(kids.at(-1)).toBe('i');
+    expect(kids.join('')).not.toContain('--');
+  });
+});

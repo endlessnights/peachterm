@@ -14,3 +14,8 @@ coverage/
 site/node_modules/
 site/dist/
 site/src/generated/
+
+# Updater signing keys must never be committed (see docs/updates.md)
+*.key
+*.key.pub.private
+.tauri/

@@ -16,6 +16,8 @@ pub mod security;
 pub mod settings;
 pub mod sftp;
 pub mod ssh;
+pub mod tunnels;
+pub mod update;
 pub mod window;
 pub mod workspace;
 

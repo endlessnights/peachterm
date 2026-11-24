@@ -26,6 +26,14 @@ Permissions: the workflow has `contents: read` by default; only the draft, build
 `contents: write`. It never runs for pull requests, so release credentials are not exposed to untrusted code.
 There is no telemetry and no external release server.
 
+## Signed in-app updates
+
+From v0.3.0 releases can carry signed update packages and `latest.json` so installed copies update themselves.
+This needs a one-time key setup (secret `TAURI_SIGNING_PRIVATE_KEY`, secret `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`,
+variable `TAURI_UPDATER_PUBKEY`); without them the release is built **without** update metadata. Setup, the platform
+matrix and the key-loss policy are in [updates.md](updates.md). Before publishing, confirm the draft contains
+`latest.json` and a `.sig` next to each updater package.
+
 ## Publishing a release
 
 1. Make sure `main` is green in CI and the changelog is up to date (`CHANGELOG.md`: move "Unreleased" under the

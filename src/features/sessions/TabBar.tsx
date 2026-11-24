@@ -14,6 +14,7 @@ import {
   duplicateTab,
   renameTabDialog,
   tabColorsDialog,
+  tunnelsDialog,
   requestCloseTab,
   tabsForSameConnection,
 } from '../../app/actions';
@@ -46,6 +47,15 @@ export function TabBar() {
         label: 'Terminal Colors…',
         onSelect: () => tabColorsDialog(tab.id),
       },
+      ...(tab.kind === 'ssh'
+        ? ([
+            {
+              kind: 'item',
+              label: 'SSH Tunnels…',
+              onSelect: () => tunnelsDialog(tab.id),
+            },
+          ] as MenuEntry[])
+        : []),
       { kind: 'separator' },
       {
         kind: 'item',

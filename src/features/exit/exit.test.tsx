@@ -31,7 +31,7 @@ const items = (d: HTMLElement) =>
 describe('exiting the application', () => {
   it('closes at once when nothing would be lost', async () => {
     const { ssh } = await mount();
-    act(() => requestExit());
+    await act(async () => requestExit());
     expect(screen.queryByRole('dialog', { name: 'Exit PeachTerm?' })).toBeNull();
     await waitFor(() => expect(ssh.quits).toBe(1));
   });
@@ -46,7 +46,7 @@ describe('exiting the application', () => {
     await waitFor(() =>
       expect(useTabs.getState().tabs.every((t) => t.status === 'connected')).toBe(true),
     );
-    act(() => requestExit());
+    await act(async () => requestExit());
     const d = await dialog();
     expect(items(d)).toEqual([
       '2 active SSH sessions will be disconnected.',
@@ -59,7 +59,7 @@ describe('exiting the application', () => {
     const { ssh } = await mount();
     fireEvent.doubleClick(within(screen.getByRole('tree')).getByText('alpha'));
     await waitFor(() => expect(useTabs.getState().tabs[0]?.status).toBe('connected'));
-    act(() => requestExit());
+    await act(async () => requestExit());
     const d = await dialog();
     await waitFor(() =>
       expect(document.activeElement).toBe(within(d).getByRole('button', { name: 'Cancel' })),
@@ -76,7 +76,7 @@ describe('exiting the application', () => {
     const { ssh } = await mount();
     fireEvent.doubleClick(within(screen.getByRole('tree')).getByText('alpha'));
     await waitFor(() => expect(useTabs.getState().tabs[0]?.status).toBe('connected'));
-    act(() => requestExit());
+    await act(async () => requestExit());
     const d = await dialog();
     fireEvent.click(within(d).getByRole('button', { name: 'Exit PeachTerm' }));
     await waitFor(() => expect(ssh.quits).toBe(1));
@@ -90,7 +90,7 @@ describe('exiting the application', () => {
     await waitFor(() => expect(useTabs.getState().tabs).toHaveLength(1));
     const id = useTabs.getState().tabs[0]!.id;
     act(() => useTabs.getState().setStatus(id, 'connecting'));
-    act(() => requestExit());
+    await act(async () => requestExit());
     expect(items(await dialog())).toEqual([
       '1 connection still being established will be cancelled.',
     ]);
@@ -115,7 +115,7 @@ describe('exiting the application', () => {
         ],
       });
     });
-    act(() => requestExit());
+    await act(async () => requestExit());
     expect(items(await dialog())).toEqual([
       '3 file transfers in progress will be interrupted.',
       '1 edited file not yet uploaded. The local copy is kept; the remote file is not changed.',
@@ -127,12 +127,12 @@ describe('exiting the application', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
     const settings = await screen.findByRole('dialog', { name: 'Settings' });
     // untouched dialogs are not "unsaved"
-    act(() => requestExit());
+    await act(async () => requestExit());
     expect(screen.queryByRole('dialog', { name: 'Exit PeachTerm?' })).toBeNull();
     useExit.setState({ summary: null });
     fireEvent.click(within(settings).getByRole('button', { name: 'SSH' }));
     fireEvent.change(within(settings).getByDisplayValue('15'), { target: { value: '20' } });
-    act(() => requestExit());
+    await act(async () => requestExit());
     const d = await dialog();
     expect(items(d)).toEqual(['The settings dialog has unsaved changes.']);
     // the dialog with the unsaved edits is still open underneath
@@ -143,7 +143,7 @@ describe('exiting the application', () => {
   it('a connection form with typed text counts as unsaved', async () => {
     await mount();
     act(() => useActivity.getState().setUnsaved('connection', true));
-    act(() => requestExit());
+    await act(async () => requestExit());
     expect(items(await dialog())).toEqual(['The connection dialog has unsaved changes.']);
   });
 });

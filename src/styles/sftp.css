@@ -658,21 +658,53 @@
   width: 100px;
 }
 
-/* About */
+/* About: compact, one tight column of small groups */
+.about {
+  display: grid;
+  gap: 4px;
+}
+.about h3 {
+  margin: 8px 0 0;
+}
+.about > h3:first-child {
+  margin-top: 0;
+}
+.about p {
+  margin: 0;
+}
 .about-name {
-  font-size: 1.15em;
+  font-size: 1.1em;
+}
+.about-updates {
+  display: grid;
+  gap: 4px;
+}
+.about-updates h3 {
+  margin: 8px 0 0;
 }
 .about-list {
   display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 6px 12px;
-  margin: 8px 0 12px;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0;
 }
 .about-list dt {
   color: var(--text-2);
 }
 .about-list dd {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* links and facts sit side by side so the page stays short */
+.about-links {
+  grid-template-columns: max-content 1fr max-content 1fr;
+}
+.about .update-actions {
+  margin-top: 2px;
+}
+.about .hint {
+  margin-top: 4px;
 }
 .about-link {
   color: var(--accent);
@@ -681,4 +713,49 @@
 }
 :root[data-theme='light'] .about-link {
   color: var(--accent-hover);
+}
+
+/* ---- SSH tunnels ---------------------------------------------------- */
+.tunnel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.tunnel-row {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+}
+.tunnel-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.tunnel-route {
+  font-family: var(--font-mono, monospace);
+  color: var(--text-2);
+}
+.tunnel-status {
+  margin-left: auto;
+}
+.tunnel-row[data-state='error'] .tunnel-status,
+.tunnel-row[data-state='connectionUnavailable'] .tunnel-status {
+  color: var(--danger);
+}
+.tunnel-error {
+  margin: 0;
+}
+.tunnel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tunnel-form {
+  display: grid;
+  gap: 8px;
 }

@@ -16,6 +16,9 @@ export function ExitDialog() {
       `${plural(summary.sshActive, 'active SSH session', 'active SSH sessions')} will be disconnected.`,
     );
   }
+  if (summary.tunnels > 0) {
+    lines.push(`${plural(summary.tunnels, 'SSH tunnel', 'SSH tunnels')} will be stopped.`);
+  }
   if (summary.localActive > 0) {
     lines.push(
       `${plural(summary.localActive, 'local terminal', 'local terminals')} will be closed and the programs running in ${summary.localActive === 1 ? 'it' : 'them'} stopped.`,

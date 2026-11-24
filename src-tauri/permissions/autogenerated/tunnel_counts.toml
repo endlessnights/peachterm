@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tunnel-counts"
+description = "Enables the tunnel_counts command without any pre-configured scope."
+commands.allow = ["tunnel_counts"]
+
+[[permission]]
+identifier = "deny-tunnel-counts"
+description = "Denies the tunnel_counts command without any pre-configured scope."
+commands.deny = ["tunnel_counts"]

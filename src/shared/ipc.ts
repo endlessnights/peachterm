@@ -47,6 +47,12 @@ import type {
   Settings,
   SshPrompt,
   TerminalEvent,
+  TunnelDef,
+  TunnelInput,
+  TunnelView,
+  UpdateCheckOutcome,
+  UpdateDownloadEvent,
+  UpdateStatusDto,
   UserAnswer,
   Uuid,
   WorkspaceLayout,
@@ -214,6 +220,26 @@ export const ipc = {
     call<void>('app_open_link', { link }),
   /** Close the application (ends every session first). */
   appQuit: () => call<void>('app_quit'),
+
+  // ---- in-app updates (official Tauri updater; nothing installs by itself) ----
+  updateStatus: () => call<UpdateStatusDto>('update_status'),
+  updateCheck: () => call<UpdateCheckOutcome>('update_check'),
+  updateDownload: (onEvent: (event: UpdateDownloadEvent) => void) =>
+    call<void>('update_download', { onEvent: makeChannel(onEvent) }),
+  updateInstall: () => call<void>('update_install'),
+  updateOpenNotes: () => call<void>('update_open_notes'),
+
+  // ---- SSH tunnels (local port forwarding) ----
+  tunnelList: (connectionId: Uuid) => call<TunnelView[]>('tunnel_list', { connectionId }),
+  tunnelSave: (connectionId: Uuid, input: TunnelInput) =>
+    call<TunnelDef>('tunnel_save', { connectionId, input }),
+  tunnelDelete: (tunnelId: Uuid) => call<void>('tunnel_delete', { tunnelId }),
+  tunnelStart: (sessionId: Uuid, tunnelId: Uuid) =>
+    call<void>('tunnel_start', { sessionId, tunnelId }),
+  tunnelStop: (tunnelId: Uuid) => call<void>('tunnel_stop', { tunnelId }),
+  tunnelOpenBrowser: (tunnelId: Uuid) => call<void>('tunnel_open_browser', { tunnelId }),
+  /** How many tunnels are running (also while locked: warnings must stay accurate). */
+  tunnelCounts: () => call<{ running: number }>('tunnel_counts'),
   // ---- local terminals ----
   localProfiles: () => call<LocalProfileList>('local_profiles'),
   /** Start a local shell by profile id (never a command line). */

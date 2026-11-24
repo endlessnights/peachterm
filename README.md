@@ -15,6 +15,10 @@ No telemetry, no accounts, no session limits.
 - **Tabs and split view**: up to six panes, drag a tab onto a pane edge, resizable dividers, restore tabs on start.
 - **Themes**: Dark, Light, System, Industrial Olive and Source Gray, each with a matching terminal palette;
   ten built-in terminal palettes, custom terminal colours and per-tab palettes.
+- **SSH tunnels**: local port forwarding (`ssh -L`) over a tab's existing connection, loopback only, per-connection
+  saved definitions ([docs](docs/tunnels.md)).
+- **In-app updates** from GitHub Releases, verified with a signature, never installed without your click
+  ([docs](docs/updates.md)).
 - **Security**: credentials in the OS keychain, optional application lock, no secrets in logs or settings files.
 - **Data & Backup**: export/import connection profiles (no secrets) and create encrypted `.peachbackup` files
   that restore on any supported OS ([docs](docs/backup-format.md)).
@@ -46,7 +50,9 @@ Known limitations:
 ## Installation
 
 Download the installer for your system from the
-[Releases](https://github.com/endlessnights/peachterm/releases) page (once a release is published) and run it.
+[Releases](https://github.com/endlessnights/peachterm/releases) page and run it. From v0.3.0 on, official
+builds can update themselves from inside the app (Settings → About); upgrading from v0.2.1 is a one-time manual
+install over the old version, which keeps your settings and connections.
 Because the installers are not signed yet, the operating system will show a warning the first time; see
 [docs/signing.md](docs/signing.md). Or build it yourself (below).
 
@@ -68,6 +74,7 @@ Screenshots will be added to this section with the first public release.
 - [Releasing](docs/releasing.md) and [code signing](docs/signing.md)
 - [Native title bar](docs/title-bar.md) — themed on Windows 11, macOS and Linux
 - [Diagnostic logging](docs/logging.md)
+- [SSH tunnels](docs/tunnels.md) and [in-app updates](docs/updates.md)
 - [Connection export and import](docs/import-export.md), [encrypted backups](docs/backup-format.md)
 - [FTPeach review notes](docs/ftpeach-review.md)
 

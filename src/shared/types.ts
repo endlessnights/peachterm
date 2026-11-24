@@ -134,6 +134,8 @@ export interface Settings {
     recentSessionsLimit: number;
     /** The bottom status bar (connection tracking and logging do not depend on it). */
     showStatusBar: boolean;
+    /** Look for new versions now and then (never installs by itself). */
+    checkUpdates: boolean;
   };
   appearance: {
     theme: ThemeMode;
@@ -222,6 +224,79 @@ export interface AppInfo {
   issues: string[];
 }
 
+// ---- in-app updates -------------------------------------------------------
+
+export type UpdatePlatform = 'windows' | 'macos' | 'linuxAppimage' | 'linuxPackage';
+
+export interface UpdateInfo {
+  version: string;
+  /** Release notes as published (plain text). */
+  notes: string | null;
+  date: string | null;
+}
+
+export interface UpdateStatusDto {
+  currentVersion: string;
+  /** An update key is built in (official builds); otherwise checks are unavailable. */
+  configured: boolean;
+  platform: UpdatePlatform;
+  /** This installation can be updated in place (not a .deb). */
+  canInstall: boolean;
+  lastCheckAt: number | null;
+  pending: UpdateInfo | null;
+  downloaded: boolean;
+}
+
+export type UpdateCheckOutcome =
+  | { state: 'upToDate' }
+  | { state: 'available'; info: UpdateInfo }
+  | { state: 'busy' }
+  | { state: 'unavailable'; reason: string };
+
+export type UpdateDownloadEvent =
+  | { kind: 'started'; total: number | null }
+  | { kind: 'progress'; downloaded: number }
+  | { kind: 'finished' };
+
+// ---- SSH tunnels (local port forwarding) -------------------------------------
+
+export type TunnelState = 'stopped' | 'starting' | 'listening' | 'connectionUnavailable' | 'error';
+
+export interface TunnelDef {
+  id: Uuid;
+  connectionId: Uuid;
+  kind: 'local';
+  name: string;
+  /** Always a loopback address. */
+  bindAddress: string;
+  localPort: number;
+  /** Reached from the SSH server's point of view. */
+  remoteHost: string;
+  remotePort: number;
+  autoStart: boolean;
+}
+
+export interface TunnelStatus {
+  state: TunnelState;
+  /** The SSH session (tab) that owns the running listener. */
+  ownerSession: Uuid | null;
+  activeConnections: number;
+  /** Why the latest forwarded connection failed, in one sentence. */
+  lastError: string | null;
+}
+
+export type TunnelView = TunnelDef & { status: TunnelStatus };
+
+export interface TunnelInput {
+  id?: Uuid | null;
+  name: string;
+  bindAddress: string;
+  localPort: number;
+  remoteHost: string;
+  remotePort: number;
+  autoStart: boolean;
+}
+
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
 export interface LoggingStatus {
@@ -284,6 +359,7 @@ export const DEFAULT_SETTINGS: Settings = {
     language: 'en',
     recentSessionsLimit: 3,
     showStatusBar: true,
+    checkUpdates: true,
   },
   appearance: {
     theme: 'dark',

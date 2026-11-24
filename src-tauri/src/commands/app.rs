@@ -51,6 +51,7 @@ pub async fn app_quit(app: tauri::AppHandle, state: State<'_, Arc<AppState>>) ->
         Ok(())
     })
     .await?;
+    state.tunnel_engine.stop_all().await;
     for session in state.ssh.all() {
         session.close().await;
     }

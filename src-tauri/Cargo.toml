@@ -1,6 +1,6 @@
 [package]
 name = "peachterm"
-version = "0.2.1"
+version = "0.3.0"
 description = "Lightweight cross-platform SSH client with integrated SFTP"
 license = "Apache-2.0"
 authors = ["Bakhti Baymukhamedov"]
@@ -55,6 +55,8 @@ sha2 = "0.11"
 russh = { version = "0.65.4", default-features = false, features = ["ring", "rsa", "flate2"] }
 russh-sftp = "4.0.0"
 portable-pty = "0.9.0"
+tauri-plugin-updater = "2"
+semver = "1"
 
 # OS-native secret storage. Each platform enables only its own backend.
 [target.'cfg(target_os = "windows")'.dependencies]

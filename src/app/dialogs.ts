@@ -26,6 +26,7 @@ export type DialogState =
   | { kind: 'deleteItems'; items: ItemRef[] }
   | { kind: 'renameTab'; tabId: string }
   | { kind: 'tabColors'; tabId: string }
+  | { kind: 'tunnels'; tabId: string }
   | {
       kind: 'confirm';
       title: string;

@@ -5,6 +5,7 @@
 // names, hosts or paths are kept here.
 
 import { create } from 'zustand';
+import { ipc } from '../../shared/ipc';
 import { useEditor } from '../editor/store';
 import { useTabs } from '../sessions/store';
 
@@ -44,12 +45,14 @@ export interface ExitSummary {
   connecting: number;
   transfers: number;
   pendingUploads: number;
+  /** Running SSH tunnels (they end with the application). */
+  tunnels: number;
   unsavedConnection: boolean;
   unsavedSettings: boolean;
 }
 
 export const hasActivity = (s: ExitSummary) =>
-  s.sshActive + s.localActive + s.connecting + s.transfers + s.pendingUploads > 0 ||
+  s.sshActive + s.localActive + s.connecting + s.transfers + s.pendingUploads + s.tunnels > 0 ||
   s.unsavedConnection ||
   s.unsavedSettings;
 
@@ -67,7 +70,19 @@ export function summarize(): ExitSummary {
     connecting: tabs.filter((t) => t.status === 'connecting').length,
     transfers: Object.values(transfers).reduce((a, b) => a + b, 0),
     pendingUploads: pending.size,
+    tunnels: 0,
     unsavedConnection: !!unsaved.connection,
     unsavedSettings: !!unsaved.settings,
   };
+}
+
+/** Like [`summarize`], with the running tunnels counted by the backend. */
+export async function summarizeAll(): Promise<ExitSummary> {
+  const summary = summarize();
+  try {
+    summary.tunnels = (await ipc.tunnelCounts()).running;
+  } catch {
+    /* unknown: the warning simply leaves tunnels out */
+  }
+  return summary;
 }

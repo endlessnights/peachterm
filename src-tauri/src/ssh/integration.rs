@@ -244,6 +244,7 @@ pub fn start_session_locked(
             let seen = env.authenticated.clone();
             move |id| seen.lock().unwrap().push(id)
         }),
+        on_ready: None,
         on_end: Arc::new(move |i| e.lock().unwrap().push(i)),
     });
     Started {

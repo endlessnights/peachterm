@@ -5,6 +5,45 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-24
+
+_Installers are not code-signed yet (Windows Authenticode / Apple notarisation). In-app updates are verified
+with PeachTerm's own update signature; see `docs/updates.md`._
+
+**Upgrading from 0.2.1:** v0.2.1 has no updater, so install v0.3.0 once by hand over the old version. Settings,
+connections, folders, saved credentials, themes and shortcuts are kept. Later releases can be installed from inside
+the app.
+
+### Added
+
+- In-app updates through GitHub Releases (official Tauri updater, minisign-verified): **Settings → General →
+  Automatically check for updates** (on by default; never installs by itself), a check/status section and release
+  notes link in **Settings → About**, a quiet indicator and a compact notice, download progress, and an install
+  warning that lists active SSH sessions, tunnels, local terminals, transfers and unsaved work (default: _Install
+  Later_). Stable releases only; a `.deb` install is pointed to the release page. See `docs/updates.md`.
+- SSH local port forwarding (`ssh -L`): **SSH Tunnels…** in the SSH tab menu. Listens on loopback only, reuses the
+  tab's authenticated connection (no second login), shows honest states (_Listening_ is not _Connected_), and stops
+  with its SSH session. Definitions are saved per connection without credentials. See `docs/tunnels.md`.
+- The exit confirmation counts running SSH tunnels.
+- Release workflow: signed updater artifacts and `latest.json` when the signing secrets are configured.
+
+### Changed
+
+- The folder context menu no longer shows a disabled "New sub-folder… (limit: 3 levels)" entry: at the deepest
+  allowed level the entry is simply absent, and elsewhere it reads "New sub-folder…". The limit is still enforced
+  by the backend.
+- Settings → About is more compact: the application, version and author, update status, links and licence now fit
+  without scrolling at the standard Settings size.
+
+### Known limitations
+
+- Pre-releases are never offered by the updater (a GitHub "latest" link cannot point at them); there is no
+  "include pre-releases" option yet.
+- A `.deb` installation cannot update itself; PeachTerm links to the release page instead.
+- Tunnel definitions are not included in connection export/import or `.peachbackup` backups.
+- The SSH library (`russh`) carries all channels of a connection through one loop: a local program that stops
+  reading a forwarded connection can make other traffic of the same SSH connection wait. See `docs/tunnels.md`.
+
 ## [0.2.1] - 2026-11-23
 
 _Installers are not code-signed yet._

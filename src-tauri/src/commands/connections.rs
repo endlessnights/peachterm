@@ -48,6 +48,7 @@ pub async fn connections_save(
 pub async fn connections_delete(state: AppStateRef<'_>, id: Uuid) -> AppResult<()> {
     state.lock.guard()?;
     state.connections.delete_connection(id)?;
+    state.tunnel_engine_forget(id).await;
     tracing::info!(event = "connection.deleted", connection_id = %id);
     let app = Arc::clone(&state);
     super::blocking(move || app.credentials.delete(&connection_account(&id))).await
@@ -153,6 +154,9 @@ pub async fn tree_delete(
 ) -> AppResult<DeleteOutcome> {
     state.lock.guard()?;
     let plan = state.connections.delete_items(&items, mode)?;
+    for id in &plan.connection_ids {
+        state.tunnel_engine_forget(*id).await;
+    }
     let app = Arc::clone(&state);
     let ids = plan.connection_ids.clone();
     let credential_failures = super::blocking(move || {

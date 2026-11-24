@@ -29,7 +29,10 @@ import { useActivityTouch } from '../features/lock/useActivityTouch';
 import { ipc, isTauri, toAppError } from '../shared/ipc';
 import { restoreWorkspace, startWorkspacePersistence } from '../features/sessions/persistence';
 import { useRecent } from '../features/sessions/recentStore';
+import { TunnelsDialog } from '../features/tunnels/TunnelsDialog';
 import { ExitDialog } from '../features/exit/ExitDialog';
+import { InstallConfirm, UpdateNotice } from '../features/updates/UpdateNotice';
+import { startUpdateChecks, useUpdates } from '../features/updates/store';
 import { installCloseHandler } from '../features/exit/exit';
 import { useDialogs } from './dialogs';
 import { useInterfaceScale } from './useInterfaceScale';
@@ -61,6 +64,13 @@ export function App() {
   useInterfaceScale(settingsLoaded ? (preview ?? settings.appearance).interfaceScale : undefined);
   useEffect(() => startWorkspacePersistence(), []);
   useEffect(() => installCloseHandler(), []);
+  // Looking for updates: once shortly after start, then about daily, only while
+  // the setting is on and the application is unlocked. Never installs anything.
+  useEffect(() => {
+    if (!settingsLoaded || locked) return undefined;
+    void useUpdates.getState().refresh();
+    return startUpdateChecks(() => useSettings.getState().settings.general.checkUpdates);
+  }, [settingsLoaded, locked]);
 
   const bootstrap = async () => {
     try {
@@ -197,6 +207,8 @@ export function App() {
         {!locked && <DialogHost />}
         {!locked && <SshPromptHost />}
         {!locked && <EditorPromptHost />}
+        {!locked && <UpdateNotice />}
+        {!locked && <InstallConfirm />}
         {!locked && <Toasts />}
       </div>
       {locked && <LockScreen />}
@@ -226,6 +238,8 @@ function DialogHost() {
       return <RenameTabDialog tabId={dialog.tabId} onClose={close} />;
     case 'tabColors':
       return <TabColorsDialog tabId={dialog.tabId} onClose={close} />;
+    case 'tunnels':
+      return <TunnelsDialog tabId={dialog.tabId} onClose={close} />;
     case 'settings':
       return <SettingsDialog onClose={close} initialPage={dialog.page} />;
     case 'confirm':

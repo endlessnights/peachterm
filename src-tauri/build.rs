@@ -85,6 +85,18 @@ const COMMANDS: &[&str] = &[
     "logging_export_preview",
     "logging_export",
     "logging_reveal_export",
+    "tunnel_list",
+    "tunnel_save",
+    "tunnel_delete",
+    "tunnel_start",
+    "tunnel_stop",
+    "tunnel_open_browser",
+    "tunnel_counts",
+    "update_status",
+    "update_check",
+    "update_download",
+    "update_install",
+    "update_open_notes",
 ];
 
 fn main() {

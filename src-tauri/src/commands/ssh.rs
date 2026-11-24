@@ -75,6 +75,8 @@ pub async fn ssh_open(
     let app = Arc::clone(&state);
     let on_end: Arc<dyn Fn(SessionId) + Send + Sync> = Arc::new(move |ended| {
         app.ssh.remove(ended);
+        // Tunnels are carried by this transport and end with it.
+        app.tunnel_engine.stop_session(ended.uuid());
         app.editor.end_session(ended);
         let _ = app.sessions.close(ended);
     });
@@ -98,6 +100,24 @@ pub async fn ssh_open(
                 let _ = app.workspace.record_recent(connection_id, now);
             }
         }),
+        on_ready: Some(Arc::new({
+            let app = Arc::clone(&state);
+            move |session: Arc<SshSession>| {
+                // Only tunnels the user marked "start automatically"; failures are
+                // visible later in the tunnel list, never fatal for the session.
+                for def in app
+                    .tunnels
+                    .for_connection(connection_id)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|d| d.auto_start)
+                {
+                    if app.tunnel_engine.start(&def, &session).is_err() {
+                        tracing::info!(event = "tunnel.autostart_failed", session_id = %session.id);
+                    }
+                }
+            }
+        })),
         on_end,
     });
     state.ssh.insert(session);

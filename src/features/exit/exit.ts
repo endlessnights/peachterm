@@ -7,7 +7,7 @@
 
 import { create } from 'zustand';
 import { ipc, isTauri } from '../../shared/ipc';
-import { hasActivity, summarize, type ExitSummary } from './activity';
+import { hasActivity, summarizeAll, type ExitSummary } from './activity';
 
 interface ExitState {
   summary: ExitSummary | null;
@@ -29,8 +29,8 @@ export function quitNow(): void {
  * The user (or the system: window close button, Alt+F4, taskbar) asks to close.
  * With nothing at stake the application just closes; otherwise ask once.
  */
-export function requestExit(): void {
-  const summary = summarize();
+export async function requestExit(): Promise<void> {
+  const summary = await summarizeAll();
   if (!hasActivity(summary)) {
     quitNow();
     return;
@@ -47,7 +47,7 @@ export function installCloseHandler(): () => void {
     const un = await getCurrentWindow().onCloseRequested((event) => {
       // never closed behind the user's back
       event.preventDefault();
-      requestExit();
+      void requestExit();
     });
     if (cancelled) un();
     else stop = un;

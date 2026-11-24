@@ -171,10 +171,10 @@ jobs:
             args: '--bundles deb,appimage'
           - name: macOS arm64
             os: macos-15
-            args: '--target aarch64-apple-darwin --bundles dmg'
+            args: '--target aarch64-apple-darwin --bundles app,dmg'
           - name: macOS x64
             os: macos-15
-            args: '--target x86_64-apple-darwin --bundles dmg'
+            args: '--target x86_64-apple-darwin --bundles app,dmg'
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -198,15 +198,41 @@ jobs:
           cache: npm
       - run: npm ci
 
+      # Signed in-app updates (official Tauri updater). Only for a real release, and only when
+      # BOTH the private signing key (secret) and the matching public key (variable) are
+      # configured; otherwise the release is built without update metadata and says so.
+      # The private key is never written to disk or printed: it is only passed to the
+      # build step below as an environment variable. See docs/updates.md.
+      - name: Prepare signed updates
+        id: updater
+        if: needs.validate.outputs.publish == 'true'
+        shell: bash
+        env:
+          HAS_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          TAURI_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+        run: |
+          if [ "$HAS_PRIVATE_KEY" = "true" ] && [ -n "$TAURI_UPDATER_PUBKEY" ]; then
+            node scripts/updater-config.mjs > "$RUNNER_TEMP/updater.conf.json"
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "config=$RUNNER_TEMP/updater.conf.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Updater signing is not configured (secret TAURI_SIGNING_PRIVATE_KEY and variable TAURI_UPDATER_PUBKEY). This release has no in-app update metadata."
+          fi
+
       # Real release: build and attach the installers to the draft release.
       - name: Build and upload to the draft release
         if: needs.validate.outputs.publish == 'true'
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # action-v0.6.2
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.draft.outputs.release_id }}
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} ${{ steps.updater.outputs.enabled == 'true' && format('--config {0}', steps.updater.outputs.config) || '' }}
+          # latest.json is generated and uploaded only when updater artifacts were built (signed)
+          uploadUpdaterJson: ${{ steps.updater.outputs.enabled == 'true' }}
 
       # Manual dry run: the same build, kept as workflow artifacts. Nothing is published.
       - name: Build (dry run, nothing is published)

@@ -139,6 +139,9 @@ pub struct StartParams {
     pub lock: crate::lock::LockFlag,
     /// Called once the server accepted the credentials (not when merely connecting).
     pub on_authenticated: Arc<dyn Fn(SessionId) + Send + Sync>,
+    /// Called once the shell is up and the transport can carry more channels
+    /// (used to start tunnels that are set to start automatically).
+    pub on_ready: Option<Arc<dyn Fn(Arc<SshSession>) + Send + Sync>>,
     /// Called exactly once when the session ends for any reason.
     pub on_end: Arc<dyn Fn(SessionId) + Send + Sync>,
 }
@@ -176,6 +179,7 @@ pub fn start(params: StartParams) -> Arc<SshSession> {
             sink.clone(),
             params.lock.clone(),
             params.on_authenticated.clone(),
+            params.on_ready.clone(),
             rx,
         )
         .await;
@@ -211,6 +215,7 @@ async fn run(
     sink: Arc<dyn Sink>,
     lock: crate::lock::LockFlag,
     on_authenticated: Arc<dyn Fn(SessionId) + Send + Sync>,
+    on_ready: Option<Arc<dyn Fn(Arc<SshSession>) + Send + Sync>>,
     mut control: mpsc::Receiver<Control>,
 ) -> Result<(), SshError> {
     sink.send(TerminalEvent::Status {
@@ -251,6 +256,9 @@ async fn run(
     });
     tracing::info!(event = "ssh.connected", session_id = %session.id);
     tokio::spawn(crate::sftp::init(session.clone(), sink.clone()));
+    if let Some(ready) = on_ready {
+        ready(session.clone());
+    }
 
     if let Some(dir) = initial_directory.as_deref().and_then(shell_quote) {
         let _ = channel

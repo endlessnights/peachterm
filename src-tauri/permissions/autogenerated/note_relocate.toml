@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-note-relocate"
+description = "Enables the note_relocate command without any pre-configured scope."
+commands.allow = ["note_relocate"]
+
+[[permission]]
+identifier = "deny-note-relocate"
+description = "Denies the note_relocate command without any pre-configured scope."
+commands.deny = ["note_relocate"]

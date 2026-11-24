@@ -3,7 +3,7 @@
 
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Icon } from '../../components/Icon';
 import {
@@ -19,6 +19,7 @@ import {
   tabsForSameConnection,
 } from '../../app/actions';
 import { notify } from '../../components/Toasts';
+import { showNotesOfTab } from '../notes/open';
 import { useShortcutLabel } from '../settings/shortcutState';
 import { shownTabs } from './layout';
 import { moveToNewPane, splitFocused } from './splitActions';
@@ -27,7 +28,28 @@ import { defaultProfile, useProfiles } from '../terminal/profilesStore';
 import { openLocalShell } from '../../app/actions';
 import { useTabs, type Tab } from './store';
 
+/** Wheel over the tab strip scrolls it sideways (vertical wheel -> horizontal). */
+export function wheelToScroll(el: HTMLElement, e: WheelEvent): boolean {
+  if (el.scrollWidth <= el.clientWidth) return false;
+  const unit = e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? el.clientWidth : 1;
+  const raw = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+  if (raw === 0) return false;
+  el.scrollLeft += raw * unit;
+  return true;
+}
+
+/** Scroll just enough to bring the tab fully into view. */
+export function revealTab(strip: HTMLElement, tab: HTMLElement) {
+  const left = tab.offsetLeft - strip.offsetLeft;
+  const right = left + tab.offsetWidth;
+  if (left < strip.scrollLeft) strip.scrollLeft = left;
+  else if (right > strip.scrollLeft + strip.clientWidth)
+    strip.scrollLeft = right - strip.clientWidth;
+}
+
 export function TabBar() {
+  const stripRef = useRef<HTMLDivElement>(null);
+  const revealed = useRef<string | null>(null);
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
   const activate = useTabs((s) => s.activate);
@@ -49,6 +71,11 @@ export function TabBar() {
       },
       ...(tab.kind === 'ssh'
         ? ([
+            {
+              kind: 'item',
+              label: 'Notes & Documentation',
+              onSelect: () => showNotesOfTab(tab.id),
+            },
             {
               kind: 'item',
               label: 'SSH Tunnels…',
@@ -147,6 +174,31 @@ export function TabBar() {
     ];
     setMenu({ x, y, entries });
   };
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el) return;
+    // native listener: React's wheel handlers are passive and cannot preventDefault
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return;
+      if (wheelToScroll(el, e)) e.preventDefault();
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+  // Reveal the active tab when it changes (new tab, shortcut, sidebar, restore);
+  // a manual scroll afterwards is left alone.
+  const tabCount = tabs.length;
+  useLayoutEffect(() => {
+    const strip = stripRef.current;
+    if (!strip || !activeId || revealed.current === activeId) return;
+    const el = Array.from(strip.children).find(
+      (c) => (c as HTMLElement).dataset.tabId === activeId,
+    ) as HTMLElement | undefined;
+    if (!el) return;
+    revealTab(strip, el);
+    revealed.current = activeId;
+  }, [activeId, tabCount]);
+
   const profilesLoaded = useProfiles((s) => s.loaded);
   const refreshProfiles = useProfiles((s) => s.refresh);
   useEffect(() => {
@@ -209,7 +261,7 @@ export function TabBar() {
       </div>
       <div className="tabs-wrap">
         <SortableContext items={tabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
-          <div className="tabs" role="tablist" aria-label="Sessions">
+          <div ref={stripRef} className="tabs" role="tablist" aria-label="Sessions">
             {tabs.map((tab) => (
               <SortableTab
                 key={tab.id}
@@ -273,6 +325,7 @@ function SortableTab({
       {...attributes}
       {...listeners}
       className="tab"
+      data-tab-id={tab.id}
       role="tab"
       aria-selected={active}
       data-dragging={isDragging || undefined}

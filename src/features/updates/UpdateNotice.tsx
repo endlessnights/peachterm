@@ -128,6 +128,7 @@ export function InstallConfirm() {
     );
   if (summary.unsavedConnection) lines.push('unsaved changes in the connection dialog');
   if (summary.unsavedSettings) lines.push('unsaved changes in the settings dialog');
+  if (summary.unsavedNotes) lines.push('a note with changes that are not saved yet');
   return (
     <Dialog
       title="Install the update?"

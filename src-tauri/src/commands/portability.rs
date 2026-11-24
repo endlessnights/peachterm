@@ -38,6 +38,7 @@ fn with_stores<T>(
         settings: &app.settings,
         credentials: app.credentials.as_ref(),
         lock: &lock,
+        notes: Some(&app.notes),
     };
     f(&app.portability, &stores)
 }
@@ -67,6 +68,7 @@ pub async fn connections_export(
     state: AppStateRef<'_>,
     ids: Option<Vec<Uuid>>,
     include_key_paths: bool,
+    notes: Option<crate::portability::NotesExport>,
 ) -> AppResult<ExportOutcome> {
     state.lock.guard()?;
     let shared = Arc::clone(&state);
@@ -84,11 +86,18 @@ pub async fn connections_export(
                 connections: 0,
                 folders: 0,
                 key_paths: 0,
+                notes: 0,
             });
         };
         let dest = crate::portability::fsio::with_extension(dest, "json");
         let outcome = with_stores(&shared, |service, stores| {
-            service.write_connections_export(stores, &dest, ids.as_deref(), include_key_paths)
+            service.write_connections_export(
+                stores,
+                &dest,
+                ids.as_deref(),
+                include_key_paths,
+                notes.unwrap_or_default(),
+            )
         })
         .inspect_err(log_failure)?;
         tracing::info!(
@@ -133,6 +142,9 @@ pub struct ImportOptions {
     pub duplicates: DuplicateChoice,
     #[serde(default)]
     pub update: Vec<usize>,
+    /// Import the server notes of the file (off unless chosen).
+    #[serde(default)]
+    pub import_notes: bool,
 }
 
 #[tauri::command]
@@ -145,7 +157,13 @@ pub async fn connections_import_apply(
     let shared = Arc::clone(&state);
     let result = super::blocking(move || {
         with_stores(&shared, |service, stores| {
-            service.apply_import(stores, token, options.duplicates, &options.update)
+            service.apply_import(
+                stores,
+                token,
+                options.duplicates,
+                &options.update,
+                options.import_notes,
+            )
         })
     })
     .await

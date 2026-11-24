@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ReactNode } from 'react';
-import type { PreviewItem, RestoreResult } from '../../../shared/types';
+import type { NotesPreview, PreviewItem, RestoreResult } from '../../../shared/types';
 
 export const formatBytes = (n: number) =>
   n < 1024
@@ -113,6 +113,48 @@ export function ResultSummary({
         </div>
       ))}
       <div className="hint">PeachTerm did not connect to any server.</div>
+    </div>
+  );
+}
+
+/** What a file or backup says about its server notes: counts only, never content. */
+export function NotesSummary({ notes, invalid = 0 }: { notes: NotesPreview; invalid?: number }) {
+  const parts = [
+    notes.internal > 0 && plural(notes.internal, 'written note', 'written notes'),
+    notes.linkedFiles > 0 && plural(notes.linkedFiles, 'linked file', 'linked files'),
+    notes.webDocuments > 0 && plural(notes.webDocuments, 'web document', 'web documents'),
+  ].filter(Boolean);
+  return (
+    <div className="notes-summary" aria-label="Server notes in this file">
+      <strong>Server notes: {plural(notes.notes, 'note', 'notes')}</strong>
+      <div className="hint">
+        {parts.join(', ')}
+        {notes.snapshots > 0
+          ? `; ${plural(notes.snapshots, 'offline copy', 'offline copies')}`
+          : ''}
+        {notes.shared > 0 ? `; ${notes.shared} shared between connections` : ''}.
+      </div>
+      {notes.linkedFiles > 0 && (
+        <div className="hint">
+          Linked files are stored as paths only, never as their contents.
+          {notes.missingFiles > 0 &&
+            ` ${plural(notes.missingFiles, 'linked file was', 'linked files were')} not found on this computer.`}
+        </div>
+      )}
+      {notes.conflicts > 0 && (
+        <div className="hint">
+          {plural(notes.conflicts, 'note already exists', 'notes already exist')} here and{' '}
+          {notes.conflicts === 1 ? 'is' : 'are'} kept as{' '}
+          {notes.conflicts === 1 ? 'it is' : 'they are'}; only missing attachments are added.
+        </div>
+      )}
+      {(notes.unattached > 0 || invalid > 0) && (
+        <div className="hint">
+          {notes.unattached > 0 &&
+            `${plural(notes.unattached, 'note belongs', 'notes belong')} to connections that are not part of this operation and ${notes.unattached === 1 ? 'is' : 'are'} left out. `}
+          {invalid > 0 && `${plural(invalid, 'invalid note was', 'invalid notes were')} ignored.`}
+        </div>
+      )}
     </div>
   );
 }

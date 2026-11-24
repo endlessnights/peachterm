@@ -21,6 +21,7 @@ pub mod staging;
 
 use crate::error::{AppError, AppResult};
 use crate::lock::LockFlag;
+use crate::notes::portable::NotesPreview;
 use crate::security::credentials::CredentialStore;
 use crate::security::secret::SecretString;
 use crate::storage::connections::ConnectionStore;
@@ -50,6 +51,19 @@ pub struct Stores<'a> {
     pub settings: &'a SettingsStore,
     pub credentials: &'a dyn CredentialStore,
     pub lock: &'a LockFlag,
+    /// Server notes; `None` where the feature is not in play (some tests).
+    pub notes: Option<&'a crate::notes::NotesStore>,
+}
+
+/// What a connections export does with server notes (default: nothing).
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotesExport {
+    #[serde(default)]
+    pub include: bool,
+    /// Offline snapshots of web documents, only with a second explicit choice.
+    #[serde(default)]
+    pub snapshots: bool,
 }
 
 const MAX_LISTED_ITEMS: usize = 2000;
@@ -67,6 +81,7 @@ pub struct ExportOutcome {
     pub connections: usize,
     pub folders: usize,
     pub key_paths: usize,
+    pub notes: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -114,6 +129,9 @@ pub struct ImportPreview {
     pub invalid: Vec<InvalidEntry>,
     pub items: Vec<PreviewItem>,
     pub items_truncated: bool,
+    /// Present when the file carries server notes.
+    pub notes: Option<NotesPreview>,
+    pub notes_invalid: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -154,6 +172,9 @@ pub struct RestorePreview {
     pub unsupported_fields: Vec<String>,
     pub items: Vec<PreviewItem>,
     pub items_truncated: bool,
+    /// Present when the backup carries server notes.
+    pub notes: Option<NotesPreview>,
+    pub notes_invalid: usize,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -161,6 +182,8 @@ pub struct RestorePreview {
 pub struct BackupOptions {
     pub include_settings: bool,
     pub include_credentials: bool,
+    #[serde(default)]
+    pub include_notes: bool,
 }
 
 pub struct PortabilityService {
@@ -231,6 +254,35 @@ fn preview_items(
     Ok((items, counts, keys))
 }
 
+/// Counts only. Every incoming profile counts as taking part, so the numbers show what the file holds.
+fn notes_preview_of(
+    stores: &Stores,
+    notes: &[crate::notes::portable::PortableNote],
+    set: &profiles::IncomingSet,
+    key: impl Fn(&profiles::IncomingConnection) -> Option<Uuid>,
+) -> AppResult<Option<NotesPreview>> {
+    let Some(store) = stores.notes else {
+        return Ok(None);
+    };
+    if notes.is_empty() {
+        return Ok(None);
+    }
+    let mapping: std::collections::HashMap<Uuid, Uuid> = set
+        .connections
+        .iter()
+        .filter_map(|c| key(c).map(|k| (k, k)))
+        .collect();
+    crate::notes::portable::preview(store, notes, &mapping).map(Some)
+}
+
+fn notes_preview(
+    stores: &Stores,
+    parsed: &profiles::Parsed,
+    key: impl Fn(&profiles::IncomingConnection) -> Option<Uuid>,
+) -> AppResult<Option<NotesPreview>> {
+    notes_preview_of(stores, &parsed.notes, &parsed.incoming, key)
+}
+
 impl PortabilityService {
     pub fn new(kdf: KdfParams) -> Self {
         Self {
@@ -258,16 +310,34 @@ impl PortabilityService {
         dest: &Path,
         ids: Option<&[Uuid]>,
         include_key_paths: bool,
+        notes: NotesExport,
     ) -> AppResult<ExportOutcome> {
         stores.lock.guard()?;
         let tree = stores.connections.load()?;
         let selected: Option<HashSet<Uuid>> = ids.map(|i| i.iter().copied().collect());
-        let (doc, stats) = profiles::build_export(
+        let (mut doc, stats) = profiles::build_export(
             &tree,
             selected.as_ref(),
             include_key_paths,
             crate::logging::clock::format_timestamp(std::time::SystemTime::now()),
         );
+        // Server notes only on explicit request, and only for the exported connections.
+        // Connections are named by their public id, exactly like in the profile list.
+        if notes.include
+            && let Some(store) = stores.notes
+        {
+            let exported: HashSet<Uuid> = tree
+                .connections
+                .iter()
+                .map(|c| c.id)
+                .filter(|id| selected.as_ref().is_none_or(|s| s.contains(id)))
+                .collect();
+            doc.notes = store.export_notes(
+                &|c| exported.contains(&c).then(|| profiles::public_id(c)),
+                notes.snapshots,
+            )?;
+        }
+        let note_count = doc.notes.len();
         let bytes = profiles::export_to_bytes(&doc)?;
         stores.lock.guard()?;
         fsio::write_atomic(dest, &bytes, true)?;
@@ -276,6 +346,7 @@ impl PortabilityService {
             connections: stats.connections,
             folders: stats.folders,
             key_paths: stats.key_paths,
+            notes: note_count,
         })
     }
 
@@ -312,6 +383,8 @@ impl PortabilityService {
                 .collect(),
             items_truncated: parsed.incoming.connections.len() > items.len(),
             items,
+            notes: notes_preview(stores, &parsed, |c| c.stable_hint)?,
+            notes_invalid: parsed.notes_invalid,
         };
         let token = self.staging.insert(Staged::Import { parsed });
         Ok(ImportPreview { token, ..preview })
@@ -323,6 +396,7 @@ impl PortabilityService {
         token: Uuid,
         duplicates: DuplicateChoice,
         update: &[usize],
+        import_notes: bool,
     ) -> AppResult<RestoreResult> {
         let staged = self.staging.take(token, Kind::Import, stores.lock)?;
         let Staged::Import { parsed } = staged else {
@@ -342,6 +416,7 @@ impl PortabilityService {
             DuplicatePolicy::from(duplicates),
             &update_set,
             now_millis(),
+            if import_notes { &parsed.notes } else { &[] },
         ) {
             Ok(mut result) => {
                 result.failed = parsed.invalid.len();
@@ -392,6 +467,7 @@ impl PortabilityService {
             CreateOptions {
                 include_settings: options.include_settings,
                 include_credentials: options.include_credentials,
+                include_notes: options.include_notes,
             },
             passphrase,
             self.kdf,
@@ -480,6 +556,10 @@ impl PortabilityService {
                 .collect(),
             items_truncated: opened.parsed.incoming.connections.len() > items.len(),
             items,
+            notes: notes_preview_of(stores, &opened.notes, &opened.parsed.incoming, |c| {
+                c.id_hint
+            })?,
+            notes_invalid: opened.notes_invalid,
         };
         self.staging.put_back(
             token,

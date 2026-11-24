@@ -27,8 +27,11 @@
 
 use super::Stores;
 use super::backup::OpenedBackup;
-use super::profiles::{DuplicatePolicy, IncomingSet, MergeRequest, Outcome, merge};
+use super::profiles::{
+    DuplicatePolicy, IncomingSet, Match, MergeRequest, Outcome, classify, merge,
+};
 use crate::error::{AppError, AppResult};
+use crate::notes::portable::{NotesMergeResult, PortableNote};
 use crate::security::credentials::connection_account;
 use crate::security::secret::SecretString;
 use crate::storage::connections::ConnectionTree;
@@ -91,6 +94,10 @@ pub struct RestoreOptions {
     pub restore_settings: bool,
     #[serde(default)]
     pub restore_credentials: bool,
+    /// Restore the server notes of the backup (they are only ever added; existing
+    /// notes are never overwritten).
+    #[serde(default)]
+    pub restore_notes: bool,
     #[serde(default)]
     pub credential_conflict: CredentialConflict,
     #[serde(default)]
@@ -125,6 +132,45 @@ pub struct RestoreResult {
     /// A copy of the previous connections file was kept (Replace mode).
     pub safety_copy: bool,
     pub warnings: Vec<String>,
+    /// What happened to the notes, when they were part of this run.
+    pub notes: Option<NotesMergeResult>,
+}
+
+/// The local connection each incoming profile ended up as (created, copied,
+/// updated, or the existing profile a skipped duplicate matched). `None` = the
+/// profile did not take part (not selected, or no counterpart).
+fn connection_targets(
+    before: &ConnectionTree,
+    set: &IncomingSet,
+    outcomes: &[Outcome],
+) -> Vec<Option<Uuid>> {
+    set.connections
+        .iter()
+        .zip(outcomes)
+        .map(|(c, outcome)| match outcome {
+            Outcome::NotSelected => None,
+            Outcome::SkippedDuplicate(_) | Outcome::SkippedChanged(_) => {
+                match classify(before, c) {
+                    Match::Duplicate(id) | Match::Changed(id) => Some(id),
+                    Match::New => None,
+                }
+            }
+            other => other.final_id(),
+        })
+        .collect()
+}
+
+/// `key` = the id a note uses for this profile inside the document.
+fn notes_mapping(
+    set: &IncomingSet,
+    targets: &[Option<Uuid>],
+    key: impl Fn(&super::profiles::IncomingConnection) -> Option<Uuid>,
+) -> std::collections::HashMap<Uuid, Uuid> {
+    set.connections
+        .iter()
+        .zip(targets)
+        .filter_map(|(c, t)| Some((key(c)?, (*t)?)))
+        .collect()
 }
 
 struct Written {
@@ -394,7 +440,7 @@ pub fn commit(
     if opts.restore_settings
         && let Some(portable) = &backup.settings
     {
-        let wanted = portable.apply_to(old_settings);
+        let wanted = portable.apply_to(old_settings.clone());
         if let Err(e) = stores.settings.save(wanted) {
             // Compensate: previous connections, previous secrets.
             let tree_reverted = new_tree == old_tree
@@ -417,6 +463,48 @@ pub fn commit(
             });
         }
         result.settings_restored = true;
+    }
+
+    // ---- 4b. server notes (additive; the last step that can fail) ----------
+    if opts.restore_notes
+        && !backup.notes.is_empty()
+        && let Some(notes) = stores.notes
+    {
+        let targets = connection_targets(&old_tree, set, &merged.outcomes);
+        let mapping = notes_mapping(set, &targets, |c| c.id_hint);
+        match notes.merge(&backup.notes, &mapping) {
+            Ok(r) => result.notes = Some(r),
+            Err(e) => {
+                // Put everything back: settings, connections, saved passwords.
+                if result.settings_restored {
+                    let _ = stores.settings.save(old_settings);
+                }
+                let tree_reverted = new_tree == old_tree
+                    || stores
+                        .connections
+                        .replace_if_unchanged(&new_tree, old_tree)
+                        .is_ok();
+                let failures = roll_back(stores, &written);
+                return Err(match e {
+                    AppError::Validation(_) => e,
+                    _ if tree_reverted => failure("The notes could not be restored.", failures),
+                    _ => AppError::Storage(
+                        "The notes could not be restored and the previous connections could not be fully put back. A copy of your previous connections is kept next to connections.json."
+                            .into(),
+                    ),
+                });
+            }
+        }
+    }
+    // Replace mode removed connections: their notes stay as unattached notes, never deleted.
+    if replace && let Some(notes) = stores.notes {
+        for gone in old_tree
+            .connections
+            .iter()
+            .filter(|c| !new_tree.connections.iter().any(|n| n.id == c.id))
+        {
+            let _ = notes.detach_connection(gone.id);
+        }
     }
 
     // ---- 5. clean up secrets that no longer belong to anything ------------
@@ -444,6 +532,7 @@ pub fn commit_import(
     policy: DuplicatePolicy,
     update: &HashSet<usize>,
     now: u64,
+    notes: &[PortableNote],
 ) -> AppResult<RestoreResult> {
     stores.lock.guard()?;
     let old = stores.connections.load()?;
@@ -458,13 +547,42 @@ pub fn commit_import(
             now,
         },
     )?;
-    if merged.tree != old {
-        stores.connections.replace_if_unchanged(&old, merged.tree)?;
+    let new_tree = merged.tree.clone();
+    if new_tree != old {
+        stores
+            .connections
+            .replace_if_unchanged(&old, new_tree.clone())?;
     }
     let mut result = RestoreResult {
         folders_created: merged.folders_created,
         ..RestoreResult::default()
     };
+    if !notes.is_empty()
+        && let Some(store) = stores.notes
+    {
+        let targets = connection_targets(&old, set, &merged.outcomes);
+        let mapping = notes_mapping(set, &targets, |c| c.stable_hint);
+        match store.merge(notes, &mapping) {
+            Ok(r) => result.notes = Some(r),
+            Err(e) => {
+                let reverted = new_tree == old
+                    || stores
+                        .connections
+                        .replace_if_unchanged(&new_tree, old)
+                        .is_ok();
+                return Err(match e {
+                    AppError::Validation(_) => e,
+                    _ if reverted => AppError::Storage(
+                        "The notes could not be imported. Nothing was changed.".into(),
+                    ),
+                    _ => AppError::Storage(
+                        "The notes could not be imported and the previous connections could not be fully put back."
+                            .into(),
+                    ),
+                });
+            }
+        }
+    }
     for outcome in merged.outcomes {
         match outcome {
             Outcome::Created(_) => result.created += 1,

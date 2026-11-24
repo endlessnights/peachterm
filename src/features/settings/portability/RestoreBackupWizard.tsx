@@ -14,7 +14,15 @@ import type {
 } from '../../../shared/types';
 import { useConnections } from '../../connections/store';
 import { useSettings } from '../store';
-import { ItemTable, ResultSummary, Stat, StepHeader, formatBytes, plural } from './shared';
+import {
+  ItemTable,
+  NotesSummary,
+  ResultSummary,
+  Stat,
+  StepHeader,
+  formatBytes,
+  plural,
+} from './shared';
 
 type Step = 'file' | 'passphrase' | 'options' | 'result';
 const ORDER: Step[] = ['file', 'passphrase', 'options', 'result'];
@@ -43,6 +51,8 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
   const [update, setUpdate] = useState<Set<number>>(new Set());
   const [restoreSettings, setRestoreSettings] = useState(false);
   const [restoreCredentials, setRestoreCredentials] = useState(false);
+  // On by default when the backup has notes; existing notes are always kept as they are.
+  const [restoreNotes, setRestoreNotes] = useState(true);
   const [conflict, setConflict] = useState<CredentialConflict>('keep');
   const [confirmCredentials, setConfirmCredentials] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
@@ -105,6 +115,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
         update: [...update],
         restoreSettings,
         restoreCredentials: restoreCredentials && preview.credentialCount > 0,
+        restoreNotes: restoreNotes && !!preview.notes,
         credentialConflict: conflict,
         confirmReplaceCredentials: confirmCredentials,
         confirmReplaceAll: confirmReplace,
@@ -369,6 +380,21 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
                 />
                 Restore application settings (themes, terminal palette, shortcuts)
               </label>
+            )}
+
+            {preview.notes && (
+              <fieldset className="fieldset">
+                <legend>Server notes</legend>
+                <NotesSummary notes={preview.notes} invalid={preview.notesInvalid} />
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={restoreNotes}
+                    onChange={(e) => setRestoreNotes(e.target.checked)}
+                  />
+                  Restore server notes (existing notes are kept; notes are only added)
+                </label>
+              </fieldset>
             )}
 
             {hasCredentials && (

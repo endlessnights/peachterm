@@ -26,6 +26,7 @@ import {
 } from '../../app/actions';
 import { AppButtons } from '../../app/AppButtons';
 import { openConnectionEditor, useDialogs } from '../../app/dialogs';
+import { addNoteToConnection, showNotesOfConnection } from '../notes/open';
 import type { ConnectionTree, ItemRef } from '../../shared/types';
 import { useShortcutLabel } from '../settings/shortcutState';
 import { useTabs, type TabStatus } from '../sessions/store';
@@ -305,6 +306,13 @@ export function Sidebar({ width }: { width: number }) {
         { kind: 'separator' },
         ...common,
         { kind: 'item', label: 'Edit…', icon: 'edit', onSelect: () => openConnectionEditor(c) },
+        {
+          kind: 'item',
+          label: 'Notes & Documentation',
+          icon: 'file',
+          onSelect: () => showNotesOfConnection(c),
+        },
+        { kind: 'item', label: 'Add note…', onSelect: () => addNoteToConnection(c) },
         {
           kind: 'item',
           label: 'Duplicate',

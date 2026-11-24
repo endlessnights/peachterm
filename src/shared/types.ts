@@ -592,6 +592,78 @@ export interface ConnectionsExportOutcome {
   connections: number;
   folders: number;
   keyPaths: number;
+  /** Server notes written into the file (0 unless the user opted in). */
+  notes?: number;
+}
+
+// ---- server notes & documentation ---------------------------------------------
+
+export type NoteKind = 'internal' | 'localFile' | 'remoteUrl';
+export type DocFormat = 'markdown' | 'text' | 'html';
+
+export interface OfflineMeta {
+  savedAt: number;
+  bytes: number;
+  format: DocFormat;
+}
+
+/** What the renderer sees of a note: never its content. */
+export interface NoteSummary {
+  id: Uuid;
+  title: string;
+  kind: NoteKind;
+  format: DocFormat;
+  source: string | null;
+  createdAt: number;
+  updatedAt: number;
+  zoom: number;
+  offline: OfflineMeta | null;
+  /** Attached to more than one connection. */
+  shared: boolean;
+  /** The other connections it is attached to. */
+  sharedWith: Uuid[];
+  /** Attached to no connection (kept, never silently deleted). */
+  orphan: boolean;
+}
+
+export interface NotesOverview {
+  notes: NoteSummary[];
+  lastSelected: Uuid | null;
+}
+
+export type NoteStatus =
+  'ok' | 'missing' | 'unreadable' | 'tooLarge' | 'unsupported' | 'offline' | 'error';
+
+export interface NoteContent {
+  id: Uuid;
+  kind: NoteKind;
+  format: DocFormat;
+  status: NoteStatus;
+  text: string | null;
+  /** A sentence about a problem, or about why an offline copy is shown. */
+  problem: string | null;
+  fromOffline: boolean;
+  offline: OfflineMeta | null;
+  source: string | null;
+}
+
+export interface NotesPreview {
+  notes: number;
+  internal: number;
+  linkedFiles: number;
+  webDocuments: number;
+  snapshots: number;
+  shared: number;
+  missingFiles: number;
+  conflicts: number;
+  unattached: number;
+}
+
+export interface NotesMergeResult {
+  created: number;
+  attachedExisting: number;
+  snapshots: number;
+  skipped: number;
 }
 
 export interface PreviewItem {
@@ -627,6 +699,9 @@ export interface ImportPreview {
   invalid: { kind: 'connection' | 'folder'; index: number; reason: string }[];
   items: PreviewItem[];
   itemsTruncated: boolean;
+  /** Present when the file carries server notes (counts only). */
+  notes?: NotesPreview | null;
+  notesInvalid?: number;
 }
 
 export interface BackupDestination {
@@ -643,6 +718,12 @@ export interface BackupSummary {
   credentialsIncluded: number;
   credentialsSkipped: number;
   credentialsUnreadable: number;
+  notesRequested?: boolean;
+  notesIncluded?: number;
+  /** Offline copies of web documents that went into the backup. */
+  snapshotsIncluded?: number;
+  /** Linked local files: only their PATHS are in the backup. */
+  linkedFiles?: number;
   formatVersion: number;
   sizeBytes: number;
   verified: boolean;
@@ -675,6 +756,8 @@ export interface RestorePreview {
   unsupportedFields: string[];
   items: PreviewItem[];
   itemsTruncated: boolean;
+  notes?: NotesPreview | null;
+  notesInvalid?: number;
 }
 
 export type RestoreMode = 'merge' | 'selected' | 'replace';
@@ -687,6 +770,8 @@ export interface RestoreOptions {
   update: number[];
   restoreSettings: boolean;
   restoreCredentials: boolean;
+  /** Add the server notes of the backup (existing notes are never overwritten). */
+  restoreNotes?: boolean;
   credentialConflict: CredentialConflict;
   confirmReplaceCredentials: boolean;
   confirmReplaceAll: boolean;
@@ -709,4 +794,5 @@ export interface RestoreResult {
   };
   safetyCopy: boolean;
   warnings: string[];
+  notes?: NotesMergeResult | null;
 }

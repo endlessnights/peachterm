@@ -6,6 +6,7 @@ import { Dialog } from '../../../components/Dialog';
 import { ipc, toAppError } from '../../../shared/ipc';
 import type { BackupSummary } from '../../../shared/types';
 import { useConnections } from '../../connections/store';
+import { useNotes } from '../../notes/store';
 import { MIN_PASSPHRASE_CHARS, assessPassphrase } from './passphrase';
 import { Stat, StepHeader, formatBytes, plural } from './shared';
 
@@ -29,6 +30,9 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>('data');
   const [includeSettings, setIncludeSettings] = useState(true);
   const [includeCredentials, setIncludeCredentials] = useState(false);
+  // Offered only when some connection has notes; on by default then.
+  const [includeNotes, setIncludeNotes] = useState(true);
+  const noteTotal = useNotes((st) => Object.values(st.counts).reduce((a, b) => a + b, 0));
   const [passphrase, setPassphrase] = useState('');
   const [confirm, setConfirm] = useState('');
   const [show, setShow] = useState(false);
@@ -37,6 +41,9 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const pendingToken = useRef<string | null>(null);
+  useEffect(() => {
+    void useNotes.getState().refreshCounts();
+  }, []);
   useEffect(
     () => () => {
       if (pendingToken.current)
@@ -74,7 +81,7 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
     try {
       const made = await ipc.backupCreate(
         destination.token,
-        { includeSettings, includeCredentials },
+        { includeSettings, includeCredentials, includeNotes: includeNotes && noteTotal > 0 },
         passphrase,
         confirm,
       );
@@ -172,6 +179,25 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
               />
               Include saved passwords and SSH key passphrases ({credentialCount})
             </label>
+            {noteTotal > 0 && (
+              <>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={includeNotes}
+                    onChange={(e) => setIncludeNotes(e.target.checked)}
+                  />
+                  Include Server Notes ({noteTotal})
+                </label>
+                {includeNotes && (
+                  <div className="hint">
+                    Written notes, their connections, web addresses and saved offline copies go into
+                    the encrypted file. Linked local files are saved as paths only: their contents
+                    are not copied. Nothing is downloaded.
+                  </div>
+                )}
+              </>
+            )}
             {includeCredentials && (
               <div className="notice notice-warn">
                 Passwords will be stored inside the encrypted file. Anyone who has the file and the
@@ -268,6 +294,18 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
                 warn={summary.credentialsSkipped > 0}
               />
             </div>
+            {summary.notesRequested && (
+              <div className="hint" data-testid="backup-notes-report">
+                Server notes: {plural(summary.notesIncluded ?? 0, 'note', 'notes')} included
+                {(summary.snapshotsIncluded ?? 0) > 0
+                  ? `, ${plural(summary.snapshotsIncluded ?? 0, 'offline copy', 'offline copies')}`
+                  : ''}
+                .
+                {(summary.linkedFiles ?? 0) > 0
+                  ? ` ${plural(summary.linkedFiles ?? 0, 'linked file', 'linked files')}: only the path is saved, not the contents.`
+                  : ''}
+              </div>
+            )}
             <div className="hint">Backup format version {summary.formatVersion}.</div>
             {summary.credentialsSkipped > 0 && (
               <div className="notice notice-warn">

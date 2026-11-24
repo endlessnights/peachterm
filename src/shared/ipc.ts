@@ -53,6 +53,11 @@ import type {
   UpdateCheckOutcome,
   UpdateDownloadEvent,
   UpdateStatusDto,
+  DocFormat,
+  NoteContent,
+  NotesOverview,
+  NoteSummary,
+  OfflineMeta,
   UserAnswer,
   Uuid,
   WorkspaceLayout,
@@ -132,15 +137,26 @@ export const ipc = {
 
   // Data portability. Paths come from native dialogs opened by Rust; the renderer
   // never supplies one, and secrets only ever travel renderer -> Rust.
-  connectionsExport: (ids: Uuid[] | null, includeKeyPaths: boolean) =>
-    call<ConnectionsExportOutcome>('connections_export', { ids, includeKeyPaths }),
+  connectionsExport: (
+    ids: Uuid[] | null,
+    includeKeyPaths: boolean,
+    notes?: { include: boolean; snapshots: boolean },
+  ) => call<ConnectionsExportOutcome>('connections_export', { ids, includeKeyPaths, notes }),
   connectionsImportPick: () => call<ImportPreview | null>('connections_import_pick'),
-  connectionsImportApply: (token: string, duplicates: DuplicateChoice, update: number[]) =>
-    call<RestoreResult>('connections_import_apply', { token, options: { duplicates, update } }),
+  connectionsImportApply: (
+    token: string,
+    duplicates: DuplicateChoice,
+    update: number[],
+    importNotes = false,
+  ) =>
+    call<RestoreResult>('connections_import_apply', {
+      token,
+      options: { duplicates, update, importNotes },
+    }),
   backupChooseDestination: () => call<BackupDestination | null>('backup_choose_destination'),
   backupCreate: (
     token: string,
-    options: { includeSettings: boolean; includeCredentials: boolean },
+    options: { includeSettings: boolean; includeCredentials: boolean; includeNotes?: boolean },
     passphrase: string,
     confirm: string,
   ) => call<BackupSummary>('backup_create', { token, options, passphrase, confirm }),
@@ -150,6 +166,38 @@ export const ipc = {
   restoreApply: (token: string, options: RestoreOptions) =>
     call<RestoreResult>('restore_apply', { token, options }),
   portabilityCancel: (token: string) => call<void>('portability_cancel', { token }),
+
+  // ---- server notes & documentation (contents only through note_read) ----
+  notesCounts: () => call<Record<Uuid, number>>('notes_counts'),
+  notesList: (connectionId: Uuid) => call<NotesOverview>('notes_list', { connectionId }),
+  notesAll: () => call<NoteSummary[]>('notes_all'),
+  noteCreate: (connectionId: Uuid, title: string, format: DocFormat, content?: string) =>
+    call<Uuid>('note_create', { connectionId, title, format, content }),
+  noteAttachUrl: (connectionId: Uuid, url: string, title?: string) =>
+    call<Uuid>('note_attach_url', { connectionId, url, title }),
+  /** Opens the native file dialog in Rust; null when the user cancels. */
+  noteAttachFile: (connectionId: Uuid) => call<Uuid | null>('note_attach_file', { connectionId }),
+  noteRelocate: (noteId: Uuid) => call<boolean>('note_relocate', { noteId }),
+  noteRead: (noteId: Uuid) => call<NoteContent>('note_read', { noteId }),
+  noteWrite: (noteId: Uuid, content: string) => call<void>('note_write', { noteId, content }),
+  noteRename: (noteId: Uuid, title: string) => call<void>('note_rename', { noteId, title }),
+  noteSetZoom: (noteId: Uuid, zoom: number) => call<number>('note_set_zoom', { noteId, zoom }),
+  noteSelect: (connectionId: Uuid, noteId: Uuid) =>
+    call<void>('note_select', { connectionId, noteId }),
+  noteReorder: (connectionId: Uuid, noteIds: Uuid[]) =>
+    call<void>('note_reorder', { connectionId, noteIds }),
+  noteAttach: (noteId: Uuid, connectionId: Uuid) =>
+    call<void>('note_attach', { noteId, connectionId }),
+  /** Detach from ONE connection; the document stays for the others. */
+  noteDetach: (noteId: Uuid, connectionId: Uuid) =>
+    call<void>('note_detach', { noteId, connectionId }),
+  /** Delete the document everywhere (the UI asks for confirmation first). */
+  noteDelete: (noteId: Uuid) => call<void>('note_delete', { noteId }),
+  noteSaveOffline: (noteId: Uuid) => call<OfflineMeta>('note_save_offline', { noteId }),
+  noteRemoveOffline: (noteId: Uuid) => call<void>('note_remove_offline', { noteId }),
+  noteOpenExternal: (noteId: Uuid) => call<void>('note_open_external', { noteId }),
+  /** A link clicked inside a document: only http(s) addresses are opened. */
+  noteOpenLink: (url: string) => call<void>('note_open_link', { url }),
 
   /** Colour the native title bar like the application theme. */
   windowApplyTheme: (

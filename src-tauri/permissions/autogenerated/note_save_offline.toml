@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-note-save-offline"
+description = "Enables the note_save_offline command without any pre-configured scope."
+commands.allow = ["note_save_offline"]
+
+[[permission]]
+identifier = "deny-note-save-offline"
+description = "Denies the note_save_offline command without any pre-configured scope."
+commands.deny = ["note_save_offline"]

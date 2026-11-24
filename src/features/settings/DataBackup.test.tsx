@@ -190,7 +190,9 @@ describe('connection import', () => {
     expect(skip.checked).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Import 1 profile' }));
     await screen.findByRole('dialog', { name: 'Import finished' });
-    expect(ssh.portability.imports).toEqual([{ token: 'imp-1', duplicates: 'skip', update: [] }]);
+    expect(ssh.portability.imports).toEqual([
+      { token: 'imp-1', duplicates: 'skip', update: [], importNotes: false },
+    ]);
   });
 
   it('updates only the duplicates the user ticks', async () => {
@@ -293,6 +295,7 @@ describe('encrypted backup wizard', () => {
         token: 'dest-1',
         includeSettings: true,
         includeCredentials: true,
+        includeNotes: false, // offered only when notes exist
         passphrase: PASS,
         confirm: PASS,
       },
@@ -395,6 +398,7 @@ describe('restore wizard', () => {
           update: [],
           restoreSettings: false,
           restoreCredentials: false,
+          restoreNotes: false, // the backup carries no notes
           credentialConflict: 'keep',
           confirmReplaceCredentials: false,
           confirmReplaceAll: false,

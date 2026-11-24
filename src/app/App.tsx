@@ -31,6 +31,7 @@ import { restoreWorkspace, startWorkspacePersistence } from '../features/session
 import { useRecent } from '../features/sessions/recentStore';
 import { TunnelsDialog } from '../features/tunnels/TunnelsDialog';
 import { ExitDialog } from '../features/exit/ExitDialog';
+import { useNotes } from '../features/notes/store';
 import { InstallConfirm, UpdateNotice } from '../features/updates/UpdateNotice';
 import { startUpdateChecks, useUpdates } from '../features/updates/store';
 import { installCloseHandler } from '../features/exit/exit';
@@ -69,6 +70,7 @@ export function App() {
   useEffect(() => {
     if (!settingsLoaded || locked) return undefined;
     void useUpdates.getState().refresh();
+    void useNotes.getState().refreshCounts();
     return startUpdateChecks(() => useSettings.getState().settings.general.checkUpdates);
   }, [settingsLoaded, locked]);
 

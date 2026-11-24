@@ -92,6 +92,41 @@ Connections use the same field names as the
 key-file paths (the file is encrypted). Payload and document are validated by
 the same code on restore.
 
+### Server notes (payload version 2)
+
+With "Include Server Notes" (offered only when notes exist, on by default then) the payload gains a `notes` list and
+`payloadVersion` becomes **2**. A backup made without notes stays at version **1**, so older PeachTerm versions can
+still restore it; a version-2 backup opened by an older PeachTerm is refused with the standard "newer version"
+message instead of silently dropping the notes. A version-1 payload is never searched for notes, whatever it contains.
+
+```json
+"notes": [
+  { "id": "…", "title": "Proxmox VPS Commands", "kind": "internal", "format": "markdown", "zoom": 100,
+    "createdAt": 1, "updatedAt": 2, "connections": ["<local connection id>", "…"],
+    "content": "…" },
+  { "kind": "localFile", "source": "C:\\docs\\guide.html", "format": "html", "…": "…" },
+  { "kind": "remoteUrl", "source": "https://…/README.md", "snapshot": "…", "snapshotSavedAt": 3, "…": "…" }
+]
+```
+
+Included: typed notes with their text, titles and metadata, the one-to-many relations, web addresses, **saved offline
+copies**, and the **paths** of linked local files. **Not** included: the contents of linked local files (they were never
+copied into PeachTerm), anything fetched from the network (nothing is fetched while backing up). The result screen
+reports the numbers (notes, offline copies, linked files as paths only).
+
+Restore (opt-in checkbox, on by default when the backup has notes) **only adds**: a note whose id already exists keeps
+its content and only gains attachments to the connections restored in this run; nothing is overwritten and the preview
+counts such conflicts. A note is attached only to connections that took part (a "selected profiles" restore never
+attaches a note to an unrelated connection; notes whose connections were all left out are skipped). A skipped duplicate
+profile counts as taking part through the existing profile it matched. In Replace mode the notes of connections that
+disappear stay as unattached notes. The restore preview shows counts only (notes, linked files, web documents, offline
+copies, shared notes, linked files missing on this computer, conflicts), never titles or content.
+
+Atomicity: notes are applied as the last step (after connections and settings). New content files are written first and
+`notes.json` last in one atomic replace; if any of it fails, the new files are removed and settings, connections and
+saved passwords are put back, so the result is the previous state. Existing notes are never modified by a restore, so a
+failure cannot destroy them.
+
 ### Always included
 
 Connections, folders, ordering, per-connection preferences, and — if ticked,
@@ -208,6 +243,6 @@ path will not exist on Linux.
 ## Versioning
 
 `formatVersion` changes only for incompatible envelope changes; `payloadVersion`
-for the inner document. A file with a higher version is refused with an
+for the inner document (1 = profiles, settings, credentials; 2 = additionally server notes). A file with a higher version is refused with an
 upgrade message. Test fixtures for old versions live in
 `src-tauri/tests/fixtures/` and must keep opening.

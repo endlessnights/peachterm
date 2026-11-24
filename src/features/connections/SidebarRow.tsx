@@ -5,6 +5,7 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Icon } from '../../components/Icon';
 import { toAppError } from '../../shared/ipc';
+import { useNotes } from '../notes/store';
 import type { TabStatus } from '../sessions/store';
 import type { Zone } from './dropTarget';
 import type { Row } from './tree';
@@ -35,6 +36,10 @@ interface RowProps {
 
 export const SidebarRow = memo(function SidebarRow(props: RowProps) {
   const { row, active, selected, count, status, renaming, drop, focusable } = props;
+  // a quiet document mark, only for connections that have notes
+  const notes = useNotes((s) =>
+    row.node.kind === 'connection' ? (s.counts[row.node.connection.id] ?? 0) : 0,
+  );
   const draggable = useDraggable({ id: row.key, disabled: props.dragDisabled || renaming });
   const droppable = useDroppable({ id: row.key });
   const isFolder = row.node.kind === 'folder';
@@ -100,6 +105,16 @@ export const SidebarRow = memo(function SidebarRow(props: RowProps) {
       )}
       {!renaming && hostMeta && <span className="row-meta">{hostMeta}</span>}
       {!renaming && isFolder && <span className="row-count">{count}</span>}
+      {!renaming && notes > 0 && (
+        <span
+          className="row-notes"
+          role="img"
+          aria-label={`${notes} ${notes === 1 ? 'note' : 'notes'}`}
+          title={`${notes} ${notes === 1 ? 'note' : 'notes'}`}
+        >
+          <Icon name="file" size={11} />
+        </span>
+      )}
       {!renaming && status && (
         <span className="status-dot" data-status={status} aria-label={status} />
       )}

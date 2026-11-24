@@ -7,7 +7,7 @@ import { reportError } from '../../../components/Toasts';
 import { ipc, toAppError } from '../../../shared/ipc';
 import type { DuplicateChoice, ImportPreview, RestoreResult } from '../../../shared/types';
 import { useConnections } from '../../connections/store';
-import { ItemTable, ResultSummary, Stat, plural } from './shared';
+import { ItemTable, NotesSummary, ResultSummary, Stat, plural } from './shared';
 
 /**
  * Import PeachTerm connection JSON. Choosing a file only stages it in Rust and
@@ -18,6 +18,8 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
   const refresh = useConnections((s) => s.refresh);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [policy, setPolicy] = useState<DuplicateChoice>('skip');
+  // Notes in the file are added only when this stays ticked; nothing existing is overwritten.
+  const [importNotes, setImportNotes] = useState(true);
   const [update, setUpdate] = useState<Set<number>>(new Set());
   const [result, setResult] = useState<RestoreResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +55,12 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const outcome = await ipc.connectionsImportApply(preview.token, policy, [...update]);
+      const outcome = await ipc.connectionsImportApply(
+        preview.token,
+        policy,
+        [...update],
+        importNotes && !!preview.notes,
+      );
       pending.current = null;
       await refresh();
       setResult(outcome);
@@ -190,6 +197,19 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
+        {preview.notes && (
+          <>
+            <NotesSummary notes={preview.notes} invalid={preview.notesInvalid} />
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={importNotes}
+                onChange={(e) => setImportNotes(e.target.checked)}
+              />
+              Import the server notes (existing notes are never overwritten)
+            </label>
+          </>
+        )}
         {preview.duplicateCount + preview.changedCount > 0 && (
           <fieldset className="fieldset">
             <legend>Possible duplicates</legend>

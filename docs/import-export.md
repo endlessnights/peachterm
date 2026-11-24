@@ -62,6 +62,22 @@ Consequence: the real connection UUID is a credential-store handle, so it is
 - Unicode (including Cyrillic), IPv6 addresses and custom ports are preserved.
 - Selecting specific profiles exports them plus the folders that contain them.
 
+### Server notes (optional, off by default)
+
+The default export carries **no notes** (no key, no titles, no contents). With _Include server notes_ the document gets a
+`notes` list (the format version stays 1; an older PeachTerm reports `notes` as an unsupported field and imports the
+profiles). A separate _Also include saved offline copies_ choice adds those snapshots. The dialog warns that the file is
+plain, unencrypted JSON. Exported: titles, internal note text, relations (by the **public** connection ids below), web
+addresses, and the **paths** of linked files (never their contents). Never exported: credentials, keyring identifiers,
+notes that belong to no exported connection.
+
+Import: notes are validated record by record (title, size, kind, type, address policy: only public `https` addresses,
+only supported file extensions); bad records are counted and dropped. The preview shows counts only; _Import the server
+notes_ is a checkbox (on by default when the file has notes). A note whose id already exists is never overwritten (it
+gains attachments only), so importing the same file twice creates nothing new. Notes attach to the imported **or
+matched** profile (a skipped duplicate counts as its existing profile). Nothing is fetched during import and imported
+HTML is stored as text and never executed.
+
 ### Identifiers
 
 `id` values are **public ids**: `SHA-256("peachterm/export-id/v1" ‖ uuid)`

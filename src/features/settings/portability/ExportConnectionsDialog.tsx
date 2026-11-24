@@ -1,12 +1,13 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog } from '../../../components/Dialog';
 import { reportError } from '../../../components/Toasts';
 import { ipc } from '../../../shared/ipc';
 import type { ConnectionsExportOutcome } from '../../../shared/types';
 import { useConnections } from '../../connections/store';
+import { useNotes } from '../../notes/store';
 import { plural } from './shared';
 
 /**
@@ -20,6 +21,13 @@ export function ExportConnectionsDialog({ onClose }: { onClose: () => void }) {
   const [scope, setScope] = useState<'all' | 'selected'>('all');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [keyPaths, setKeyPaths] = useState(false);
+  // Server notes are NOT part of an export unless asked for (and only offered when some exist).
+  const [withNotes, setWithNotes] = useState(false);
+  const [withSnapshots, setWithSnapshots] = useState(false);
+  const noteTotal = useNotes((st) => Object.values(st.counts).reduce((a, b) => a + b, 0));
+  useEffect(() => {
+    void useNotes.getState().refreshCounts();
+  }, []);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<ConnectionsExportOutcome | null>(null);
 
@@ -45,7 +53,11 @@ export function ExportConnectionsDialog({ onClose }: { onClose: () => void }) {
   const run = async () => {
     setBusy(true);
     try {
-      const outcome = await ipc.connectionsExport(scope === 'all' ? null : [...picked], keyPaths);
+      const outcome = await ipc.connectionsExport(
+        scope === 'all' ? null : [...picked],
+        keyPaths,
+        withNotes && noteTotal > 0 ? { include: true, snapshots: withSnapshots } : undefined,
+      );
       if (outcome.savedTo) setDone(outcome);
     } catch (e) {
       reportError(e);
@@ -73,6 +85,12 @@ export function ExportConnectionsDialog({ onClose }: { onClose: () => void }) {
           <div className="hint" style={{ userSelect: 'text', wordBreak: 'break-all' }}>
             {done.savedTo}
           </div>
+          {(done.notes ?? 0) > 0 && (
+            <div className="notice notice-warn">
+              This file contains {plural(done.notes ?? 0, 'server note', 'server notes')} in plain
+              text. Keep it private.
+            </div>
+          )}
           <div className="notice">
             Passwords and key passphrases are not in this file. To move them too, use an encrypted
             backup.
@@ -153,6 +171,36 @@ export function ExportConnectionsDialog({ onClose }: { onClose: () => void }) {
             Key paths can reveal your user name and folder layout. Only the path is exported, never
             the key itself.
           </div>
+        )}
+        {noteTotal > 0 && (
+          <>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={withNotes}
+                onChange={(e) => setWithNotes(e.target.checked)}
+              />
+              Include server notes ({noteTotal})
+            </label>
+            {withNotes && (
+              <>
+                <div className="notice notice-warn">
+                  An export is plain, unencrypted JSON. Notes can contain sensitive operational
+                  details (commands, addresses, procedures). Linked local files are exported as
+                  paths only; their contents are never included. For private notes prefer an
+                  encrypted backup.
+                </div>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={withSnapshots}
+                    onChange={(e) => setWithSnapshots(e.target.checked)}
+                  />
+                  Also include saved offline copies of web documents
+                </label>
+              </>
+            )}
+          </>
         )}
         <div className="hint">
           The file contains no passwords, passphrases or private keys. Private SSH key files are

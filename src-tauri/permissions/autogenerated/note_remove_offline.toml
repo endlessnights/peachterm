@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-note-remove-offline"
+description = "Enables the note_remove_offline command without any pre-configured scope."
+commands.allow = ["note_remove_offline"]
+
+[[permission]]
+identifier = "deny-note-remove-offline"
+description = "Denies the note_remove_offline command without any pre-configured scope."
+commands.deny = ["note_remove_offline"]

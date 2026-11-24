@@ -759,3 +759,305 @@
   display: grid;
   gap: 8px;
 }
+
+/* ---- Server notes & documentation ------------------------------------------ */
+.sftp-switch {
+  flex: 1;
+  min-width: 0;
+}
+.row-notes {
+  flex: none;
+  margin-left: 4px;
+  color: var(--text-3);
+}
+.notes-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.notes-slot {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.notes-slot > .notes-panel {
+  flex: 1;
+}
+.notes-empty {
+  justify-content: center;
+}
+.notes-empty p {
+  margin: 0;
+}
+.notes-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.notes-head,
+.notes-doc-head,
+.notes-toolbar,
+.notes-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.notes-head {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+.notes-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.notes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  max-height: 30%;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+}
+.notes-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+}
+.notes-item[aria-selected='true'] {
+  background: var(--accent-soft);
+}
+.notes-item:hover {
+  background: var(--surface-2);
+}
+.notes-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notes-badge {
+  font-size: 10px;
+  color: var(--text-3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 5px;
+}
+.notes-doc-head {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+.notes-doc-title {
+  display: grid;
+  min-width: 0;
+}
+.notes-doc-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notes-search {
+  flex: 1;
+  min-width: 80px;
+  height: 24px;
+}
+.notes-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.notes-zoom-value {
+  min-width: 42px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 11px;
+}
+.notes-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto; /* the document scrolls on its own, in both directions */
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+.notes-problem {
+  display: grid;
+  gap: 6px;
+}
+.notes-problem p,
+.notes-banner {
+  margin: 0;
+}
+.notes-editor {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  resize: none;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-1, var(--surface-0));
+  color: var(--text-1);
+  font-family: var(--font-mono, monospace);
+  line-height: 1.5;
+}
+.notes-foot {
+  min-height: 20px;
+  font-size: 11px;
+}
+.doc {
+  line-height: 1.55;
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere; /* long words wrap; code and tables scroll on their own */
+}
+.doc p,
+.doc ul,
+.doc ol,
+.doc blockquote,
+.doc .doc-code,
+.doc .doc-table-wrap {
+  margin: 0 0 0.7em;
+}
+.doc ul,
+.doc ol {
+  padding-left: 1.4em;
+}
+.doc .doc-heading {
+  margin: 1em 0 0.4em;
+  line-height: 1.25;
+}
+.doc h1 {
+  font-size: 1.5em;
+}
+.doc h2 {
+  font-size: 1.3em;
+}
+.doc h3 {
+  font-size: 1.15em;
+}
+.doc h4,
+.doc h5,
+.doc h6 {
+  font-size: 1em;
+}
+.doc blockquote {
+  padding-left: 0.8em;
+  border-left: 3px solid var(--line-strong);
+  color: var(--text-2);
+}
+.doc-link {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.doc-inline-code {
+  padding: 0 0.3em;
+  border-radius: 3px;
+  background: var(--surface-2);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.92em;
+}
+.doc-code {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+}
+.doc-code pre {
+  margin: 0;
+  padding: 0.6em 3.6em 0.6em 0.8em;
+  overflow-x: auto;
+  white-space: pre; /* long commands stay on one line */
+  font-family: var(--font-mono, monospace);
+  font-size: 0.92em;
+  tab-size: 4;
+}
+.doc-code-lang {
+  position: absolute;
+  top: 2px;
+  right: 54px;
+  font-size: 0.7em;
+  color: var(--text-3);
+  pointer-events: none;
+}
+.doc-copy {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-1, var(--surface-0));
+  color: var(--text-2);
+  font-size: 0.75em;
+  cursor: pointer;
+}
+.doc-copy:hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+.doc-table-wrap {
+  overflow-x: auto;
+}
+.doc table {
+  border-collapse: collapse;
+}
+.doc th,
+.doc td {
+  padding: 0.25em 0.7em;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.doc th {
+  background: var(--surface-2);
+}
+.doc hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1em 0;
+}
+.doc-hit {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+.doc-hit-current {
+  outline: 2px solid var(--accent);
+}
+.notes-summary {
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+}
+.notes-title-name {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: var(--text-2);
+}

@@ -12,6 +12,7 @@ mod error;
 mod local;
 mod lock;
 mod logging;
+mod notes;
 #[cfg(test)]
 mod openssh_ci;
 mod platform;
@@ -77,6 +78,8 @@ pub struct AppState {
     pub tunnel_engine: tunnel::TunnelEngine,
     /// In-app updates (the last check time and the pending update, in memory).
     pub update: update::UpdateService,
+    /// Server notes & documentation (`notes.json`, `notes/`).
+    pub notes: notes::NotesStore,
 }
 
 impl AppState {
@@ -91,6 +94,9 @@ impl AppState {
             self.tunnel_engine.stop(def.id).await;
         }
         let _ = self.tunnels.delete_for_connection(connection_id);
+        // Notes only lose their attachment to this connection; documents that other
+        // connections use (or that nobody uses any more) are kept.
+        let _ = self.notes.detach_connection(connection_id);
     }
 
     /// `start_logging` receives the default log directory and the loaded
@@ -119,6 +125,7 @@ impl AppState {
             }
         }));
         let lock = lock::LockService::open(paths.config_dir.join("lock.json"), lock::Kdf::STRONG);
+        let notes = notes::NotesStore::open(&paths.config_dir)?;
         let tunnel_lock = lock.flag();
         let tunnels = tunnel::TunnelStore::open(paths.config_dir.join("tunnels.json"))?;
         let sessions = Arc::new(SessionRegistry::with_lock(lock.flag()));
@@ -154,6 +161,7 @@ impl AppState {
             .chain(connections.issues())
             .chain(known_hosts.issues())
             .chain(tunnels.issues())
+            .chain(notes.issues())
             .collect();
         for issue in &issues {
             match issue.field.as_deref() {
@@ -219,6 +227,7 @@ impl AppState {
             tunnels,
             tunnel_engine: tunnel::TunnelEngine::new(tunnel_lock),
             update: update::UpdateService::open(paths.config_dir.join("updates.json")),
+            notes,
             paths,
         })
     }
@@ -368,6 +377,26 @@ pub fn run() {
             commands::update::update_download,
             commands::update::update_install,
             commands::update::update_open_notes,
+            commands::notes::notes_counts,
+            commands::notes::notes_list,
+            commands::notes::notes_all,
+            commands::notes::note_create,
+            commands::notes::note_attach_url,
+            commands::notes::note_attach_file,
+            commands::notes::note_relocate,
+            commands::notes::note_read,
+            commands::notes::note_write,
+            commands::notes::note_rename,
+            commands::notes::note_set_zoom,
+            commands::notes::note_select,
+            commands::notes::note_reorder,
+            commands::notes::note_attach,
+            commands::notes::note_detach,
+            commands::notes::note_delete,
+            commands::notes::note_save_offline,
+            commands::notes::note_remove_offline,
+            commands::notes::note_open_external,
+            commands::notes::note_open_link,
             commands::local::local_profiles,
             commands::local::local_open,
             commands::local::local_write,

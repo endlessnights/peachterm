@@ -49,12 +49,15 @@ export interface ExitSummary {
   tunnels: number;
   unsavedConnection: boolean;
   unsavedSettings: boolean;
+  /** Typed in a note and not saved yet. */
+  unsavedNotes: boolean;
 }
 
 export const hasActivity = (s: ExitSummary) =>
   s.sshActive + s.localActive + s.connecting + s.transfers + s.pendingUploads + s.tunnels > 0 ||
   s.unsavedConnection ||
-  s.unsavedSettings;
+  s.unsavedSettings ||
+  s.unsavedNotes;
 
 export function summarize(): ExitSummary {
   const { tabs } = useTabs.getState();
@@ -73,6 +76,7 @@ export function summarize(): ExitSummary {
     tunnels: 0,
     unsavedConnection: !!unsaved.connection,
     unsavedSettings: !!unsaved.settings,
+    unsavedNotes: !!unsaved.notes,
   };
 }
 

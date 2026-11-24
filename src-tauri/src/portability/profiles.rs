@@ -63,6 +63,9 @@ pub struct ExportDoc {
     pub exported_at: String,
     pub folders: Vec<ExportFolder>,
     pub connections: Vec<ExportConnection>,
+    /// Only present when the user opted in ("Include server notes").
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<crate::notes::portable::PortableNote>,
 }
 
 #[derive(Debug, Serialize)]
@@ -232,6 +235,7 @@ pub fn build_export(
             exported_at,
             folders,
             connections,
+            notes: Vec::new(),
         },
         stats,
     )
@@ -306,6 +310,9 @@ pub struct Parsed {
     pub relocated: usize,
     pub exported_at: Option<String>,
     pub format_version: u64,
+    /// Valid notes of the document (never fetched, never executed).
+    pub notes: Vec<crate::notes::portable::PortableNote>,
+    pub notes_invalid: usize,
     /// Raw parent links of every well-formed folder (valid or not), used to
     /// find the nearest usable ancestor of a connection.
     raw_parents: HashMap<String, Option<String>>,
@@ -476,6 +483,7 @@ pub fn parse_document(bytes: &[u8]) -> AppResult<Parsed> {
             "exportedAt",
             "folders",
             "connections",
+            "notes",
         ],
         "",
         &mut parsed.unsupported_fields,
@@ -499,7 +507,26 @@ pub fn parse_document(bytes: &[u8]) -> AppResult<Parsed> {
     }
 
     parse_tree(folders, connections, false, &mut parsed);
+    if let Some(Value::Array(list)) = root.get("notes") {
+        parse_notes(list, &mut parsed);
+    }
     Ok(parsed)
+}
+
+/// Validate the notes of a document: bad records are counted and dropped, the
+/// rest is kept (duplicates by id keep the first).
+pub fn parse_notes(list: &[Value], parsed: &mut Parsed) {
+    let mut seen = HashSet::new();
+    for (i, v) in list.iter().enumerate() {
+        if i >= crate::notes::portable::MAX_INCOMING_NOTES {
+            parsed.notes_invalid += list.len() - i;
+            break;
+        }
+        match crate::notes::portable::parse_note(v) {
+            Ok(n) if seen.insert(n.id) => parsed.notes.push(n),
+            _ => parsed.notes_invalid += 1,
+        }
+    }
 }
 
 /// Validate folders and connections into `parsed.incoming`. With `backup`

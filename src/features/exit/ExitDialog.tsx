@@ -41,6 +41,7 @@ export function ExitDialog() {
   }
   if (summary.unsavedConnection) lines.push('The connection dialog has unsaved changes.');
   if (summary.unsavedSettings) lines.push('The settings dialog has unsaved changes.');
+  if (summary.unsavedNotes) lines.push('A note has changes that are not saved yet.');
   return (
     <Dialog
       title="Exit PeachTerm?"

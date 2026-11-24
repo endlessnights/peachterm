@@ -14,6 +14,8 @@ import { ResizeHandle } from '../../components/ResizeHandle';
 import { reportError } from '../../components/Toasts';
 import { useTabs } from '../sessions/store';
 import { useSettings } from '../settings/store';
+import { NotesPanel } from '../notes/NotesPanel';
+import { useNotes } from '../notes/store';
 import { SftpPanel } from './SftpPanel';
 
 export function SftpDock({ children }: { children: React.ReactNode }) {
@@ -25,6 +27,15 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
   const setUi = useSettings((s) => s.setUi);
   const persistUi = useSettings((s) => s.persistUi);
   const active = tabs.find((t) => t.id === activeId);
+  // Notes share this panel. The Files | Notes switch only exists when the connection
+  // has notes (or Notes was opened on purpose); otherwise the panel is just SFTP.
+  const notesCount = useNotes((s) =>
+    active?.kind === 'ssh' ? (s.counts[active.connectionId] ?? 0) : 0,
+  );
+  const notesView = useNotes((s) => s.view);
+  const setNotesView = useNotes((s) => s.setView);
+  const showNotes = active?.kind === 'ssh' && notesView === 'notes';
+  const hasSwitch = showNotes || notesCount > 0;
 
   const setVisible = (defaultVisible: boolean) => {
     const settings = useSettings.getState().settings;
@@ -56,7 +67,18 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
       )}
       <aside className="sftp-panel" style={{ width }} aria-label="SFTP">
         <div className="sftp-header">
-          <span className="sftp-title">SFTP</span>
+          {hasSwitch ? (
+            <div className="segmented sftp-switch" role="group" aria-label="Panel">
+              <button type="button" aria-pressed={!showNotes} onClick={() => setNotesView('files')}>
+                Files
+              </button>
+              <button type="button" aria-pressed={showNotes} onClick={() => setNotesView('notes')}>
+                Notes
+              </button>
+            </div>
+          ) : (
+            <span className="sftp-title">SFTP</span>
+          )}
           <button
             className="icon-btn"
             aria-label="Dock panel left"
@@ -86,14 +108,23 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
             <Icon name="close" />
           </button>
         </div>
-        {active && (
+        {active && !showNotes && (
           <div className="sftp-identity" aria-live="polite" data-testid="sftp-identity">
             <span className="status-dot" data-status={active.status} />
             <span className="sftp-identity-name">{active.title}</span>
             <span className="sftp-identity-host">{active.subtitle}</span>
           </div>
         )}
-        <div className="sftp-slots">
+        {showNotes && active && (
+          <div className="sftp-slot notes-slot">
+            <NotesPanel
+              key={active.connectionId}
+              connectionId={active.connectionId}
+              connectionName={active.title}
+            />
+          </div>
+        )}
+        <div className="sftp-slots" style={showNotes ? { display: 'none' } : undefined}>
           {tabs
             .filter((tab) => tab.kind === 'ssh')
             .map((tab) => (

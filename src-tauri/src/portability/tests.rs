@@ -90,6 +90,7 @@ struct Env {
     dir: tempfile::TempDir,
     connections: ConnectionStore,
     settings: SettingsStore,
+    notes: crate::notes::NotesStore,
     vault: Vault,
     lock: LockFlag,
     service: PortabilityService,
@@ -101,6 +102,7 @@ impl Env {
         Self {
             connections: ConnectionStore::open(dir.path().join("connections.json")).unwrap(),
             settings: SettingsStore::open(dir.path().join("settings.json")).unwrap(),
+            notes: crate::notes::NotesStore::open(&dir.path().join("notes-data")).unwrap(),
             vault: Vault::default(),
             lock: LockFlag::default(),
             service: PortabilityService::new(KdfParams::MINIMUM),
@@ -113,6 +115,7 @@ impl Env {
             settings: &self.settings,
             credentials: &self.vault,
             lock: &self.lock,
+            notes: Some(&self.notes),
         }
     }
     fn add(&self, name: &str, host: &str, user: &str) -> Connection {
@@ -154,6 +157,7 @@ impl Env {
                 BackupOptions {
                     include_settings: true,
                     include_credentials: credentials,
+                    include_notes: false,
                 },
                 &pass,
                 &SecretString::new(PASS.into()),
@@ -181,6 +185,7 @@ fn opts(mode: RestoreMode) -> RestoreOptions {
         update: vec![],
         restore_settings: false,
         restore_credentials: false,
+        restore_notes: false,
         credential_conflict: CredentialConflict::Keep,
         confirm_replace_credentials: false,
         confirm_replace_all: false,
@@ -209,7 +214,7 @@ fn export_file_contains_no_secrets_and_import_preview_changes_nothing() {
     let file = a.path("out.json");
     let out = a
         .service
-        .write_connections_export(&a.stores(), &file, None, false)
+        .write_connections_export(&a.stores(), &file, None, false, NotesExport::default())
         .unwrap();
     assert_eq!(out.connections, 1);
     let text = std::fs::read_to_string(&file).unwrap();
@@ -243,7 +248,7 @@ fn import_is_credentials_free_and_leaves_existing_secrets_alone() {
     a.add_with_secret("Prod", "10.0.0.5", "root", SECRET_A);
     let file = a.path("out.json");
     a.service
-        .write_connections_export(&a.stores(), &file, None, false)
+        .write_connections_export(&a.stores(), &file, None, false, NotesExport::default())
         .unwrap();
 
     // Same machine re-import of the same file: a duplicate, skipped.
@@ -252,7 +257,13 @@ fn import_is_credentials_free_and_leaves_existing_secrets_alone() {
     let before = a.vault.snapshot();
     let result = a
         .service
-        .apply_import(&a.stores(), preview.token, DuplicateChoice::Skip, &[])
+        .apply_import(
+            &a.stores(),
+            preview.token,
+            DuplicateChoice::Skip,
+            &[],
+            false,
+        )
         .unwrap();
     assert_eq!((result.created, result.skipped), (0, 1));
     assert_eq!(a.vault.snapshot(), before);
@@ -267,7 +278,13 @@ fn import_is_credentials_free_and_leaves_existing_secrets_alone() {
     let preview = a.service.stage_import(&a.stores(), &file).unwrap();
     let result = a
         .service
-        .apply_import(&a.stores(), preview.token, DuplicateChoice::Copy, &[])
+        .apply_import(
+            &a.stores(),
+            preview.token,
+            DuplicateChoice::Copy,
+            &[],
+            false,
+        )
         .unwrap();
     assert_eq!(result.copied, 1);
     let tree = a.connections.load().unwrap();
@@ -291,17 +308,17 @@ fn import_tokens_are_single_use_and_cancel_works() {
     a.service.cancel(p.token);
     assert!(
         a.service
-            .apply_import(&a.stores(), p.token, DuplicateChoice::Skip, &[])
+            .apply_import(&a.stores(), p.token, DuplicateChoice::Skip, &[], false)
             .is_err()
     );
     assert!(names(&a).is_empty(), "cancelled import changed nothing");
     let p = a.service.stage_import(&a.stores(), &file).unwrap();
     a.service
-        .apply_import(&a.stores(), p.token, DuplicateChoice::Skip, &[])
+        .apply_import(&a.stores(), p.token, DuplicateChoice::Skip, &[], false)
         .unwrap();
     assert!(
         a.service
-            .apply_import(&a.stores(), p.token, DuplicateChoice::Skip, &[])
+            .apply_import(&a.stores(), p.token, DuplicateChoice::Skip, &[], false)
             .is_err()
     );
     assert_eq!(names(&a), ["n"]);
@@ -336,7 +353,7 @@ fn failed_import_persistence_changes_nothing_and_can_be_retried() {
     std::fs::create_dir(&cj).unwrap();
     assert!(
         a.service
-            .apply_import(&a.stores(), p.token, DuplicateChoice::Skip, &[])
+            .apply_import(&a.stores(), p.token, DuplicateChoice::Skip, &[], false)
             .is_err()
     );
     assert_eq!(
@@ -348,7 +365,7 @@ fn failed_import_persistence_changes_nothing_and_can_be_retried() {
     std::fs::write(&cj, saved).unwrap();
     // The staged import survived the failure.
     a.service
-        .apply_import(&a.stores(), p.token, DuplicateChoice::Skip, &[])
+        .apply_import(&a.stores(), p.token, DuplicateChoice::Skip, &[], false)
         .unwrap();
     assert_eq!(names(&a), ["keep", "n"]);
 }
@@ -363,7 +380,7 @@ fn update_import_changes_selected_profiles_only() {
     assert_eq!(p.duplicate_count, 1);
     let r = a
         .service
-        .apply_import(&a.stores(), p.token, DuplicateChoice::Update, &[0])
+        .apply_import(&a.stores(), p.token, DuplicateChoice::Update, &[0], false)
         .unwrap();
     assert_eq!(r.updated, 1);
     let now = a.connections.get(c.id).unwrap();
@@ -568,6 +585,7 @@ fn passphrase_rules_are_enforced_in_rust() {
     let opt = BackupOptions {
         include_settings: true,
         include_credentials: false,
+        include_notes: false,
     };
     let short = SecretString::new("short".into());
     assert!(
@@ -622,6 +640,7 @@ fn failed_backup_write_leaves_no_files_behind() {
         BackupOptions {
             include_settings: true,
             include_credentials: false,
+            include_notes: false,
         },
         &good,
         &SecretString::new(PASS.into()),
@@ -1146,7 +1165,7 @@ fn every_operation_is_refused_while_locked_and_does_nothing() {
     a.backup("b.peachbackup", true);
     let export = a.path("e.json");
     a.service
-        .write_connections_export(&a.stores(), &export, None, false)
+        .write_connections_export(&a.stores(), &export, None, false, NotesExport::default())
         .unwrap();
 
     // Stage real operations first, then lock.
@@ -1169,13 +1188,19 @@ fn every_operation_is_refused_while_locked_and_does_nothing() {
     let locked = |e: AppError| assert_eq!(e.code(), "locked", "{e}");
     locked(
         a.service
-            .write_connections_export(&a.stores(), &a.path("e2.json"), None, false)
+            .write_connections_export(
+                &a.stores(),
+                &a.path("e2.json"),
+                None,
+                false,
+                NotesExport::default(),
+            )
             .unwrap_err(),
     );
     locked(a.service.stage_import(&a.stores(), &export).unwrap_err());
     locked(
         a.service
-            .apply_import(&a.stores(), import.token, DuplicateChoice::Copy, &[])
+            .apply_import(&a.stores(), import.token, DuplicateChoice::Copy, &[], false)
             .unwrap_err(),
     );
     locked(
@@ -1192,6 +1217,7 @@ fn every_operation_is_refused_while_locked_and_does_nothing() {
                 BackupOptions {
                     include_settings: true,
                     include_credentials: true,
+                    include_notes: false,
                 },
                 &good,
                 &SecretString::new(PASS.into()),
@@ -1256,7 +1282,8 @@ fn locking_during_an_operation_stops_it_before_anything_is_written() {
                 dest.token,
                 BackupOptions {
                     include_settings: true,
-                    include_credentials: false
+                    include_credentials: false,
+                    include_notes: false,
                 },
                 &good,
                 &SecretString::new(PASS.into())
@@ -1299,4 +1326,670 @@ fn backup_credential_debug_output_is_redacted() {
         secret: zeroize::Zeroizing::new(SECRET_A.into()),
     };
     assert!(!format!("{c:?}").contains(SECRET_A));
+}
+
+// ---------------------------------------------------------------------------
+// Server notes in exports, backups and restores
+// ---------------------------------------------------------------------------
+
+mod notes {
+    use super::*;
+    use crate::notes::model::{DocFormat, NoteKind};
+    use crate::notes::portable::PortableNote;
+
+    const NOTE_BODY: &str = "pvesh get /nodes  # SECRET-OPERATIONAL-DETAIL";
+
+    impl Env {
+        fn backup_notes(&self, file: &str, notes: bool) -> BackupSummary {
+            let dest = self
+                .service
+                .choose_backup_destination(&self.stores(), &self.path(file))
+                .unwrap();
+            self.service
+                .create_backup(
+                    &self.stores(),
+                    dest.token,
+                    BackupOptions {
+                        include_settings: false,
+                        include_credentials: false,
+                        include_notes: notes,
+                    },
+                    &SecretString::new(PASS.into()),
+                    &SecretString::new(PASS.into()),
+                )
+                .unwrap()
+        }
+
+        fn restore_with(
+            &self,
+            preview: &RestorePreview,
+            mode: RestoreMode,
+            notes: bool,
+        ) -> AppResult<RestoreResult> {
+            let mut o = opts(mode);
+            o.restore_notes = notes;
+            o.confirm_replace_all = true;
+            self.service
+                .restore_backup(&self.stores(), preview.token, &o)
+        }
+
+        fn export_json(&self, file: &str, notes: NotesExport) -> ExportOutcome {
+            self.service
+                .write_connections_export(&self.stores(), &self.path(file), None, false, notes)
+                .unwrap()
+        }
+    }
+
+    /// Two connections that share one note, plus a web document with an offline
+    /// copy, a linked file and a note of its own.
+    fn with_notes() -> (Env, Connection, Connection) {
+        let a = Env::new();
+        let pve1 = a.add("pve1", "pve1.example.com", "root");
+        let pve2 = a.add("pve2", "pve2.example.com", "root");
+        let shared = a
+            .notes
+            .create_internal(
+                pve1.id,
+                "Proxmox VPS Commands",
+                DocFormat::Markdown,
+                NOTE_BODY,
+            )
+            .unwrap();
+        a.notes.attach(shared.id, pve2.id).unwrap();
+        a.notes
+            .create_internal(pve2.id, "Only pve2", DocFormat::Text, "private to pve2")
+            .unwrap();
+        let web = a
+            .notes
+            .create_link(
+                pve1.id,
+                "README",
+                NoteKind::RemoteUrl,
+                DocFormat::Markdown,
+                "https://example.com/README.md",
+            )
+            .unwrap();
+        a.notes
+            .save_offline(web.id, "# offline copy", DocFormat::Markdown)
+            .unwrap();
+        a.notes
+            .create_link(
+                pve1.id,
+                "Guide",
+                NoteKind::LocalFile,
+                DocFormat::Html,
+                "C:\\docs\\guide.html",
+            )
+            .unwrap();
+        (a, pve1, pve2)
+    }
+
+    fn open_from(dst: &Env, src: &Env, file: &str) -> RestorePreview {
+        let info = dst
+            .service
+            .stage_backup_file(&dst.stores(), &src.path(file))
+            .unwrap();
+        dst.service
+            .unlock_backup(&dst.stores(), info.token, &SecretString::new(PASS.into()))
+            .unwrap()
+    }
+
+    fn titles(env: &Env, c: Uuid) -> Vec<String> {
+        let mut v: Vec<String> = env
+            .notes
+            .list_for_connection(c)
+            .unwrap()
+            .into_iter()
+            .map(|n| n.title)
+            .collect();
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn the_default_json_export_has_no_notes_and_the_opt_in_export_has_the_right_ones() {
+        let (a, _, _) = with_notes();
+        let plain = a.export_json("plain.json", NotesExport::default());
+        assert_eq!(plain.notes, 0);
+        let text = std::fs::read_to_string(a.path("plain.json")).unwrap();
+        assert!(
+            !text.contains("\"notes\"")
+                && !text.contains(NOTE_BODY)
+                && !text.contains("Proxmox VPS")
+        );
+
+        let with = a.export_json(
+            "with.json",
+            NotesExport {
+                include: true,
+                snapshots: false,
+            },
+        );
+        assert_eq!(with.notes, 4);
+        let text = std::fs::read_to_string(a.path("with.json")).unwrap();
+        assert!(text.contains(NOTE_BODY));
+        assert!(
+            text.contains("C:\\\\docs\\\\guide.html"),
+            "linked files are exported as paths"
+        );
+        assert!(
+            !text.contains("# offline copy"),
+            "snapshots need their own choice"
+        );
+        let lower = text.to_lowercase();
+        for forbidden in ["passphrase", "keyring", "credential"] {
+            assert!(!lower.contains(forbidden), "{forbidden}");
+        }
+
+        a.export_json(
+            "snap.json",
+            NotesExport {
+                include: true,
+                snapshots: true,
+            },
+        );
+        assert!(
+            std::fs::read_to_string(a.path("snap.json"))
+                .unwrap()
+                .contains("# offline copy")
+        );
+    }
+
+    #[test]
+    fn importing_notes_needs_the_option_attaches_to_the_right_profiles_and_never_duplicates() {
+        let (a, _, _) = with_notes();
+        a.export_json(
+            "n.json",
+            NotesExport {
+                include: true,
+                snapshots: false,
+            },
+        );
+        let b = Env::new();
+        let b1 = b.add("pve1 (mine)", "pve1.example.com", "root"); // matches pve1 by endpoint
+        let p = b
+            .service
+            .stage_import(&b.stores(), &a.path("n.json"))
+            .unwrap();
+        let preview = p.notes.clone().unwrap();
+        assert_eq!((preview.notes, preview.shared, preview.internal), (4, 1, 2));
+        assert_eq!(preview.missing_files, 1);
+
+        // without the option nothing is imported
+        let r = b
+            .service
+            .apply_import(&b.stores(), p.token, DuplicateChoice::Skip, &[], false)
+            .unwrap();
+        assert!(r.notes.is_none());
+        assert!(b.notes.list_all().unwrap().is_empty());
+
+        let p = b
+            .service
+            .stage_import(&b.stores(), &a.path("n.json"))
+            .unwrap();
+        let r = b
+            .service
+            .apply_import(&b.stores(), p.token, DuplicateChoice::Skip, &[], true)
+            .unwrap();
+        let n = r.notes.unwrap();
+        assert_eq!((n.created, n.skipped), (4, 0));
+        // pve1 was a skipped duplicate: its notes attach to the MATCHED existing profile
+        assert_eq!(
+            titles(&b, b1.id),
+            ["Guide", "Proxmox VPS Commands", "README"]
+        );
+        let pve2 = b
+            .connections
+            .load()
+            .unwrap()
+            .connections
+            .into_iter()
+            .find(|c| c.name == "pve2")
+            .unwrap();
+        assert_eq!(titles(&b, pve2.id), ["Only pve2", "Proxmox VPS Commands"]);
+        let shared: Vec<_> = b
+            .notes
+            .list_all()
+            .unwrap()
+            .into_iter()
+            .filter(|n| n.shared)
+            .collect();
+        assert_eq!(shared.len(), 1, "one note, two connections");
+
+        // the user edits, then imports the same file again: nothing is duplicated or overwritten
+        b.notes
+            .write_internal(shared[0].id, "edited locally")
+            .unwrap();
+        let p = b
+            .service
+            .stage_import(&b.stores(), &a.path("n.json"))
+            .unwrap();
+        let r = b
+            .service
+            .apply_import(&b.stores(), p.token, DuplicateChoice::Skip, &[], true)
+            .unwrap();
+        assert_eq!(r.notes.unwrap().created, 0);
+        assert_eq!(b.notes.list_all().unwrap().len(), 4);
+        assert_eq!(
+            b.notes.read_internal(shared[0].id).unwrap(),
+            "edited locally"
+        );
+    }
+
+    #[test]
+    fn hostile_notes_in_an_import_are_dropped_and_nothing_is_fetched_or_executed() {
+        let a = Env::new();
+        a.add("pve1", "pve1.example.com", "root");
+        a.export_json("base.json", NotesExport::default());
+        let mut doc: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(a.path("base.json")).unwrap()).unwrap();
+        let conn_id = doc["connections"][0]["id"].clone();
+        let note = |extra: serde_json::Value| {
+            let mut v = serde_json::json!({
+                "id": Uuid::new_v4(), "title": "T", "kind": "internal", "format": "markdown",
+                "createdAt": 1, "updatedAt": 1, "zoom": 100, "connections": [conn_id.clone()],
+                "content": "ok"
+            });
+            for (k, val) in extra.as_object().unwrap() {
+                v[k] = val.clone();
+            }
+            v
+        };
+        doc["notes"] = serde_json::json!([
+            note(serde_json::json!({})),
+            note(
+                serde_json::json!({"kind": "remoteUrl", "source": "https://127.0.0.1/admin", "content": null})
+            ),
+            note(
+                serde_json::json!({"kind": "remoteUrl", "source": "file:///etc/passwd", "content": null})
+            ),
+            note(
+                serde_json::json!({"kind": "localFile", "format": "text", "source": "C:\\Windows\\system32\\cmd.exe", "content": null})
+            ),
+            note(serde_json::json!({"content": "x".repeat(2 * 1024 * 1024)})),
+            serde_json::json!({"nonsense": 1}),
+        ]);
+        std::fs::write(a.path("hostile.json"), serde_json::to_vec(&doc).unwrap()).unwrap();
+        let b = Env::new();
+        let p = b
+            .service
+            .stage_import(&b.stores(), &a.path("hostile.json"))
+            .unwrap();
+        assert_eq!(p.notes_invalid, 5);
+        assert_eq!(p.notes.as_ref().unwrap().notes, 1);
+        let r = b
+            .service
+            .apply_import(&b.stores(), p.token, DuplicateChoice::Skip, &[], true)
+            .unwrap();
+        assert_eq!(r.notes.unwrap().created, 1);
+        assert_eq!(b.notes.list_all().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn restoring_notes_in_a_fresh_installation_preserves_one_to_many_relations() {
+        let (a, pve1, pve2) = with_notes();
+        let s = a.backup_notes("n.peachbackup", true);
+        assert_eq!(
+            (
+                s.notes_requested,
+                s.notes_included,
+                s.snapshots_included,
+                s.linked_files
+            ),
+            (true, 4, 1, 1)
+        );
+        let b = Env::new();
+        let info = b
+            .service
+            .stage_backup_file(&b.stores(), &a.path("n.peachbackup"))
+            .unwrap();
+        let preview = b
+            .service
+            .unlock_backup(&b.stores(), info.token, &SecretString::new(PASS.into()))
+            .unwrap();
+        let np = preview.notes.clone().unwrap();
+        assert_eq!(
+            (
+                np.notes,
+                np.shared,
+                np.snapshots,
+                np.linked_files,
+                np.web_documents,
+                np.missing_files,
+                np.conflicts
+            ),
+            (4, 1, 1, 1, 1, 1, 0)
+        );
+        let r = b.restore_with(&preview, RestoreMode::Merge, true).unwrap();
+        assert_eq!(r.notes.unwrap().created, 4);
+        assert_eq!(
+            titles(&b, pve1.id),
+            ["Guide", "Proxmox VPS Commands", "README"]
+        );
+        assert_eq!(titles(&b, pve2.id), ["Only pve2", "Proxmox VPS Commands"]);
+        let all = b.notes.list_all().unwrap();
+        let shared = all.iter().find(|n| n.shared).unwrap();
+        assert_eq!(b.notes.read_internal(shared.id).unwrap(), NOTE_BODY);
+        let web = all.iter().find(|n| n.title == "README").unwrap();
+        assert_eq!(
+            b.notes.read_offline(web.id).unwrap().as_deref(),
+            Some("# offline copy")
+        );
+        let guide = all.iter().find(|n| n.title == "Guide").unwrap();
+        assert!(
+            b.notes.read_internal(guide.id).is_err(),
+            "no content of linked files is invented"
+        );
+    }
+
+    #[test]
+    fn restoring_without_the_notes_option_or_from_a_backup_without_notes_adds_none() {
+        let (a, ..) = with_notes();
+        a.backup_notes("n.peachbackup", true);
+        let b = Env::new();
+        let preview = open_from(&b, &a, "n.peachbackup");
+        let r = b.restore_with(&preview, RestoreMode::Merge, false).unwrap();
+        assert!(r.notes.is_none());
+        assert!(b.notes.list_all().unwrap().is_empty());
+
+        // notes not requested when the backup was made: nothing in the file
+        let s = a.backup_notes("plain.peachbackup", false);
+        assert_eq!(s.notes_included, 0);
+        let c = Env::new();
+        let preview = open_from(&c, &a, "plain.peachbackup");
+        assert!(preview.notes.is_none());
+        let r = c.restore_with(&preview, RestoreMode::Merge, true).unwrap();
+        assert!(r.notes.is_none());
+        assert!(c.notes.list_all().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_selected_profile_restore_only_attaches_notes_to_the_selected_profiles() {
+        let (a, pve1, _pve2) = with_notes();
+        a.backup_notes("n.peachbackup", true);
+        let b = Env::new();
+        let preview = open_from(&b, &a, "n.peachbackup");
+        let index = preview
+            .items
+            .iter()
+            .find(|i| i.name == "pve1")
+            .unwrap()
+            .index;
+        let mut o = opts(RestoreMode::Selected);
+        o.selected = vec![index];
+        o.restore_notes = true;
+        let r = b
+            .service
+            .restore_backup(&b.stores(), preview.token, &o)
+            .unwrap();
+        assert_eq!(names(&b), ["pve1"]);
+        let n = r.notes.unwrap();
+        assert_eq!(n.created, 3, "the note that only pve2 had is left out");
+        assert_eq!(
+            titles(&b, pve1.id),
+            ["Guide", "Proxmox VPS Commands", "README"]
+        );
+        assert!(
+            b.notes
+                .list_all()
+                .unwrap()
+                .iter()
+                .all(|n| n.title != "Only pve2")
+        );
+        let shared = b
+            .notes
+            .list_all()
+            .unwrap()
+            .into_iter()
+            .find(|n| n.title == "Proxmox VPS Commands")
+            .unwrap();
+        assert!(
+            !shared.shared,
+            "its second attachment (pve2) was not restored"
+        );
+    }
+
+    #[test]
+    fn restoring_over_existing_notes_keeps_them_and_reports_conflicts() {
+        let (a, pve1, _) = with_notes();
+        a.backup_notes("n.peachbackup", true);
+        // the same machine: everything exists, the user changed a note since
+        let note = a
+            .notes
+            .list_for_connection(pve1.id)
+            .unwrap()
+            .into_iter()
+            .find(|n| n.title == "Proxmox VPS Commands")
+            .unwrap();
+        a.notes
+            .write_internal(note.id, "changed after the backup")
+            .unwrap();
+        let preview = a.open_backup("n.peachbackup");
+        assert_eq!(preview.notes.as_ref().unwrap().conflicts, 4);
+        let r = a.restore_with(&preview, RestoreMode::Merge, true).unwrap();
+        assert_eq!(r.notes.unwrap().created, 0);
+        assert_eq!(a.notes.list_all().unwrap().len(), 4);
+        assert_eq!(
+            a.notes.read_internal(note.id).unwrap(),
+            "changed after the backup"
+        );
+    }
+
+    #[test]
+    fn replace_mode_never_deletes_the_notes_of_connections_it_removes() {
+        let (a, ..) = with_notes();
+        a.backup_notes("n.peachbackup", false);
+        let b = Env::new();
+        let old = b.add("old server", "old.example.com", "root");
+        let kept = b
+            .notes
+            .create_internal(
+                old.id,
+                "Notes of the old server",
+                DocFormat::Text,
+                "still here",
+            )
+            .unwrap();
+        let preview = open_from(&b, &a, "n.peachbackup");
+        b.restore_with(&preview, RestoreMode::Replace, true)
+            .unwrap();
+        assert!(!names(&b).contains(&"old server".to_string()));
+        let orphan = b
+            .notes
+            .list_all()
+            .unwrap()
+            .into_iter()
+            .find(|n| n.id == kept.id)
+            .unwrap();
+        assert!(orphan.orphan);
+        assert_eq!(b.notes.read_internal(kept.id).unwrap(), "still here");
+    }
+
+    #[test]
+    fn a_failure_while_saving_notes_puts_everything_else_back() {
+        let (a, ..) = with_notes();
+        a.backup_notes("n.peachbackup", true);
+        let b = Env::new();
+        let before_names = names(&b);
+        let before_vault = b.vault.snapshot();
+        let preview = open_from(&b, &a, "n.peachbackup");
+        // the notes metadata can no longer be written
+        let blocker = b.dir.path().join("notes-data").join("notes.json");
+        std::fs::create_dir_all(&blocker).unwrap();
+        let err = b
+            .restore_with(&preview, RestoreMode::Merge, true)
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("notes could not be restored"),
+            "{err}"
+        );
+        assert_eq!(names(&b), before_names, "the connections were put back");
+        assert_eq!(b.vault.snapshot(), before_vault);
+        assert!(b.notes.list_all().unwrap().is_empty());
+        // retrying works once the problem is gone
+        std::fs::remove_dir(&blocker).unwrap();
+        let r = b.restore_with(&preview, RestoreMode::Merge, true).unwrap();
+        assert_eq!(r.notes.unwrap().created, 4);
+    }
+
+    #[test]
+    fn the_preview_shown_to_the_renderer_contains_counts_only() {
+        let (a, ..) = with_notes();
+        a.backup_notes("n.peachbackup", true);
+        let b = Env::new();
+        let preview = open_from(&b, &a, "n.peachbackup");
+        let json = serde_json::to_string(&preview).unwrap();
+        for leaked in [
+            NOTE_BODY,
+            "SECRET-OPERATIONAL-DETAIL",
+            "Proxmox VPS Commands",
+            "# offline copy",
+            "guide.html",
+            "example.com/README",
+        ] {
+            assert!(!json.contains(leaked), "{leaked}");
+        }
+        a.export_json(
+            "n.json",
+            NotesExport {
+                include: true,
+                snapshots: true,
+            },
+        );
+        let imp = serde_json::to_string(
+            &b.service
+                .stage_import(&b.stores(), &a.path("n.json"))
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(!imp.contains("SECRET-OPERATIONAL-DETAIL") && !imp.contains("# offline copy"));
+    }
+
+    #[test]
+    fn backups_made_without_notes_stay_version_1_and_old_or_future_payloads_are_handled() {
+        use super::super::envelope;
+        let a = Env::new();
+        a.add("pve1", "pve1.example.com", "root");
+        a.backup_notes("v1.peachbackup", false);
+        let bytes = std::fs::read(a.path("v1.peachbackup")).unwrap();
+        let plain = envelope::open(&bytes, PASS).unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&plain).unwrap();
+        assert_eq!(
+            v["payloadVersion"], 1,
+            "no notes -> readable by older PeachTerm versions"
+        );
+        assert!(v.get("notes").is_none());
+
+        let seal = |value: serde_json::Value, name: &str| {
+            let sealed = envelope::seal(
+                &serde_json::to_vec(&value).unwrap(),
+                PASS,
+                KdfParams::MINIMUM,
+            )
+            .unwrap();
+            std::fs::write(a.path(name), sealed).unwrap();
+        };
+        // a version 1 payload that (wrongly) carries notes: they are ignored, the profiles restore
+        let mut legacy = v.clone();
+        legacy["notes"] = serde_json::json!([{"id": Uuid::new_v4(), "title": "x", "kind": "internal",
+            "format": "text", "createdAt": 1, "updatedAt": 1, "zoom": 100, "connections": [],
+            "content": "x"}]);
+        seal(legacy, "legacy.peachbackup");
+        let b = Env::new();
+        let p = open_from(&b, &a, "legacy.peachbackup");
+        assert!(p.notes.is_none());
+        assert_eq!(p.connection_count, 1);
+        // an unknown future version is refused
+        let mut future = v;
+        future["payloadVersion"] = serde_json::json!(3);
+        seal(future, "future.peachbackup");
+        let info = b
+            .service
+            .stage_backup_file(&b.stores(), &a.path("future.peachbackup"))
+            .unwrap();
+        assert!(
+            b.service
+                .unlock_backup(&b.stores(), info.token, &SecretString::new(PASS.into()))
+                .is_err()
+        );
+        // a corrupted file never opens
+        let mut broken = std::fs::read(a.path("v1.peachbackup")).unwrap();
+        let last = broken.len() - 1;
+        broken[last] ^= 0xff;
+        std::fs::write(a.path("broken.peachbackup"), broken).unwrap();
+        let info = b
+            .service
+            .stage_backup_file(&b.stores(), &a.path("broken.peachbackup"))
+            .unwrap();
+        assert!(
+            b.service
+                .unlock_backup(&b.stores(), info.token, &SecretString::new(PASS.into()))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn a_locked_application_neither_exports_nor_backs_up_notes() {
+        let (a, ..) = with_notes();
+        a.lock.set(true);
+        assert_eq!(
+            a.service
+                .write_connections_export(
+                    &a.stores(),
+                    &a.path("x.json"),
+                    None,
+                    false,
+                    NotesExport {
+                        include: true,
+                        snapshots: true
+                    }
+                )
+                .unwrap_err()
+                .code(),
+            "locked"
+        );
+        assert!(!a.path("x.json").exists());
+        assert!(
+            a.service
+                .choose_backup_destination(&a.stores(), &a.path("x.peachbackup"))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn exported_notes_survive_a_round_trip_through_the_document_format() {
+        let (a, ..) = with_notes();
+        a.export_json(
+            "rt.json",
+            NotesExport {
+                include: true,
+                snapshots: true,
+            },
+        );
+        let parsed = profiles::parse_document(&std::fs::read(a.path("rt.json")).unwrap()).unwrap();
+        assert_eq!(parsed.notes.len(), 4);
+        assert_eq!(parsed.notes_invalid, 0);
+        let shared: Vec<&PortableNote> = parsed
+            .notes
+            .iter()
+            .filter(|n| n.connections.len() == 2)
+            .collect();
+        assert_eq!(shared.len(), 1);
+        // exported ids are the public ids, not the local ones
+        let local: HashSet<Uuid> = a
+            .connections
+            .load()
+            .unwrap()
+            .connections
+            .iter()
+            .map(|c| c.id)
+            .collect();
+        assert!(
+            parsed
+                .notes
+                .iter()
+                .flat_map(|n| &n.connections)
+                .all(|c| !local.contains(c))
+        );
+    }
 }

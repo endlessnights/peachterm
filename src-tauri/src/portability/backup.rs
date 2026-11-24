@@ -26,7 +26,11 @@ use uuid::Uuid;
 use zeroize::Zeroizing;
 
 pub const PAYLOAD_FORMAT: &str = "peachterm-backup-payload";
+/// Backups without notes keep this version, so older PeachTerm versions can still restore them.
 pub const PAYLOAD_VERSION: u32 = 1;
+/// Backups that carry notes.
+pub const PAYLOAD_VERSION_NOTES: u32 = 2;
+const MAX_PAYLOAD_VERSION: u32 = PAYLOAD_VERSION_NOTES;
 const MAX_SECRET_CHARS: usize = 4096;
 
 // ---------------------------------------------------------------------------
@@ -166,6 +170,8 @@ struct OutPayload<'a> {
     settings: Option<PortableSettings>,
     credentials_requested: bool,
     credentials: Vec<BackupCredential>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    notes: Vec<crate::notes::portable::PortableNote>,
 }
 
 /// What a decrypted payload looks like before validation.
@@ -190,12 +196,15 @@ struct InPayload {
     credentials_requested: bool,
     #[serde(default)]
     credentials: Vec<BackupCredential>,
+    #[serde(default)]
+    notes: Vec<Value>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CreateOptions {
     pub include_settings: bool,
     pub include_credentials: bool,
+    pub include_notes: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -210,6 +219,13 @@ pub struct BackupSummary {
     pub credentials_skipped: usize,
     /// Of the skipped ones: stored in the OS vault but could not be read.
     pub credentials_unreadable: usize,
+    /// The user asked for server notes.
+    pub notes_requested: bool,
+    pub notes_included: usize,
+    /// Offline snapshots of web documents that were included.
+    pub snapshots_included: usize,
+    /// Linked local files: only their PATHS are in the backup, never their contents.
+    pub linked_files: usize,
     pub format_version: u16,
     pub size_bytes: u64,
     /// The written file was read back and decrypted successfully.
@@ -223,6 +239,9 @@ struct Collected {
     included: usize,
     skipped: usize,
     unreadable: usize,
+    notes: usize,
+    snapshots: usize,
+    linked_files: usize,
 }
 
 fn build_payload(stores: &Stores, opts: CreateOptions) -> AppResult<Collected> {
@@ -291,9 +310,26 @@ fn build_payload(stores: &Stores, opts: CreateOptions) -> AppResult<Collected> {
             updated_at: c.updated_at,
         })
         .collect();
+    // Server notes: everything PeachTerm itself stores (internal notes, relations,
+    // URLs, linked-file paths and explicitly saved offline snapshots). Nothing is
+    // fetched and linked files are not read.
+    let notes = match (opts.include_notes, stores.notes) {
+        (true, Some(store)) => store.export_notes(&Some, true)?,
+        _ => Vec::new(),
+    };
+    let snapshots = notes.iter().filter(|n| n.snapshot.is_some()).count();
+    let linked_files = notes
+        .iter()
+        .filter(|n| n.kind == crate::notes::NoteKind::LocalFile)
+        .count();
+    let notes_count = notes.len();
     let payload = OutPayload {
         format: PAYLOAD_FORMAT,
-        payload_version: PAYLOAD_VERSION,
+        payload_version: if notes.is_empty() {
+            PAYLOAD_VERSION
+        } else {
+            PAYLOAD_VERSION_NOTES
+        },
         created_at: crate::logging::clock::format_timestamp(std::time::SystemTime::now()),
         app_version: env!("CARGO_PKG_VERSION"),
         folders,
@@ -301,6 +337,7 @@ fn build_payload(stores: &Stores, opts: CreateOptions) -> AppResult<Collected> {
         settings,
         credentials_requested: opts.include_credentials,
         credentials,
+        notes,
     };
     let bytes = Zeroizing::new(serde_json::to_vec(&payload)?);
     Ok(Collected {
@@ -310,6 +347,9 @@ fn build_payload(stores: &Stores, opts: CreateOptions) -> AppResult<Collected> {
         included,
         skipped,
         unreadable,
+        notes: notes_count,
+        snapshots,
+        linked_files,
     })
 }
 
@@ -358,6 +398,10 @@ pub fn create_backup(
         credentials_included: collected.included,
         credentials_skipped: collected.skipped,
         credentials_unreadable: collected.unreadable,
+        notes_requested: opts.include_notes,
+        notes_included: collected.notes,
+        snapshots_included: collected.snapshots,
+        linked_files: collected.linked_files,
         format_version: envelope::FORMAT_VERSION,
         size_bytes: sealed.len() as u64,
         verified: true,
@@ -377,6 +421,9 @@ pub struct OpenedBackup {
     pub created_at: String,
     pub app_version: String,
     pub credentials_requested: bool,
+    /// Valid notes of the backup (empty for backups made without notes).
+    pub notes: Vec<crate::notes::portable::PortableNote>,
+    pub notes_invalid: usize,
 }
 
 impl OpenedBackup {
@@ -393,7 +440,7 @@ pub fn open_backup(file: &[u8], passphrase: &SecretString) -> Result<OpenedBacku
     if payload.format != PAYLOAD_FORMAT {
         return Err(BackupError::InvalidContent);
     }
-    if payload.payload_version == 0 || payload.payload_version > PAYLOAD_VERSION {
+    if payload.payload_version == 0 || payload.payload_version > MAX_PAYLOAD_VERSION {
         return Err(BackupError::UnsupportedVersion);
     }
     if payload.folders.len() > super::profiles::MAX_FOLDERS
@@ -405,6 +452,10 @@ pub fn open_backup(file: &[u8], passphrase: &SecretString) -> Result<OpenedBacku
     let mut parsed = Parsed::default();
     parsed.format_version = payload.payload_version as u64;
     parse_tree(&payload.folders, &payload.connections, true, &mut parsed);
+    // Notes exist from payload version 2 on; a version 1 payload has none, whatever it contains.
+    if payload.payload_version >= PAYLOAD_VERSION_NOTES {
+        super::profiles::parse_notes(&payload.notes, &mut parsed);
+    }
 
     let valid: std::collections::HashSet<Uuid> = parsed
         .incoming
@@ -424,8 +475,12 @@ pub fn open_backup(file: &[u8], passphrase: &SecretString) -> Result<OpenedBacku
     let settings = payload
         .settings
         .and_then(|v| serde_json::from_value::<PortableSettings>(v).ok());
+    let notes = std::mem::take(&mut parsed.notes);
+    let notes_invalid = parsed.notes_invalid;
     Ok(OpenedBackup {
         parsed,
+        notes,
+        notes_invalid,
         settings,
         secrets,
         created_at: payload.created_at.chars().take(40).collect(),

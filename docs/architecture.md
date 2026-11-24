@@ -92,6 +92,13 @@ above and add no persistence of their own.
 Never persisted: plaintext passwords, private-key contents, remote-write
 permission overrides, host-key decisions that were not explicitly confirmed.
 
+### Server notes
+
+`notes::{model, store, local, remote, portable}`: metadata and relations in `notes.json`, contents in `notes/`,
+atomic writes, no content in logs; documents are rendered in the renderer from a closed tree with no `innerHTML`
+(`features/notes/doc.ts`), web documents are fetched only in Rust under an SSRF-safe policy (`notes::remote`); notes
+take part in connection export/import and encrypted backups as an explicit option. See [notes.md](notes.md).
+
 ## 4. Credential storage
 
 `security::credentials::CredentialStore` (trait):

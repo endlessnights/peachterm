@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-note-select"
+description = "Enables the note_select command without any pre-configured scope."
+commands.allow = ["note_select"]
+
+[[permission]]
+identifier = "deny-note-select"
+description = "Denies the note_select command without any pre-configured scope."
+commands.deny = ["note_select"]

@@ -15,6 +15,8 @@ import {
   planDelete,
 } from '../features/connections/treeOps';
 import type {
+  DocFormat,
+  NoteKind,
   TunnelDef,
   TunnelInput,
   UpdateCheckOutcome,
@@ -48,6 +50,38 @@ type Invoke = (<T>(command: string, args?: Record<string, unknown>) => Promise<T
 };
 
 /** Recorded SSH traffic of the mock backend, plus a way to push events. */
+export interface MockNote {
+  id: string;
+  title: string;
+  kind: NoteKind;
+  format: DocFormat;
+  source: string | null;
+  zoom: number;
+  connections: string[];
+  text: string;
+  offlineText: string | null;
+  offlineAt: number | null;
+}
+
+export interface MockNotes {
+  items: MockNote[];
+  lastSelected: Record<string, string>;
+  /** Text of web documents by URL; a string starting with "!" is a fetch error sentence. */
+  web: Record<string, string>;
+  /** Text of linked local files by path; missing key = the file is gone. */
+  files: Record<string, string>;
+  /** What the next native file dialog returns (null = cancelled). */
+  nextFile: { path: string; format: DocFormat } | null;
+  /** Make the next write fail with this message. */
+  failWrite: string | null;
+  writes: { id: string; text: string }[];
+  opened: string[];
+  links: string[];
+  deleted: string[];
+  detached: { id: string; connection: string }[];
+  fetches: string[];
+}
+
 export interface MockUpdates {
   /** Pretend the build has an update key (official builds). */
   configured: boolean;
@@ -84,6 +118,7 @@ export interface MockTunnels {
 }
 
 export interface MockSsh {
+  notes: MockNotes;
   updates: MockUpdates;
   tunnels: MockTunnels;
   opens: { sessionId: string; connectionId: string; cols: number; rows: number; attempt: number }[];
@@ -111,15 +146,20 @@ export interface MockSsh {
   };
   /** Data portability traffic (the dialogs and the crypto are not simulated). */
   portability: {
-    exports: { ids: string[] | null; includeKeyPaths: boolean }[];
+    exports: {
+      ids: string[] | null;
+      includeKeyPaths: boolean;
+      notes?: { include: boolean; snapshots: boolean };
+    }[];
     /** What the next "choose a file" dialog yields (null = the user cancels). */
     nextImport: ImportPreview | null;
-    imports: { token: string; duplicates: string; update: number[] }[];
+    imports: { token: string; duplicates: string; update: number[]; importNotes?: boolean }[];
     nextDestination: string | null;
     backups: {
       token: string;
       includeSettings: boolean;
       includeCredentials: boolean;
+      includeNotes?: boolean;
       passphrase: string;
       confirm: string;
     }[];
@@ -221,6 +261,20 @@ export function createMockBackend(
   let pendingClear: { token: string; wrong: number } | null = null;
   let clearCounter = 0;
   const ssh: MockSsh = {
+    notes: {
+      items: [],
+      lastSelected: {},
+      web: {},
+      files: {},
+      nextFile: null,
+      failWrite: null,
+      writes: [],
+      opened: [],
+      links: [],
+      deleted: [],
+      detached: [],
+      fetches: [],
+    },
     updates: {
       configured: true,
       platform: 'windows',
@@ -321,6 +375,27 @@ export function createMockBackend(
     return c;
   };
 
+  const findNote = (id: unknown) => {
+    const n = ssh.notes.items.find((x) => x.id === id);
+    if (!n) throw { code: 'not_found', message: 'note was not found' };
+    return n;
+  };
+  const noteSummary = (n: MockNote, viewing: string | null) => ({
+    id: n.id,
+    title: n.title,
+    kind: n.kind,
+    format: n.format,
+    source: n.source,
+    createdAt: 1,
+    updatedAt: 1,
+    zoom: n.zoom,
+    offline: n.offlineAt
+      ? { savedAt: n.offlineAt, bytes: (n.offlineText ?? '').length, format: n.format }
+      : null,
+    shared: n.connections.length > 1,
+    sharedWith: n.connections.filter((c) => c !== viewing),
+    orphan: n.connections.length === 0,
+  });
   let pendingUpdate: UpdateInfo | null = null;
   let updateDownloaded = false;
   const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
@@ -618,6 +693,206 @@ export function createMockBackend(
     },
     app_quit: () => {
       ssh.quits += 1;
+    },
+    notes_counts: () => {
+      const out: Record<string, number> = {};
+      for (const n of ssh.notes.items) for (const c of n.connections) out[c] = (out[c] ?? 0) + 1;
+      return out;
+    },
+    notes_list: ({ connectionId }) => ({
+      notes: ssh.notes.items
+        .filter((n) => n.connections.includes(String(connectionId)))
+        .map((n) => noteSummary(n, String(connectionId))),
+      lastSelected: ssh.notes.lastSelected[String(connectionId)] ?? null,
+    }),
+    notes_all: () => ssh.notes.items.map((n) => noteSummary(n, null)),
+    note_create: ({ connectionId, title, format, content }) => {
+      const note: MockNote = {
+        id: uuid(),
+        title: String(title).trim(),
+        kind: 'internal',
+        format: format as DocFormat,
+        source: null,
+        zoom: 100,
+        connections: [String(connectionId)],
+        text: String(content ?? ''),
+        offlineText: null,
+        offlineAt: null,
+      };
+      if (!note.title) throw { code: 'validation', message: 'Give the note a title.' };
+      ssh.notes.items.push(note);
+      ssh.notes.lastSelected[String(connectionId)] = note.id;
+      return note.id;
+    },
+    note_attach_url: ({ connectionId, url, title }) => {
+      const u = String(url).trim();
+      if (!u.startsWith('https://')) {
+        throw { code: 'validation', message: 'Only https:// addresses can be used.' };
+      }
+      if (/^https:\/\/(localhost|127\.|10\.|192\.168\.)/.test(u)) {
+        throw {
+          code: 'validation',
+          message: 'That address points to a local or private network and is not allowed.',
+        };
+      }
+      const raw = u.replace(
+        /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/,
+        'https://raw.githubusercontent.com/$1/$2/$3',
+      );
+      const name = raw.split('/').pop() ?? 'Document';
+      const note: MockNote = {
+        id: uuid(),
+        title: String(title ?? '').trim() || name,
+        kind: 'remoteUrl',
+        format: /\.html?$/.test(raw) ? 'html' : /\.txt$/.test(raw) ? 'text' : 'markdown',
+        source: raw,
+        zoom: 100,
+        connections: [String(connectionId)],
+        text: '',
+        offlineText: null,
+        offlineAt: null,
+      };
+      ssh.notes.items.push(note);
+      ssh.notes.lastSelected[String(connectionId)] = note.id;
+      return note.id;
+    },
+    note_attach_file: ({ connectionId }) => {
+      const pick = ssh.notes.nextFile;
+      ssh.notes.nextFile = null;
+      if (!pick) return null;
+      const note: MockNote = {
+        id: uuid(),
+        title: (pick.path.split(/[\\/]/).pop() ?? 'Document').replace(/\.[^.]+$/, ''),
+        kind: 'localFile',
+        format: pick.format,
+        source: pick.path,
+        zoom: 100,
+        connections: [String(connectionId)],
+        text: '',
+        offlineText: null,
+        offlineAt: null,
+      };
+      ssh.notes.items.push(note);
+      ssh.notes.lastSelected[String(connectionId)] = note.id;
+      return note.id;
+    },
+    note_relocate: ({ noteId }) => {
+      const pick = ssh.notes.nextFile;
+      ssh.notes.nextFile = null;
+      if (!pick) return false;
+      const n = findNote(noteId);
+      n.source = pick.path;
+      n.format = pick.format;
+      return true;
+    },
+    note_read: ({ noteId }) => {
+      const n = findNote(noteId);
+      const base = {
+        id: n.id,
+        kind: n.kind,
+        format: n.format,
+        problem: null as string | null,
+        fromOffline: false,
+        offline: n.offlineAt
+          ? { savedAt: n.offlineAt, bytes: (n.offlineText ?? '').length, format: n.format }
+          : null,
+        source: n.source,
+      };
+      if (n.kind === 'internal') return { ...base, status: 'ok', text: n.text };
+      if (n.kind === 'localFile') {
+        const text = ssh.notes.files[n.source ?? ''];
+        if (text === undefined) {
+          return {
+            ...base,
+            status: 'missing',
+            text: null,
+            problem: 'The file was not found. It may have been moved or deleted.',
+          };
+        }
+        return { ...base, status: 'ok', text };
+      }
+      ssh.notes.fetches.push(n.source ?? '');
+      const web = ssh.notes.web[n.source ?? ''];
+      if (web !== undefined && !web.startsWith('!')) return { ...base, status: 'ok', text: web };
+      const sentence = web?.slice(1) ?? 'The document could not be downloaded (no connection?).';
+      if (n.offlineText !== null) {
+        return {
+          ...base,
+          status: 'ok',
+          text: n.offlineText,
+          fromOffline: true,
+          problem: `Showing the saved offline copy. ${sentence}`,
+        };
+      }
+      return { ...base, status: 'offline', text: null, problem: sentence };
+    },
+    note_write: ({ noteId, content }) => {
+      if (ssh.notes.failWrite) {
+        const message = ssh.notes.failWrite;
+        ssh.notes.failWrite = null;
+        throw { code: 'storage', message };
+      }
+      const n = findNote(noteId);
+      n.text = String(content);
+      ssh.notes.writes.push({ id: n.id, text: n.text });
+    },
+    note_rename: ({ noteId, title }) => {
+      findNote(noteId).title = String(title).trim();
+    },
+    note_set_zoom: ({ noteId, zoom }) => {
+      const z = Math.min(200, Math.max(50, Number(zoom)));
+      findNote(noteId).zoom = z;
+      return z;
+    },
+    note_select: ({ connectionId, noteId }) => {
+      ssh.notes.lastSelected[String(connectionId)] = String(noteId);
+    },
+    note_reorder: ({ connectionId, noteIds }) => {
+      const ids = noteIds as string[];
+      const mine = ssh.notes.items.filter((n) => n.connections.includes(String(connectionId)));
+      const rest = ssh.notes.items.filter((n) => !mine.includes(n));
+      const ordered = [
+        ...ids.map((i) => mine.find((n) => n.id === i)).filter((n): n is MockNote => !!n),
+        ...mine.filter((n) => !ids.includes(n.id)),
+      ];
+      ssh.notes.items = [...rest, ...ordered];
+    },
+    note_attach: ({ noteId, connectionId }) => {
+      const n = findNote(noteId);
+      if (!n.connections.includes(String(connectionId))) n.connections.push(String(connectionId));
+    },
+    note_detach: ({ noteId, connectionId }) => {
+      const n = findNote(noteId);
+      n.connections = n.connections.filter((c) => c !== connectionId);
+      ssh.notes.detached.push({ id: n.id, connection: String(connectionId) });
+    },
+    note_delete: ({ noteId }) => {
+      ssh.notes.items = ssh.notes.items.filter((n) => n.id !== noteId);
+      ssh.notes.deleted.push(String(noteId));
+    },
+    note_save_offline: ({ noteId }) => {
+      const n = findNote(noteId);
+      const web = ssh.notes.web[n.source ?? ''];
+      if (web === undefined || web.startsWith('!')) {
+        throw {
+          code: 'validation',
+          message: 'The document could not be downloaded (no connection?).',
+        };
+      }
+      n.offlineText = web;
+      n.offlineAt = Math.floor(Date.now() / 1000);
+      return { savedAt: n.offlineAt, bytes: web.length, format: n.format };
+    },
+    note_remove_offline: ({ noteId }) => {
+      const n = findNote(noteId);
+      n.offlineText = null;
+      n.offlineAt = null;
+    },
+    note_open_external: ({ noteId }) => {
+      ssh.notes.opened.push(String(noteId));
+    },
+    note_open_link: ({ url }) => {
+      ssh.notes.links.push(String(url));
     },
     update_status: () => ({
       currentVersion: '0.0.0-dev',
@@ -959,17 +1234,19 @@ export function createMockBackend(
     sftp_cancel: (args) => {
       ssh.sftp.cancels.push(String(args.transferId));
     },
-    connections_export: ({ ids, includeKeyPaths }) => {
+    connections_export: ({ ids, includeKeyPaths, notes }) => {
       const list = (ids as string[] | null) ?? tree.connections.map((c) => c.id);
       ssh.portability.exports.push({
         ids: ids as string[] | null,
         includeKeyPaths: Boolean(includeKeyPaths),
+        notes: notes as { include: boolean; snapshots: boolean } | undefined,
       });
       return {
         savedTo: '(browser dev mock)/peachterm-connections.json',
         connections: list.length,
         folders: ids === null ? tree.folders.length : 0,
         keyPaths: includeKeyPaths ? list.length : 0,
+        notes: (notes as { include?: boolean } | undefined)?.include ? ssh.notes.items.length : 0,
       };
     },
     connections_import_pick: () => {
@@ -978,11 +1255,12 @@ export function createMockBackend(
       return next;
     },
     connections_import_apply: ({ token, options }) => {
-      const o = options as { duplicates: string; update: number[] };
+      const o = options as { duplicates: string; update: number[]; importNotes?: boolean };
       ssh.portability.imports.push({
         token: String(token),
         duplicates: o.duplicates,
         update: o.update,
+        importNotes: o.importNotes,
       });
       return {
         created: 1,
@@ -1003,11 +1281,16 @@ export function createMockBackend(
       return path ? { token: 'dest-1', path } : null;
     },
     backup_create: ({ token, options, passphrase, confirm }) => {
-      const o = options as { includeSettings: boolean; includeCredentials: boolean };
+      const o = options as {
+        includeSettings: boolean;
+        includeCredentials: boolean;
+        includeNotes?: boolean;
+      };
       ssh.portability.backups.push({
         token: String(token),
         includeSettings: o.includeSettings,
         includeCredentials: o.includeCredentials,
+        includeNotes: o.includeNotes,
         passphrase: String(passphrase),
         confirm: String(confirm),
       });
@@ -1030,6 +1313,14 @@ export function createMockBackend(
         credentialsIncluded: o.includeCredentials ? withSecret : 0,
         credentialsSkipped: 0,
         credentialsUnreadable: 0,
+        notesRequested: Boolean(o.includeNotes),
+        notesIncluded: o.includeNotes ? ssh.notes.items.length : 0,
+        snapshotsIncluded: o.includeNotes
+          ? ssh.notes.items.filter((n) => n.offlineText !== null).length
+          : 0,
+        linkedFiles: o.includeNotes
+          ? ssh.notes.items.filter((n) => n.kind === 'localFile').length
+          : 0,
         formatVersion: 1,
         sizeBytes: 4096,
         verified: true,

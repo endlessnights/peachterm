@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-note-detach"
+description = "Enables the note_detach command without any pre-configured scope."
+commands.allow = ["note_detach"]
+
+[[permission]]
+identifier = "deny-note-detach"
+description = "Denies the note_detach command without any pre-configured scope."
+commands.deny = ["note_detach"]

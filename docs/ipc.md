@@ -84,6 +84,37 @@ Secrets travel renderer → Rust only (the backup passphrase) and never back.
 | `restore_apply`             | `token`, `RestoreOptions`                   | `RestoreResult` (counts only)                           | ✅     |
 | `portability_cancel`        | `token`                                     | `()` — discards the staged operation                    | ✅     |
 
+### Server notes in portability
+
+`connections_export` takes an optional `notes { include, snapshots }`, `connections_import_apply` an `importNotes`
+option, `backup_create` an `includeNotes` option and `restore_apply` a `restoreNotes` option. `ImportPreview` /
+`RestorePreview` gain `notes?: NotesPreview` (counts: notes, internal, linkedFiles, webDocuments, snapshots, shared,
+missingFiles, conflicts, unattached) and `notesInvalid`; `RestoreResult` gains `notes?` (created, attachedExisting,
+snapshots, skipped); `BackupSummary` gains `notesRequested`, `notesIncluded`, `snapshotsIncluded`, `linkedFiles`.
+Previews never contain titles or content.
+
+## Server notes (`notes`)
+
+See [notes.md](notes.md). Every command refuses while locked. The renderer never supplies a file path; local files come
+from the native dialog opened in Rust, web addresses are validated and fetched in Rust. List commands return summaries
+(no content); content only comes from `note_read`.
+
+| Command                                                       | Args                                          | Returns                                                                        |
+| ------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------ |
+| `notes_counts`                                                | –                                             | `{ connectionId: number }` (drives the tree indicator)                         |
+| `notes_list`                                                  | `connectionId`                                | `{ notes: NoteSummary[], lastSelected }`                                       |
+| `notes_all`                                                   | –                                             | every note (also unattached), to attach an existing one                        |
+| `note_create`                                                 | `connectionId`, `title`, `format`, `content?` | note id (Markdown or text)                                                     |
+| `note_attach_url`                                             | `connectionId`, `url`, `title?`               | note id; validated, GitHub file pages resolved, nothing fetched                |
+| `note_attach_file` / `note_relocate`                          | `connectionId` / `noteId`                     | note id / bool; native file dialog in Rust (`null`/`false` = cancelled)        |
+| `note_read`                                                   | `noteId`                                      | `NoteContent { status, text, problem, fromOffline, … }`; fetches web documents |
+| `note_write`                                                  | `noteId`, `content`                           | `()`; internal notes only, atomic                                              |
+| `note_rename`, `note_set_zoom`, `note_select`, `note_reorder` | …                                             | `()` / clamped zoom                                                            |
+| `note_attach`, `note_detach`, `note_delete`                   | `noteId` (+ `connectionId`)                   | `()`; detach = this connection only, delete = everywhere                       |
+| `note_save_offline`, `note_remove_offline`                    | `noteId`                                      | `OfflineMeta` / `()`                                                           |
+| `note_open_external`                                          | `noteId`                                      | opens the linked file / original URL in the default application                |
+| `note_open_link`                                              | `url`                                         | opens an `http(s)` link from a document in the system browser                  |
+
 ## Credentials (`security::credentials`)
 
 | Command                    | Args                       | Returns                           | Status |

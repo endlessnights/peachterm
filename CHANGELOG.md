@@ -5,6 +5,28 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-25
+
+### Added
+
+- **Server Notes & Documentation**: notes and documents attached to saved connections, shown in the existing
+  auxiliary panel beside the terminal (Files | Notes; left or right, resizable, collapsible). Written Markdown and
+  text notes with Preview/Edit and autosave, linked local `.md` `.markdown` `.txt` `.html` `.htm` files (path only),
+  public HTTPS documents (GitHub README links resolved), search, copy buttons on code blocks (never executes
+  anything), per-document zoom 50–200 % with Fit to width, notes shared between connections (detach vs. delete
+  everywhere), offline copies on request, and a quiet mark in the connection tree. HTML is reduced to safe structure
+  and never runs; web documents are fetched in Rust with strict network restrictions. See `docs/notes.md`.
+- Notes in **JSON export/import** (separate opt-in, off by default, with a warning) and in **encrypted backups**
+  (conditional "Include Server Notes", payload version 2 only when notes are included; version-1 backups keep
+  restoring). Restoring only adds notes and never overwrites existing ones.
+- **Tab bar**: the mouse wheel (and horizontal trackpad gestures) over the tab strip scrolls it sideways, and the
+  active tab is scrolled into view when it changes (new tab, shortcut, sidebar, restored session).
+
+### Fixed
+
+- Tabs beyond the visible width (about 18 in a typical window) could not be reached because the strip overflowed with
+  a hidden scrollbar. There never was a tab limit; the strip is now scrollable and the Add button stays visible.
+
 ## [0.3.0] - 2026-11-24
 
 _Installers are not code-signed yet (Windows Authenticode / Apple notarisation). In-app updates are verified

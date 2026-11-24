@@ -15,6 +15,8 @@ No telemetry, no accounts, no session limits.
 - **Tabs and split view**: up to six panes, drag a tab onto a pane edge, resizable dividers, restore tabs on start.
 - **Themes**: Dark, Light, System, Industrial Olive and Source Gray, each with a matching terminal palette;
   ten built-in terminal palettes, custom terminal colours and per-tab palettes.
+- **Server notes & documentation** attached to a connection, beside the terminal: Markdown/text notes, linked files,
+  public HTTPS documents, shared between connections, copy buttons that never execute ([docs](docs/notes.md)).
 - **SSH tunnels**: local port forwarding (`ssh -L`) over a tab's existing connection, loopback only, per-connection
   saved definitions ([docs](docs/tunnels.md)).
 - **In-app updates** from GitHub Releases, verified with a signature, never installed without your click
@@ -74,6 +76,7 @@ Screenshots will be added to this section with the first public release.
 - [Releasing](docs/releasing.md) and [code signing](docs/signing.md)
 - [Native title bar](docs/title-bar.md) — themed on Windows 11, macOS and Linux
 - [Diagnostic logging](docs/logging.md)
+- [Server notes & documentation](docs/notes.md)
 - [SSH tunnels](docs/tunnels.md) and [in-app updates](docs/updates.md)
 - [Connection export and import](docs/import-export.md), [encrypted backups](docs/backup-format.md)
 - [FTPeach review notes](docs/ftpeach-review.md)

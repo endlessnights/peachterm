@@ -38,6 +38,7 @@ import { installCloseHandler } from '../features/exit/exit';
 import { useDialogs } from './dialogs';
 import { useInterfaceScale } from './useInterfaceScale';
 import { StatusBar } from './StatusBar';
+import { MonitorController } from '../features/monitor/MonitorController';
 import { useShortcuts } from './useShortcuts';
 import { useTheme } from './useTheme';
 
@@ -206,6 +207,7 @@ export function App() {
           </main>
         </div>
         {settings.general.showStatusBar && <StatusBar version={version} />}
+        {settings.general.showStatusBar && <MonitorController />}
         {!locked && <DialogHost />}
         {!locked && <SshPromptHost />}
         {!locked && <EditorPromptHost />}

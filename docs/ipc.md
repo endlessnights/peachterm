@@ -93,6 +93,14 @@ missingFiles, conflicts, unattached) and `notesInvalid`; `RestoreResult` gains `
 snapshots, skipped); `BackupSummary` gains `notesRequested`, `notesIncluded`, `snapshotsIncluded`, `linkedFiles`.
 Previews never contain titles or content.
 
+## Server monitoring (`monitor`)
+
+See [monitoring.md](monitoring.md). `monitor_start(sessionId, onEvent)` (lock-guarded) decides in Rust, from the
+settings and the connection's own preference, whether monitoring is on, starts or restarts the session's single
+poller and returns whether it is active. `onEvent` receives `{ kind: 'sample', metrics }` (sanitized numbers, any
+field may be `null`) or `{ kind: 'unavailable', reason, permanent }` with a fixed reason token. `monitor_stop` ends
+the poller (allowed while locked). Nothing is persisted.
+
 ## Server notes (`notes`)
 
 See [notes.md](notes.md). Every command refuses while locked. The renderer never supplies a file path; local files come

@@ -443,6 +443,58 @@ function SshPage({ draft, patch }: PageProps) {
           </select>
         </Field>
       </div>
+      <h3>Server Monitoring</h3>
+      <div className="settings-grid">
+        <Field
+          label="Show server resource usage"
+          hint="Display live CPU, memory, disk, and uptime information for supported Linux SSH servers. Readings are shown only and never saved."
+        >
+          <input
+            type="checkbox"
+            aria-label="Show server resource usage"
+            checked={draft.monitoring.enabled}
+            onChange={(e) => patch('monitoring', { enabled: e.target.checked })}
+          />
+        </Field>
+        <Field label="Refresh interval">
+          <select
+            className="select"
+            aria-label="Monitoring refresh interval"
+            value={draft.monitoring.intervalSecs}
+            onChange={(e) => patch('monitoring', { intervalSecs: Number(e.target.value) })}
+          >
+            <option value={5}>Every 5 seconds</option>
+            <option value={10}>Every 10 seconds</option>
+            <option value={30}>Every 30 seconds</option>
+          </select>
+        </Field>
+        <Field label="Visible metrics">
+          <span className="monitor-metrics-pick">
+            {(
+              [
+                ['cpu', 'CPU'],
+                ['ram', 'RAM'],
+                ['disk', 'Disk /'],
+                ['uptime', 'Uptime'],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="check-inline">
+                <input
+                  type="checkbox"
+                  checked={draft.monitoring[key]}
+                  onChange={(e) => patch('monitoring', { [key]: e.target.checked })}
+                />{' '}
+                {label}
+              </label>
+            ))}
+          </span>
+        </Field>
+      </div>
+      <div className="notice">
+        Linux servers only. Metrics are read over a separate exec channel of the existing SSH
+        connection, never typed into your shell. A connection can override this setting in its
+        editor.
+      </div>
       <div className="notice">
         Host keys are always verified. Unknown keys must be approved and changed keys are blocked
         with a warning — this cannot be turned off.

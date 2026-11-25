@@ -1160,6 +1160,7 @@ pub fn merge(base: &ConnectionTree, req: &MergeRequest<'_>) -> AppResult<MergeRe
                     initial_directory: c.initial_directory.clone(),
                     folder_id,
                     sort_order,
+                    monitoring: Default::default(),
                     created_at: c.created_at.unwrap_or(req.now),
                     updated_at: c.updated_at.unwrap_or(req.now),
                 });

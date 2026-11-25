@@ -5,7 +5,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { Dialog } from '../../components/Dialog';
 import { isTauri, ipc, toAppError } from '../../shared/ipc';
-import type { AuthMethod, Connection, ConnectionInput, Uuid } from '../../shared/types';
+import type {
+  AuthMethod,
+  Connection,
+  ConnectionInput,
+  MonitorMode,
+  Uuid,
+} from '../../shared/types';
 import { useSettings } from '../settings/store';
 import { useConnections } from './store';
 import { folderPath } from './tree';
@@ -48,6 +54,7 @@ export function ConnectionEditor({ connection, defaultFolderId, onClose }: Props
           timeoutSecs: connection.timeoutSecs,
           initialDirectory: connection.initialDirectory,
           folderId: connection.folderId,
+          monitoring: connection.monitoring,
         }
       : {
           id: null,
@@ -61,6 +68,7 @@ export function ConnectionEditor({ connection, defaultFolderId, onClose }: Props
           timeoutSecs: settings.ssh.connectTimeoutSecs,
           initialDirectory: null,
           folderId: defaultFolderId,
+          monitoring: 'inherit',
         },
   );
   // The password lives only in this component until it is handed to Rust.
@@ -298,6 +306,18 @@ export function ConnectionEditor({ connection, defaultFolderId, onClose }: Props
             placeholder="/var/www"
             spellCheck={false}
           />
+        </label>
+        <label className="field">
+          <span>Server monitoring</span>
+          <select
+            className="select"
+            value={form.monitoring ?? 'inherit'}
+            onChange={(e) => update('monitoring', e.target.value as MonitorMode)}
+          >
+            <option value="inherit">Use the global setting</option>
+            <option value="enabled">Enabled for this connection</option>
+            <option value="disabled">Disabled for this connection</option>
+          </select>
         </label>
         {error && (
           <div className="error-text" role="alert">

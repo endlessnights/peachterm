@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-monitor-stop"
+description = "Enables the monitor_stop command without any pre-configured scope."
+commands.allow = ["monitor_stop"]
+
+[[permission]]
+identifier = "deny-monitor-stop"
+description = "Denies the monitor_stop command without any pre-configured scope."
+commands.deny = ["monitor_stop"]

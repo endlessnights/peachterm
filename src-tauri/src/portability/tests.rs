@@ -121,6 +121,7 @@ impl Env {
     fn add(&self, name: &str, host: &str, user: &str) -> Connection {
         self.connections
             .save_connection(ConnectionInput {
+                monitoring: None,
                 id: None,
                 name: name.into(),
                 host: host.into(),
@@ -407,6 +408,7 @@ fn backup_round_trip_restores_connections_folders_settings_and_credentials_on_an
         })
         .unwrap();
     let mut input = ConnectionInput {
+        monitoring: None,
         id: None,
         name: "Сервер".into(),
         host: "2001:db8::7".into(),

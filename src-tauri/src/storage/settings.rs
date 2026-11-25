@@ -239,6 +239,33 @@ impl Default for SshSettings {
     }
 }
 
+/// Live server resource monitor preferences (the readings themselves are never stored).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MonitorSettings {
+    /// Off by default.
+    pub enabled: bool,
+    /// 5, 10 or 30 seconds.
+    pub interval_secs: u32,
+    pub cpu: bool,
+    pub ram: bool,
+    pub disk: bool,
+    pub uptime: bool,
+}
+
+impl Default for MonitorSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            interval_secs: 10,
+            cpu: true,
+            ram: true,
+            disk: true,
+            uptime: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SftpSettings {
@@ -424,6 +451,7 @@ pub struct Settings {
     pub general: GeneralSettings,
     pub appearance: AppearanceSettings,
     pub ssh: SshSettings,
+    pub monitoring: MonitorSettings,
     pub sftp: SftpSettings,
     pub terminal: TerminalSettings,
     pub editor: EditorSettings,
@@ -463,6 +491,9 @@ impl Settings {
         s.connect_timeout_secs = s.connect_timeout_secs.clamp(1, 300);
         s.keepalive_secs = s.keepalive_secs.min(3600);
         s.default_username = s.default_username.trim().chars().take(256).collect();
+
+        self.monitoring.interval_secs =
+            crate::monitor::normalize_interval(u64::from(self.monitoring.interval_secs)) as u32;
 
         self.terminal.normalize();
 

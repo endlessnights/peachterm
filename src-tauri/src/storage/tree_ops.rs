@@ -532,6 +532,7 @@ mod tests {
 
     fn conn(name: &str, folder_id: Option<Uuid>) -> Connection {
         Connection {
+            monitoring: Default::default(),
             id: Uuid::new_v4(),
             name: name.into(),
             host: format!("{name}.example.com"),

@@ -7,6 +7,7 @@ import { useTabs } from '../features/sessions/store';
 import { Icon } from '../components/Icon';
 import { AppButtons } from './AppButtons';
 import { useSettings } from '../features/settings/store';
+import { MonitorBar } from '../features/monitor/MonitorBar';
 
 export function StatusBar({ version }: { version: string }) {
   const count = useConnections((s) => s.tree.connections.length);
@@ -27,6 +28,7 @@ export function StatusBar({ version }: { version: string }) {
       ) : (
         <span className="statusbar-item">Ready</span>
       )}
+      <MonitorBar />
       <span className="spacer" />
       <span className="statusbar-item">
         {connected}/{tabs.length} sessions

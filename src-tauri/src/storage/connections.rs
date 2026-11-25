@@ -53,8 +53,22 @@ pub struct Connection {
     /// Manual position among siblings; equal values fall back to name order.
     #[serde(default)]
     pub sort_order: i64,
+    /// Live resource monitor preference of this connection.
+    #[serde(default)]
+    pub monitoring: MonitorMode,
     pub created_at: u64,
     pub updated_at: u64,
+}
+
+/// Per-connection choice for the live resource monitor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MonitorMode {
+    /// Follow Settings → SSH → Server Monitoring.
+    #[default]
+    Inherit,
+    Enabled,
+    Disabled,
 }
 
 /// What the renderer may send. `id: None` creates a new connection.
@@ -81,6 +95,8 @@ pub struct ConnectionInput {
     pub initial_directory: Option<String>,
     #[serde(default)]
     pub folder_id: Option<Uuid>,
+    #[serde(default)]
+    pub monitoring: Option<MonitorMode>,
 }
 
 fn default_port() -> u16 {
@@ -373,6 +389,9 @@ impl ConnectionStore {
                     existing.timeout_secs = input.timeout_secs;
                     existing.initial_directory = initial_directory;
                     existing.folder_id = input.folder_id;
+                    if let Some(m) = input.monitoring {
+                        existing.monitoring = m;
+                    }
                     existing.updated_at = now;
                     Ok(existing.clone())
                 }
@@ -391,6 +410,7 @@ impl ConnectionStore {
                         initial_directory,
                         folder_id: input.folder_id,
                         sort_order: doc.next_order(input.folder_id, false),
+                        monitoring: input.monitoring.unwrap_or_default(),
                         created_at: now,
                         updated_at: now,
                     };
@@ -606,6 +626,7 @@ mod tests {
 
     fn input(name: &str) -> ConnectionInput {
         ConnectionInput {
+            monitoring: None,
             id: None,
             name: name.into(),
             host: "example.com".into(),

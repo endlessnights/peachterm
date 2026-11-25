@@ -59,6 +59,7 @@ import type {
   NoteSummary,
   OfflineMeta,
   UserAnswer,
+  MonitorEvent,
   Uuid,
   WorkspaceLayout,
 } from './types';
@@ -288,6 +289,11 @@ export const ipc = {
   tunnelOpenBrowser: (tunnelId: Uuid) => call<void>('tunnel_open_browser', { tunnelId }),
   /** How many tunnels are running (also while locked: warnings must stay accurate). */
   tunnelCounts: () => call<{ running: number }>('tunnel_counts'),
+  // ---- live server resource monitor ----
+  /** Resolves to whether monitoring is active for the session (settings + override). */
+  monitorStart: (sessionId: Uuid, onEvent: (event: MonitorEvent) => void) =>
+    call<boolean>('monitor_start', { sessionId, onEvent: makeChannel(onEvent) }),
+  monitorStop: (sessionId: Uuid) => call<void>('monitor_stop', { sessionId }),
   // ---- local terminals ----
   localProfiles: () => call<LocalProfileList>('local_profiles'),
   /** Start a local shell by profile id (never a command line). */

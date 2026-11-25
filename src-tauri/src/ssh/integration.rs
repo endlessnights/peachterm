@@ -119,7 +119,7 @@ pub fn target(port: u16, user: &str, auth: AuthMethod) -> Target {
     }
 }
 
-fn password_server(user: &str, pw: &str) -> Opts {
+pub fn password_server(user: &str, pw: &str) -> Opts {
     Opts {
         users: vec![(user.into(), pw.into())],
         ..Default::default()

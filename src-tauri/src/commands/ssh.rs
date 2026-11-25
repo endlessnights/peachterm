@@ -77,6 +77,7 @@ pub async fn ssh_open(
         app.ssh.remove(ended);
         // Tunnels are carried by this transport and end with it.
         app.tunnel_engine.stop_session(ended.uuid());
+        app.monitor.stop(ended);
         app.editor.end_session(ended);
         let _ = app.sessions.close(ended);
     });

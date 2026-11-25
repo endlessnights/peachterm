@@ -92,6 +92,8 @@ const COMMANDS: &[&str] = &[
     "tunnel_stop",
     "tunnel_open_browser",
     "tunnel_counts",
+    "monitor_start",
+    "monitor_stop",
     "update_status",
     "update_check",
     "update_download",

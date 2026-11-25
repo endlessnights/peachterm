@@ -31,6 +31,7 @@ export const conn = (id: string, name: string, extra: Partial<Connection> = {}):
   folderId: null,
   createdAt: 0,
   sortOrder: 0,
+  monitoring: 'inherit',
   updatedAt: 0,
   ...extra,
 });

@@ -7,6 +7,21 @@ export type Uuid = string;
 
 export type AuthMethod = 'password' | 'publicKey' | 'keyboardInteractive' | 'agent';
 
+export type MonitorMode = 'inherit' | 'enabled' | 'disabled';
+
+/** Sanitized readings from the live resource monitor (memory only, never saved). */
+export interface MonitorMetrics {
+  cpuPercent: number | null;
+  load: [number, number, number] | null;
+  memory: { usedKib: number; totalKib: number; availableKib: number } | null;
+  disk: { usedKib: number; totalKib: number; availableKib: number; percent: number } | null;
+  uptimeSecs: number | null;
+}
+
+export type MonitorEvent =
+  | { kind: 'sample'; metrics: MonitorMetrics }
+  | { kind: 'unavailable'; reason: string; permanent: boolean };
+
 export interface Connection {
   id: Uuid;
   name: string;
@@ -23,6 +38,8 @@ export interface Connection {
   folderId: Uuid | null;
   /** Manual position among siblings; equal values fall back to name order. */
   sortOrder: number;
+  /** Live resource monitor preference of this connection. */
+  monitoring?: MonitorMode;
   createdAt: number;
   updatedAt: number;
 }
@@ -39,6 +56,7 @@ export interface ConnectionInput {
   timeoutSecs: number;
   initialDirectory: string | null;
   folderId: Uuid | null;
+  monitoring?: MonitorMode;
 }
 
 export interface Folder {
@@ -154,6 +172,15 @@ export interface Settings {
     keepaliveSecs: number;
     defaultUsername: string;
     preferredAuth: AuthMethod;
+  };
+  monitoring: {
+    enabled: boolean;
+    /** 5, 10 or 30. */
+    intervalSecs: number;
+    cpu: boolean;
+    ram: boolean;
+    disk: boolean;
+    uptime: boolean;
   };
   sftp: {
     defaultPosition: PanelSide;
@@ -378,6 +405,7 @@ export const DEFAULT_SETTINGS: Settings = {
     defaultUsername: '',
     preferredAuth: 'password',
   },
+  monitoring: { enabled: false, intervalSecs: 10, cpu: true, ram: true, disk: true, uptime: true },
   sftp: { defaultPosition: 'right', defaultVisible: true, confirmDelete: true, showHidden: false },
   editor: { program: null, args: ['{file}'], tempDir: null },
   terminal: { defaultProfile: null, wslDistro: null, startDir: null, customProfiles: [] },

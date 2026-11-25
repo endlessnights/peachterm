@@ -33,6 +33,7 @@ import type {
   ItemRef,
   LocalProfile,
   LoggingStatus,
+  MonitorEvent,
   RestorePreview,
   RestoreResult,
   SavedNode,
@@ -117,7 +118,16 @@ export interface MockTunnels {
   lastError: Record<string, string>;
 }
 
+export interface MockMonitor {
+  starts: string[];
+  stops: string[];
+  /** Deliver a monitor event to the session's channel. */
+  emit: (sessionId: string, event: MonitorEvent) => void;
+  channels: Record<string, (event: MonitorEvent) => void>;
+}
+
 export interface MockSsh {
+  monitor: MockMonitor;
   notes: MockNotes;
   updates: MockUpdates;
   tunnels: MockTunnels;
@@ -260,7 +270,14 @@ export function createMockBackend(
   let recent: string[] = options.recent ?? [];
   let pendingClear: { token: string; wrong: number } | null = null;
   let clearCounter = 0;
+  const monitorChannels: Record<string, (event: MonitorEvent) => void> = {};
   const ssh: MockSsh = {
+    monitor: {
+      starts: [],
+      stops: [],
+      channels: monitorChannels,
+      emit: (sessionId, event) => monitorChannels[sessionId]?.(event),
+    },
     notes: {
       items: [],
       lastSelected: {},
@@ -365,6 +382,7 @@ export function createMockBackend(
     'lock_touch',
     'app_info',
     'tunnel_counts',
+    'monitor_stop',
     'window_apply_theme',
     'editor_presets',
   ]);
@@ -474,6 +492,7 @@ export function createMockBackend(
         id: uuid(),
         hasStoredSecret: false,
         sortOrder: nextOrder(tree, input.folderId, false),
+        monitoring: input.monitoring ?? 'inherit',
         createdAt: now,
         updatedAt: now,
       };
@@ -937,6 +956,26 @@ export function createMockBackend(
     },
     update_open_notes: () => {
       ssh.updates.notes += 1;
+    },
+    monitor_start: (args) => {
+      const sessionId = String(args.sessionId);
+      const channel = args.onEvent as { onmessage: ((event: MonitorEvent) => void) | null };
+      const opened = ssh.opens.find((o) => o.sessionId === sessionId);
+      const mode = opened
+        ? (findConnection(opened.connectionId).monitoring ?? 'inherit')
+        : 'inherit';
+      const on = mode === 'inherit' ? settings.monitoring.enabled : mode === 'enabled';
+      if (!on) {
+        ssh.monitor.stops.push(sessionId);
+        return false;
+      }
+      ssh.monitor.starts.push(sessionId);
+      if (channel.onmessage) monitorChannels[sessionId] = channel.onmessage;
+      return true;
+    },
+    monitor_stop: ({ sessionId }) => {
+      ssh.monitor.stops.push(String(sessionId));
+      delete monitorChannels[String(sessionId)];
     },
     tunnel_counts: () => ({ running: Object.keys(ssh.tunnels.running).length }),
     tunnel_list: ({ connectionId }) =>

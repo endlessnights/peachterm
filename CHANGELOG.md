@@ -5,6 +5,16 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-26
+
+### Added
+
+- **Live Server Resource Monitor** (optional, off by default): CPU, RAM, root-filesystem disk usage and uptime of
+  the Linux server behind the active SSH tab, in a compact status-bar readout with a details popover. Agentless: a
+  fixed read-only command runs over a separate exec channel of the existing SSH connection (nothing is typed into the
+  shell). Refresh every 5, 10 or 30 seconds, choose the visible metrics, and override per connection. Readings are
+  live only: never saved, logged, exported or sent anywhere. See `docs/monitoring.md`.
+
 ## [0.4.0] - 2026-11-25
 
 ### Added

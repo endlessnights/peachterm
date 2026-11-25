@@ -99,6 +99,11 @@ atomic writes, no content in logs; documents are rendered in the renderer from a
 (`features/notes/doc.ts`), web documents are fetched only in Rust under an SSRF-safe policy (`notes::remote`); notes
 take part in connection export/import and encrypted backups as an explicit option. See [notes.md](notes.md).
 
+### Server monitoring
+
+`monitor::{parse, MonitorEngine}`: one poller task per SSH session, each poll a bounded exec channel on the session's
+transport; parsing in Rust, in-memory readings only. See [monitoring.md](monitoring.md).
+
 ## 4. Credential storage
 
 `security::credentials::CredentialStore` (trait):

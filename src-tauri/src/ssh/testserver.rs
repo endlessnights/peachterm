@@ -25,8 +25,21 @@ pub enum Forwarding {
     Deny,
 }
 
+/// How the test server answers `exec` requests (used by the monitor tests).
+#[derive(Default, Clone)]
+pub enum ExecMode {
+    /// Decline (like a server with exec disabled).
+    #[default]
+    Refuse,
+    /// Answer request N with `outputs[min(N, len-1)]`, then exit 0.
+    Outputs(Vec<Vec<u8>>),
+    /// Accept and never answer.
+    Hang,
+}
+
 #[derive(Default, Clone)]
 pub struct Opts {
+    pub exec: ExecMode,
     pub forwarding: Forwarding,
     pub users: Vec<(String, String)>,
     pub keys: Vec<PublicKey>,
@@ -48,6 +61,8 @@ pub struct Recorded {
     pub auth_attempts: AtomicUsize,
     /// `direct-tcpip` requests received (accepted or not).
     pub forward_requests: AtomicUsize,
+    /// Every `exec` command the server received.
+    pub execs: Mutex<Vec<String>>,
 }
 
 pub struct TestServer {
@@ -341,6 +356,32 @@ impl Handler for H {
             session.data(channel, b"\r\nflood-done\r\n".to_vec())
         } else {
             session.data(channel, data.to_vec())
+        }
+    }
+
+    async fn exec_request(
+        &mut self,
+        channel: ChannelId,
+        data: &[u8],
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        let n = {
+            let mut execs = self.rec.execs.lock().unwrap();
+            execs.push(String::from_utf8_lossy(data).into_owned());
+            execs.len() - 1
+        };
+        match &self.opts.exec {
+            ExecMode::Refuse => session.channel_failure(channel),
+            ExecMode::Hang => session.channel_success(channel),
+            ExecMode::Outputs(outputs) => {
+                session.channel_success(channel)?;
+                if let Some(out) = outputs.get(n.min(outputs.len().saturating_sub(1))) {
+                    session.data(channel, out.clone())?;
+                }
+                session.exit_status_request(channel, 0)?;
+                session.eof(channel)?;
+                session.close(channel)
+            }
         }
     }
 

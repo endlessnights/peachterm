@@ -215,3 +215,77 @@ async fn gui_server() {
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
 }
+
+/// Real OpenSSH (not russh-to-russh): the fixed monitor command runs over an exec
+/// channel as an ordinary user and its output parses into sane numbers.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs PEACHTERM_TEST_OPENSSH (CI starts a container)"]
+async fn openssh_monitor_reads_proc_over_an_exec_channel() {
+    use crate::monitor::{MonitorConfig, MonitorEngine, MonitorEvent, MonitorSink, parse};
+    struct Collect(Mutex<Vec<MonitorEvent>>);
+    impl MonitorSink for Collect {
+        fn send(&self, e: MonitorEvent) {
+            self.0.lock().unwrap().push(e);
+        }
+    }
+    let Some((port, user, password)) = settings() else {
+        panic!("PEACHTERM_TEST_OPENSSH=port:user:password is required");
+    };
+    let password: &'static str = Box::leak(password.into_boxed_str());
+    let env = env(trust_and_password(password));
+    let started = start_session_as(
+        &env,
+        crate::sessions::SessionId::new(),
+        target(port, &user, AuthMethod::Password),
+        None,
+    );
+    started
+        .sink
+        .wait_until("sftp ready", |s| s.sftp_state() == Some(SftpState::Ready))
+        .await;
+    let engine = Arc::new(MonitorEngine::new(LockFlag::default()));
+    let sink = Arc::new(Collect(Mutex::new(Vec::new())));
+    engine.start(
+        started.session.clone(),
+        MonitorConfig {
+            interval: Duration::from_millis(1200),
+            timeout: Duration::from_secs(8),
+            wanted: parse::Wanted {
+                cpu: true,
+                ram: true,
+                disk: true,
+                uptime: true,
+            },
+        },
+        sink.clone(),
+    );
+    let mut samples = Vec::new();
+    for _ in 0..100 {
+        samples = sink
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|e| match e {
+                MonitorEvent::Sample { metrics } => Some(metrics.clone()),
+                _ => None,
+            })
+            .collect();
+        if samples.len() >= 2 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    engine.stop(started.session.id);
+    assert!(samples.len() >= 2, "got {samples:?}");
+    let m = &samples[1];
+    let cpu = m.cpu_percent.expect("cpu after two samples");
+    assert!((0.0..=100.0).contains(&cpu));
+    let mem = m.memory.expect("memory");
+    assert!(mem.total_kib > 0 && mem.used_kib <= mem.total_kib);
+    let disk = m.disk.expect("root filesystem");
+    assert!(disk.total_kib > 0 && (0.0..=100.0).contains(&disk.percent));
+    assert!(m.uptime_secs.is_some() && m.load.is_some());
+    // the interactive shell was not used for it
+    started.session.close().await;
+}

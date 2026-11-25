@@ -17,6 +17,8 @@ No telemetry, no accounts, no session limits.
   ten built-in terminal palettes, custom terminal colours and per-tab palettes.
 - **Server notes & documentation** attached to a connection, beside the terminal: Markdown/text notes, linked files,
   public HTTPS documents, shared between connections, copy buttons that never execute ([docs](docs/notes.md)).
+- **Live server resource monitor** (optional): CPU, RAM, root disk and uptime of Linux servers in the status bar,
+  agentless and never stored ([docs](docs/monitoring.md)).
 - **SSH tunnels**: local port forwarding (`ssh -L`) over a tab's existing connection, loopback only, per-connection
   saved definitions ([docs](docs/tunnels.md)).
 - **In-app updates** from GitHub Releases, verified with a signature, never installed without your click
@@ -77,6 +79,7 @@ Screenshots will be added to this section with the first public release.
 - [Native title bar](docs/title-bar.md) — themed on Windows 11, macOS and Linux
 - [Diagnostic logging](docs/logging.md)
 - [Server notes & documentation](docs/notes.md)
+- [Server monitoring](docs/monitoring.md)
 - [SSH tunnels](docs/tunnels.md) and [in-app updates](docs/updates.md)
 - [Connection export and import](docs/import-export.md), [encrypted backups](docs/backup-format.md)
 - [FTPeach review notes](docs/ftpeach-review.md)

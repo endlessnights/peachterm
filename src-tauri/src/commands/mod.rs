@@ -11,6 +11,7 @@ pub mod editor;
 pub mod local;
 pub mod lock;
 pub mod logging;
+pub mod monitor;
 pub mod notes;
 pub mod portability;
 pub mod security;

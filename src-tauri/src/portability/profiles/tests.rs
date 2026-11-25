@@ -6,6 +6,7 @@ use serde_json::json;
 
 pub(crate) fn conn(name: &str, host: &str, port: u16, user: &str) -> Connection {
     Connection {
+        monitoring: Default::default(),
         id: Uuid::new_v4(),
         name: name.into(),
         host: host.into(),

@@ -12,6 +12,7 @@ mod error;
 mod local;
 mod lock;
 mod logging;
+mod monitor;
 mod notes;
 #[cfg(test)]
 mod openssh_ci;
@@ -80,6 +81,8 @@ pub struct AppState {
     pub update: update::UpdateService,
     /// Server notes & documentation (`notes.json`, `notes/`).
     pub notes: notes::NotesStore,
+    /// Live server resource monitor (in-memory only; see `monitor`).
+    pub monitor: Arc<monitor::MonitorEngine>,
 }
 
 impl AppState {
@@ -127,6 +130,7 @@ impl AppState {
         let lock = lock::LockService::open(paths.config_dir.join("lock.json"), lock::Kdf::STRONG);
         let notes = notes::NotesStore::open(&paths.config_dir)?;
         let tunnel_lock = lock.flag();
+        let monitor_lock = lock.flag();
         let tunnels = tunnel::TunnelStore::open(paths.config_dir.join("tunnels.json"))?;
         let sessions = Arc::new(SessionRegistry::with_lock(lock.flag()));
         let editor_emitter: EditorEmitter = Arc::default();
@@ -228,6 +232,7 @@ impl AppState {
             tunnel_engine: tunnel::TunnelEngine::new(tunnel_lock),
             update: update::UpdateService::open(paths.config_dir.join("updates.json")),
             notes,
+            monitor: Arc::new(monitor::MonitorEngine::new(monitor_lock)),
             paths,
         })
     }
@@ -372,6 +377,8 @@ pub fn run() {
             commands::tunnels::tunnel_stop,
             commands::tunnels::tunnel_open_browser,
             commands::tunnels::tunnel_counts,
+            commands::monitor::monitor_start,
+            commands::monitor::monitor_stop,
             commands::update::update_status,
             commands::update::update_check,
             commands::update::update_download,
@@ -514,6 +521,7 @@ mod tests {
             let saved = state
                 .connections
                 .save_connection(ConnectionInput {
+                    monitoring: None,
                     id: None,
                     name: "web-1".into(),
                     host: "example.com".into(),
@@ -696,6 +704,7 @@ mod tests {
             "window_apply_theme", // cosmetic, reveals nothing
             "window_apply_scale", // cosmetic zoom, reveals nothing
             "editor_presets",     // static list of editor names
+            "monitor_stop",       // stopping a poller reveals nothing
             "tunnel_counts",      // a number, so exit/update warnings stay accurate while locked
         ];
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/commands");

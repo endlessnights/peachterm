@@ -43,6 +43,8 @@ interface ConnectionsState {
   duplicateConnection: (id: Uuid) => Promise<Connection>;
   moveConnection: (id: Uuid, folderId: Uuid | null) => Promise<void>;
   saveFolder: (input: FolderInput) => Promise<Folder>;
+  /** Create `ops/docker` below `parentId` (reusing what exists); selects the last folder. */
+  createFolderPath: (parentId: Uuid | null, path: string) => Promise<Folder[]>;
   toggleFolder: (id: Uuid) => Promise<void>;
   deleteFolder: (id: Uuid) => Promise<void>;
   /** Re-read after an operation that changes several records in Rust. */
@@ -170,6 +172,21 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     const saved = await ipc.foldersSave(input);
     set((s) => ({ tree: { ...s.tree, folders: upsert(s.tree.folders, saved) } }));
     return saved;
+  },
+  createFolderPath: async (parentId, path) => {
+    const { folders } = await ipc.foldersCreatePath(parentId, path);
+    set((s) => {
+      let list = s.tree.folders;
+      for (const folder of folders) list = upsert(list, folder);
+      // the parent was opened by the backend too
+      if (parentId) {
+        list = list.map((f) => (f.id === parentId ? { ...f, expanded: true } : f));
+      }
+      return { tree: { ...s.tree, folders: list } };
+    });
+    const last = folders[folders.length - 1];
+    if (last) get().setSelection([`f:${last.id}`], `f:${last.id}`, `f:${last.id}`);
+    return folders;
   },
   toggleFolder: async (id) => {
     const folder = get().tree.folders.find((f) => f.id === id);

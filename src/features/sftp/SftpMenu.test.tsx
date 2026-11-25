@@ -28,7 +28,9 @@ const menuLabels = () => screen.getAllByRole('menuitem').map((m) => m.textConten
 async function createVia(kind: 'New File…' | 'New Folder…', name: string) {
   fireEvent.contextMenu(list());
   fireEvent.click(await screen.findByRole('menuitem', { name: kind }));
-  const input = await screen.findByLabelText(kind === 'New File…' ? 'File name' : 'Folder name');
+  const input = await screen.findByLabelText(
+    kind === 'New File…' ? /File name or path/ : /Folder name or path/,
+  );
   fireEvent.change(input, { target: { value: name } });
   fireEvent.click(screen.getByRole('button', { name: 'Create' }));
 }
@@ -95,7 +97,7 @@ describe('New File and New Folder', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: 'New File…' }));
     // the target directory is stated explicitly
     expect(await screen.findByText('Will be created in /home')).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('File name'), { target: { value: 'todo.txt' } });
+    fireEvent.change(screen.getByLabelText(/File name or path/), { target: { value: 'todo.txt' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(ssh.sftp.createdFiles).toEqual(['/home/todo.txt']));
     await waitFor(() => expect(names()).toContain('todo.txt'));
@@ -125,7 +127,6 @@ describe('New File and New Folder', () => {
     ['', 'Enter a name'],
     ['.', 'not a valid name'],
     ['..', 'not a valid name'],
-    ['a/b', 'cannot contain /'],
     ['readme.txt', 'already exists in this folder'],
   ])('refuses %j before anything is sent', async (name, message) => {
     const { ssh } = await openSession();
@@ -133,7 +134,7 @@ describe('New File and New Folder', () => {
     await createVia('New File…', name);
     expect((await screen.findByRole('alert')).textContent).toContain(message);
     expect(ssh.sftp.createdFiles).toEqual([]);
-    expect(screen.getByLabelText('File name')).toBeTruthy(); // the dialog stays open
+    expect(screen.getByLabelText(/File name or path/)).toBeTruthy(); // the dialog stays open
   });
 
   it('shows the server error when it fails (for example permission denied)', async () => {
@@ -184,5 +185,44 @@ describe('name validation helper', () => {
     }
     expect(validateRemoteName('é'.repeat(130))).toMatch(/too long/);
     expect(validateRemoteName('line\nbreak')).toMatch(/control/);
+  });
+});
+
+describe('New Folder with a path', () => {
+  it('creates every level, one folder at a time, and selects nothing outside the path', async () => {
+    const { ssh } = await openSession();
+    await waitFor(() => expect(names().length).toBeGreaterThan(0));
+    await createVia('New Folder…', 'ops/docker/data');
+    await waitFor(() =>
+      expect(ssh.sftp.mkdirs).toEqual(['/ops', '/ops/docker', '/ops/docker/data']),
+    );
+  });
+
+  it.each(['/abs', 'a//b', 'a/', '../x', 'a/./b', 'a/../b'])(
+    'refuses %j before sending anything',
+    async (path) => {
+      const { ssh } = await openSession();
+      await waitFor(() => expect(names().length).toBeGreaterThan(0));
+      await createVia('New Folder…', path);
+      expect(ssh.sftp.mkdirs).toEqual([]);
+    },
+  );
+});
+
+describe('New File with a path', () => {
+  it('creates the folders in front of the name, then the file', async () => {
+    const { ssh } = await openSession();
+    await waitFor(() => expect(names().length).toBeGreaterThan(0));
+    await createVia('New File…', 'e/t/1.txt');
+    await waitFor(() => expect(ssh.sftp.createdFiles).toEqual(['/e/t/1.txt']));
+    expect(ssh.sftp.mkdirs).toEqual(['/e', '/e/t']);
+  });
+
+  it.each(['/abs.txt', 'a//b.txt', '../x.txt', 'a/'])('refuses %j', async (path) => {
+    const { ssh } = await openSession();
+    await waitFor(() => expect(names().length).toBeGreaterThan(0));
+    await createVia('New File…', path);
+    expect(ssh.sftp.createdFiles).toEqual([]);
+    expect(ssh.sftp.mkdirs).toEqual([]);
   });
 });

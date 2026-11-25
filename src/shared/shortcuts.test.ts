@@ -43,6 +43,7 @@ describe('definitions', () => {
       searchConnections: 'Mod+Shift+F',
       rename: 'F2',
       lockApp: 'Mod+Shift+L',
+      explainSelection: 'Mod+Shift+H',
     });
   });
 

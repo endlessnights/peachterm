@@ -15,6 +15,7 @@
 pub mod ops;
 pub mod put;
 pub mod transfer;
+pub mod tree;
 
 use crate::ssh::TerminalEvent;
 use crate::ssh::session::{Sink, SshSession};
@@ -141,6 +142,8 @@ pub enum SftpError {
     RemoteChanged,
     /// A local file could not be read or written.
     LocalIo,
+    /// Too many (or too deeply nested) items for one upload.
+    TooMany,
     Failed,
 }
 
@@ -159,6 +162,7 @@ impl SftpError {
             Self::Cancelled => "cancelled",
             Self::RemoteChanged => "remote_changed",
             Self::LocalIo => "local_io",
+            Self::TooMany => "limit_reached",
             Self::Failed => "failed",
         }
     }
@@ -178,6 +182,7 @@ impl SftpError {
             Self::Cancelled => "Cancelled",
             Self::RemoteChanged => "The file was changed on the server in the meantime",
             Self::LocalIo => "A local file could not be read or written",
+            Self::TooMany => "Too many items to upload at once",
             Self::Failed => "The server could not complete the operation",
         }
     }

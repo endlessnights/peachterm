@@ -83,6 +83,7 @@ Screenshots will be added to this section with the first public release.
 - [Server notes & documentation](docs/notes.md)
 - [Server monitoring](docs/monitoring.md)
 - [Localization and translations](docs/localization.md)
+- [Linux Command Help and permission diagnostics](docs/linux-help.md)
 - [SSH tunnels](docs/tunnels.md) and [in-app updates](docs/updates.md)
 - [Connection export and import](docs/import-export.md), [encrypted backups](docs/backup-format.md)
 - [FTPeach review notes](docs/ftpeach-review.md)

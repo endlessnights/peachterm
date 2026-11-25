@@ -27,6 +27,8 @@ export type DialogState =
   | { kind: 'renameTab'; tabId: string }
   | { kind: 'tabColors'; tabId: string }
   | { kind: 'tunnels'; tabId: string }
+  | { kind: 'linuxHelp'; mode: 'explain' | 'reference'; text?: string }
+  | { kind: 'permissions'; issue: import('../features/help/PermissionDialog').PermissionIssue }
   | {
       kind: 'confirm';
       title: string;
@@ -34,6 +36,8 @@ export type DialogState =
       confirmLabel: string;
       danger?: boolean;
       onConfirm: () => void;
+      /** Called when the question is declined or dismissed. */
+      onCancel?: () => void;
     }
   | {
       kind: 'prompt';

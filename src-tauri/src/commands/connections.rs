@@ -80,6 +80,27 @@ pub async fn folders_save(state: AppStateRef<'_>, folder: FolderInput) -> AppRes
     Ok(saved)
 }
 
+/// Result of creating a folder path: the chain (top first) and how many are new.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderPathResult {
+    pub folders: Vec<Folder>,
+    pub created: usize,
+}
+
+/// Creates `ops/docker`-style hierarchies below `parent_id` in one atomic save.
+#[tauri::command]
+pub async fn folders_create_path(
+    state: AppStateRef<'_>,
+    parent_id: Option<Uuid>,
+    path: String,
+) -> AppResult<FolderPathResult> {
+    state.lock.guard()?;
+    let (folders, created) = state.connections.create_folder_path(parent_id, &path)?;
+    tracing::debug!(event = "folder.path_created", created);
+    Ok(FolderPathResult { folders, created })
+}
+
 #[tauri::command]
 pub async fn folders_delete(state: AppStateRef<'_>, id: Uuid) -> AppResult<()> {
     state.lock.guard()?;

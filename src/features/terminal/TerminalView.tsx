@@ -23,11 +23,14 @@ import { ipc } from '../../shared/ipc';
 import { effectiveFontSize } from '../../shared/scale';
 import type { SessionState, TerminalEvent } from '../../shared/types';
 import { useSettings } from '../settings/store';
+import { useLock } from '../lock/store';
 import { useEditor } from '../editor/store';
 import { useRecent } from '../sessions/recentStore';
 import { usePrompts } from '../ssh/promptStore';
 import { useTabs, type Tab, type TabStatus } from '../sessions/store';
-import { TERMINAL_SEARCH_EVENT } from './events';
+import { ContextMenu, type MenuEntry } from '../../components/ContextMenu';
+import { useDialogs } from '../../app/dialogs';
+import { EXPLAIN_SELECTION_EVENT, TERMINAL_SEARCH_EVENT } from './events';
 import { terminalTheme } from './theme';
 
 const ACK_BATCH_BYTES = 32 * 1024;
@@ -140,6 +143,13 @@ export function TerminalView({ tab, active }: Props) {
   const sessionRef = useRef<string | null>(null);
   // The tab's own palette (read by the observers created once per tab).
   const colorsRef = useRef<string | null>(tab.colors);
+  // Read at the moment of use: changing the mode applies at once, with no reconnect.
+  const copyMode = useSettings((s) => s.settings.terminal.copyMode);
+  const [menu, setMenu] = useState<{ x: number; y: number; entries: MenuEntry[] } | null>(null);
+  const copyModeRef = useRef(copyMode);
+  useEffect(() => {
+    copyModeRef.current = copyMode;
+  }, [copyMode]);
   const generation = useRef(0);
   const attempt = useRef(0);
   const unacked = useRef(0);
@@ -307,12 +317,80 @@ export function TerminalView({ tab, active }: Props) {
       }
       return true;
     });
-    // Right click: copy a selection, otherwise paste (PuTTY-style).
+    // Right click. "Copy on right-click": copy a selection, otherwise paste (PuTTY style).
+    // "Copy on selection": the selection was already copied, so a right click pastes.
     const onContext = (e: MouseEvent) => {
       e.preventDefault();
-      if (!copy()) paste();
+      // Shift + right click opens a menu, only while Linux Command Help is on.
+      const help = useSettings.getState().settings.linuxHelp;
+      if (e.shiftKey && help.enabled && !useLock.getState().view?.locked) {
+        const selected = term.getSelection();
+        const entries: MenuEntry[] = [
+          {
+            kind: 'item',
+            label: tr('help.menu.copy'),
+            disabled: !selected,
+            onSelect: () => void copy(),
+          },
+          { kind: 'item', label: tr('help.menu.paste'), onSelect: paste },
+          { kind: 'separator' },
+        ];
+        if (help.explain) {
+          entries.push({
+            kind: 'item',
+            label: tr('help.menu.explain'),
+            disabled: !selected,
+            onSelect: () =>
+              useDialogs.getState().open({ kind: 'linuxHelp', mode: 'explain', text: selected }),
+          });
+        }
+        entries.push({
+          kind: 'item',
+          label: tr('help.menu.reference'),
+          onSelect: () => useDialogs.getState().open({ kind: 'linuxHelp', mode: 'reference' }),
+        });
+        setMenu({ x: e.clientX, y: e.clientY, entries });
+        return;
+      }
+      if (copyModeRef.current === 'rightClick') {
+        if (!copy()) paste();
+      } else {
+        paste();
+      }
     };
     host.addEventListener('contextmenu', onContext);
+
+    // Copy on selection. xterm.js reports every change while the mouse is
+    // dragged, so nothing is copied then: a selection is "complete" when the
+    // primary button is released after a press that started in this terminal
+    // (drag, double click and triple click all end that way). `fresh` is set
+    // only by a real selection change, so clicks, tab switches, resizes and
+    // mouse-reporting applications never re-copy an old selection, and clearing
+    // a selection never touches the clipboard.
+    let fresh = false;
+    let pressed = false;
+    subs.push(
+      term.onSelectionChange(() => {
+        fresh = term.hasSelection();
+      }),
+    );
+    const onDown = (e: MouseEvent) => {
+      if (e.button === 0) pressed = true;
+    };
+    const onUp = (e: MouseEvent) => {
+      if (e.button !== 0 || !pressed) return;
+      pressed = false;
+      // After xterm.js has finished its own mouse-up handling.
+      window.setTimeout(() => {
+        if (copyModeRef.current !== 'selection' || !fresh) return;
+        if (useLock.getState().view?.locked) return; // a locked app never reaches the clipboard
+        const text = term.getSelection();
+        fresh = false;
+        if (text) void navigator.clipboard?.writeText(text).catch(() => undefined);
+      }, 0);
+    };
+    host.addEventListener('mousedown', onDown, true);
+    document.addEventListener('mouseup', onUp, true);
 
     let frame = 0;
     const observer = new ResizeObserver(() => {
@@ -359,6 +437,8 @@ export function TerminalView({ tab, active }: Props) {
       observer.disconnect();
       themeObserver.disconnect();
       host.removeEventListener('contextmenu', onContext);
+      host.removeEventListener('mousedown', onDown, true);
+      document.removeEventListener('mouseup', onUp, true);
       subs.forEach((d) => d.dispose());
       term.dispose();
       termRef.current = null;
@@ -410,6 +490,19 @@ export function TerminalView({ tab, active }: Props) {
     };
     window.addEventListener(TERMINAL_SEARCH_EVENT, open);
     return () => window.removeEventListener(TERMINAL_SEARCH_EVENT, open);
+  }, [active]);
+
+  // Linux Command Help: the shortcut explains the active terminal's selected text.
+  useEffect(() => {
+    if (!active) return undefined;
+    const explainSelection = () => {
+      const { linuxHelp } = useSettings.getState().settings;
+      if (!linuxHelp.enabled || !linuxHelp.explain || useLock.getState().view?.locked) return;
+      const text = termRef.current?.getSelection() ?? '';
+      useDialogs.getState().open({ kind: 'linuxHelp', mode: 'explain', text });
+    };
+    window.addEventListener(EXPLAIN_SELECTION_EVENT, explainSelection);
+    return () => window.removeEventListener(EXPLAIN_SELECTION_EVENT, explainSelection);
   }, [active]);
 
   const closeSearch = () => {
@@ -472,6 +565,9 @@ export function TerminalView({ tab, active }: Props) {
             <Icon name="close" />
           </button>
         </div>
+      )}
+      {menu && (
+        <ContextMenu x={menu.x} y={menu.y} entries={menu.entries} onClose={() => setMenu(null)} />
       )}
       {waiting && (
         <div className="terminal-ended" role="status">

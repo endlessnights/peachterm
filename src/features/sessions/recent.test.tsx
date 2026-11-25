@@ -189,3 +189,32 @@ describe('recent sessions settings', () => {
     expect(rows()).toEqual([]);
   });
 });
+
+describe('Recent Sessions layout', () => {
+  it('uses a predictable grid (row by row, never CSS columns) that falls back to one column', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/styles/sftp.css', 'utf8');
+    const block = /\.recent ul \{[^}]*\}/.exec(css)![0];
+    expect(block).toMatch(/display:\s*grid/);
+    expect(block).toMatch(/repeat\(auto-fit,\s*minmax\(min\(100%,\s*240px\),\s*1fr\)\)/);
+    expect(block).not.toMatch(/column-count|(?<![-\w])columns:/);
+    // two columns need >= 2 x 240px + gap, three never fit in the 640px container
+    expect(css).toMatch(/\.recent \{[^}]*width:\s*min\(640px,\s*100%\)/);
+  });
+
+  it('keeps recency order in the DOM (left to right, then down) with name and host in the tooltip', async () => {
+    const { connectAndClose, tree } = await mount();
+    for (const n of ['pve1', 'pve2', 'pve3']) await connectAndClose(n);
+    await waitFor(() => expect(document.querySelectorAll('.recent-row')).toHaveLength(3));
+    const rows = [...document.querySelectorAll<HTMLElement>('.recent-row')];
+    expect(rows.map((r) => r.querySelector('.recent-name')!.textContent)).toEqual([
+      'pve3',
+      'pve2',
+      'pve1',
+    ]);
+    expect(rows[0]!.title).toContain('pve3');
+    expect(rows[0]!.title).toContain('root@cluster.example.com:22');
+    expect(rows[2]!.querySelector('.recent-host')!.textContent).toBe('cluster.example.com');
+    expect(tree).toBeTruthy();
+  });
+});

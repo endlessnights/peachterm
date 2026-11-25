@@ -13,7 +13,7 @@ import { Icon } from '../../components/Icon';
 import { formatArgs, parseArgs } from '../../shared/args';
 import type { CustomShell } from '../../shared/types';
 import { useProfiles } from '../terminal/profilesStore';
-import { Field, type PageProps } from './controls';
+import { Field, Segmented, type PageProps } from './controls';
 
 /** A path the backend will accept: absolute (drive letter, UNC or leading slash). */
 const BACKSLASH = String.fromCharCode(92);
@@ -42,6 +42,48 @@ export function LocalShellPage({ draft, patch }: PageProps) {
 
   return (
     <>
+      <h3>{tl('copy.heading')}</h3>
+      <Field label={tl('copy.label')} hint={tl('copy.hint')}>
+        <Segmented
+          value={t.copyMode}
+          options={[
+            { value: 'selection' as const, label: tl('copy.selection') },
+            { value: 'rightClick' as const, label: tl('copy.rightClick') },
+          ]}
+          onChange={(copyMode) => patch('terminal', { copyMode })}
+        />
+      </Field>
+      <h3>{tl('help.settings.heading')}</h3>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={draft.linuxHelp.enabled}
+          onChange={(e) => patch('linuxHelp', { enabled: e.target.checked })}
+        />
+        {tl('help.settings.enable')}
+      </label>
+      <span className="hint">{tl('help.settings.hint')}</span>
+      <div className="settings-indent">
+        <label className="check">
+          <input
+            type="checkbox"
+            disabled={!draft.linuxHelp.enabled}
+            checked={draft.linuxHelp.explain}
+            onChange={(e) => patch('linuxHelp', { explain: e.target.checked })}
+          />
+          {tl('help.settings.explain')}
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            disabled={!draft.linuxHelp.enabled}
+            checked={draft.linuxHelp.permissions}
+            onChange={(e) => patch('linuxHelp', { permissions: e.target.checked })}
+          />
+          {tl('help.settings.permissions')}
+        </label>
+      </div>
+      <span className="hint">{tl('help.settings.note')}</span>
       <h3>{tl('shell.heading')}</h3>
       <div className="settings-grid">
         <Field label={tl('shell.default')} hint={tl('shell.defaultHint')}>

@@ -8,6 +8,7 @@
 //! files that were chosen for upload.
 
 use super::put::{PutOptions, put_file};
+use super::tree::{self, Node};
 use super::{Client, SftpError, join_remote, ops};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -128,6 +129,32 @@ impl Hub {
         picks.retain(|_, (at, _)| at.elapsed() < PICK_TTL);
         picks.insert(id, (Instant::now(), paths));
         (id, files)
+    }
+
+    /// Remember paths that came from an operating-system drop (never from the
+    /// renderer). Files and folders; the renderer only gets the opaque id.
+    pub fn remember_drop(&self, paths: Vec<PathBuf>) -> Uuid {
+        let id = Uuid::new_v4();
+        let mut picks = self.picks.lock().unwrap();
+        picks.retain(|_, (at, _)| at.elapsed() < PICK_TTL);
+        picks.insert(id, (Instant::now(), paths));
+        id
+    }
+
+    /// Look at a pick without using it up (the conflict check before an upload).
+    pub fn peek_pick(&self, id: Uuid) -> Option<Vec<PathBuf>> {
+        let picks = self.picks.lock().unwrap();
+        let (at, paths) = picks.get(&id)?;
+        (at.elapsed() < PICK_TTL).then(|| paths.clone())
+    }
+
+    /// Forget every pending selection (the application locked).
+    pub fn clear_picks(&self) {
+        self.picks.lock().unwrap().clear();
+    }
+
+    pub fn discard_pick(&self, id: Uuid) {
+        self.picks.lock().unwrap().remove(&id);
     }
 
     /// Single use: a pick can be uploaded once.
@@ -384,4 +411,155 @@ fn finish(
             emit(failed(id, *error));
         }
     }
+}
+
+/// Upload a picked/dropped set that contains folders: the same per-file engine
+/// as [`run_upload`] (`put_file`: safe replace, progress, cancellation, the
+/// overwrite policy), plus creation of the remote folders. Folders that exist
+/// are reused; files are never overwritten unless `overwrite` was confirmed.
+/// A failure of one file or folder is reported and the rest continues; a
+/// cancellation stops the batch.
+pub async fn run_upload_tree(
+    client: &Client,
+    hub: &Hub,
+    session_id: Uuid,
+    paths: &[PathBuf],
+    remote_dir: &str,
+    overwrite: bool,
+    emit: &(dyn Fn(TransferEvent) + Send + Sync),
+) {
+    let plan = match tree::plan_local(paths) {
+        Ok(plan) => plan,
+        Err(error) => {
+            // Nothing was started: one failed entry explains why.
+            let id = Uuid::new_v4();
+            emit(TransferEvent::Started {
+                transfer_id: id,
+                name: String::new(),
+                direction: Direction::Upload,
+                total: 0,
+                index: 1,
+                count: 1,
+            });
+            emit(failed(id, error));
+            emit(TransferEvent::Finished);
+            return;
+        }
+    };
+    let count = u32::try_from(plan.files).unwrap_or(u32::MAX);
+    let mut index = 0u32;
+    let mut broken: Vec<Vec<String>> = Vec::new(); // folders that could not be created
+    for node in &plan.nodes {
+        if broken.iter().any(|b| node.rel().starts_with(b)) {
+            continue; // its folder is missing: already reported once
+        }
+        let remote = tree::remote_path(remote_dir, node.rel());
+        let name = node.rel().join("/");
+        let id = Uuid::new_v4();
+        match node {
+            Node::Dir { rel } => {
+                if let Err(error) = ensure_dir(client, &remote).await {
+                    emit(TransferEvent::Started {
+                        transfer_id: id,
+                        name: format!("{name}/"),
+                        direction: Direction::Upload,
+                        total: 0,
+                        index: index.max(1),
+                        count: count.max(1),
+                    });
+                    emit(failed(id, error));
+                    broken.push(rel.clone());
+                }
+            }
+            Node::File { abs, size, .. } => {
+                index += 1;
+                let cancel = hub.register(id);
+                let started = Instant::now();
+                let result = upload_node(
+                    client, id, abs, &remote, &name, *size, overwrite, &cancel, session_id, index,
+                    count, emit,
+                )
+                .await;
+                hub.unregister(id);
+                let stop = matches!(result, Err(SftpError::Cancelled));
+                finish(id, session_id, Direction::Upload, started, &result, emit);
+                if stop {
+                    break;
+                }
+            }
+        }
+    }
+    emit(TransferEvent::Finished);
+}
+
+/// A remote folder that exists is reused; a missing one is created; anything
+/// else of that name (a file, a link) is an error, never replaced.
+async fn ensure_dir(client: &Client, path: &str) -> Result<(), SftpError> {
+    ops::validate_path(path)?;
+    match client.symlink_metadata(path.to_owned()).await {
+        Ok(meta) if meta.is_dir() => Ok(()),
+        Ok(_) => Err(SftpError::AlreadyExists),
+        Err(_) => {
+            client.create_dir(path.to_owned()).await?;
+            Ok(())
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn upload_node(
+    client: &Client,
+    id: Uuid,
+    abs: &Path,
+    remote: &str,
+    name: &str,
+    planned_size: u64,
+    overwrite: bool,
+    cancel: &AtomicBool,
+    session_id: Uuid,
+    index: u32,
+    count: u32,
+    emit: &(dyn Fn(TransferEvent) + Send + Sync),
+) -> Result<u64, SftpError> {
+    ops::validate_path(remote)?;
+    // The tree may have changed since it was planned: never follow a link that
+    // appeared meanwhile, and only send regular files.
+    let meta = tokio::fs::symlink_metadata(abs).await?;
+    if meta.file_type().is_symlink() || !meta.is_file() {
+        return Err(SftpError::LocalIo);
+    }
+    let total = meta.len().max(planned_size.min(meta.len()));
+    tracing::info!(event = "sftp.transfer_started", session_id = %session_id, transfer_id = %id, kind = "upload", bytes = total);
+    emit(TransferEvent::Started {
+        transfer_id: id,
+        name: name.to_owned(),
+        direction: Direction::Upload,
+        total,
+        index,
+        count,
+    });
+    let reader = tokio::fs::File::open(abs).await?;
+    let mut throttle = Throttle::new();
+    let mut report = |done: u64| {
+        if throttle.due(done, total) {
+            emit(TransferEvent::Progress {
+                transfer_id: id,
+                done,
+                total,
+            });
+        }
+    };
+    let outcome = put_file(
+        client,
+        reader,
+        remote,
+        PutOptions {
+            overwrite,
+            expect: None,
+        },
+        cancel,
+        &mut report,
+    )
+    .await?;
+    Ok(outcome.bytes)
 }

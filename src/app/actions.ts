@@ -3,6 +3,7 @@
 
 // User-level actions shared by menus, shortcuts and double-clicks.
 
+import { validateFolderPath } from '../features/connections/folderPath';
 import { reportError } from '../components/Toasts';
 import { useConnections } from '../features/connections/store';
 import { isActiveStatus, useTabs } from '../features/sessions/store';
@@ -136,14 +137,13 @@ export function duplicateConnection(connection: Connection) {
 export function newFolder(parentId: Uuid | null) {
   promptText({
     title: t('folder.newTitle'),
-    label: t('folder.name'),
+    label: t('folder.nameOrPath'),
+    hint: t('folder.nameOrPathHint'),
     initial: '',
     confirmLabel: t('folder.create'),
-    onSubmit: (name) => {
-      useConnections
-        .getState()
-        .saveFolder({ id: null, name, parentId, expanded: true })
-        .catch(reportError);
+    validate: (value) => validateFolderPath(useConnections.getState().tree, parentId, value),
+    onSubmit: (path) => {
+      useConnections.getState().createFolderPath(parentId, path).catch(reportError);
     },
   });
 }

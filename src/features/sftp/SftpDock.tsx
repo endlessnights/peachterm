@@ -9,6 +9,7 @@
 // FOCUSED terminal), so each SSH session keeps its own directory, listing and
 // transfers, and a listing can never be shown under another server's name.
 
+import { useTranslation } from 'react-i18next';
 import { Icon } from '../../components/Icon';
 import { ResizeHandle } from '../../components/ResizeHandle';
 import { reportError } from '../../components/Toasts';
@@ -19,6 +20,7 @@ import { useNotes } from '../notes/store';
 import { SftpPanel } from './SftpPanel';
 
 export function SftpDock({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
   const side = useSettings((s) => s.settings.ui.sftpSide);
@@ -56,7 +58,7 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
     <>
       {side === 'right' && (
         <ResizeHandle
-          label="Resize SFTP panel"
+          label={t('sftp.dock.resize')}
           value={width}
           min={220}
           max={720}
@@ -68,12 +70,12 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
       <aside className="sftp-panel" style={{ width }} aria-label="SFTP">
         <div className="sftp-header">
           {hasSwitch ? (
-            <div className="segmented sftp-switch" role="group" aria-label="Panel">
+            <div className="segmented sftp-switch" role="group" aria-label={t('sftp.dock.panel')}>
               <button type="button" aria-pressed={!showNotes} onClick={() => setNotesView('files')}>
-                Files
+                {t('sftp.dock.files')}
               </button>
               <button type="button" aria-pressed={showNotes} onClick={() => setNotesView('notes')}>
-                Notes
+                {t('sftp.dock.notes')}
               </button>
             </div>
           ) : (
@@ -81,8 +83,8 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
           )}
           <button
             className="icon-btn"
-            aria-label="Dock panel left"
-            title="Dock left"
+            aria-label={t('sftp.dock.leftAria')}
+            title={t('sftp.dock.left')}
             aria-pressed={side === 'left'}
             data-active={side === 'left' || undefined}
             onClick={() => dockTo('left')}
@@ -91,8 +93,8 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
           </button>
           <button
             className="icon-btn"
-            aria-label="Dock panel right"
-            title="Dock right"
+            aria-label={t('sftp.dock.rightAria')}
+            title={t('sftp.dock.right')}
             aria-pressed={side === 'right'}
             data-active={side === 'right' || undefined}
             onClick={() => dockTo('right')}
@@ -101,8 +103,8 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
           </button>
           <button
             className="icon-btn"
-            aria-label="Collapse SFTP panel"
-            title="Collapse"
+            aria-label={t('sftp.dock.collapseAria')}
+            title={t('sftp.dock.collapse')}
             onClick={() => setVisible(false)}
           >
             <Icon name="close" />
@@ -132,7 +134,7 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
                 key={tab.id}
                 className="sftp-slot"
                 hidden={tab.id !== activeId}
-                aria-label={`Files of ${tab.title}`}
+                aria-label={t('sftp.dock.filesOf', { title: tab.title })}
               >
                 <SftpPanel tab={tab} />
               </div>
@@ -141,7 +143,7 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
       </aside>
       {side === 'left' && (
         <ResizeHandle
-          label="Resize SFTP panel"
+          label={t('sftp.dock.resize')}
           value={width}
           min={220}
           max={720}
@@ -154,8 +156,8 @@ export function SftpDock({ children }: { children: React.ReactNode }) {
   ) : (
     <button
       className="sftp-tab"
-      aria-label="Show SFTP panel"
-      title="Show SFTP panel"
+      aria-label={t('sftp.dock.show')}
+      title={t('sftp.dock.show')}
       onClick={() => setVisible(true)}
     >
       <Icon name="folder" />

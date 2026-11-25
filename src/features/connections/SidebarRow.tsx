@@ -1,14 +1,15 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { errorMessage } from '../../i18n/errors';
 import { memo, useEffect, useRef, useState } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Icon } from '../../components/Icon';
-import { toAppError } from '../../shared/ipc';
 import { useNotes } from '../notes/store';
 import type { TabStatus } from '../sessions/store';
 import type { Zone } from './dropTarget';
 import type { Row } from './tree';
+import { useTranslation } from 'react-i18next';
 
 export interface DropMark {
   zone: Zone;
@@ -35,6 +36,7 @@ interface RowProps {
 }
 
 export const SidebarRow = memo(function SidebarRow(props: RowProps) {
+  const { t } = useTranslation();
   const { row, active, selected, count, status, renaming, drop, focusable } = props;
   // a quiet document mark, only for connections that have notes
   const notes = useNotes((s) =>
@@ -109,14 +111,14 @@ export const SidebarRow = memo(function SidebarRow(props: RowProps) {
         <span
           className="row-notes"
           role="img"
-          aria-label={`${notes} ${notes === 1 ? 'note' : 'notes'}`}
-          title={`${notes} ${notes === 1 ? 'note' : 'notes'}`}
+          aria-label={t('conn.notesAria', { count: notes })}
+          title={t('conn.notesAria', { count: notes })}
         >
           <Icon name="file" size={11} />
         </span>
       )}
       {!renaming && status && (
-        <span className="status-dot" data-status={status} aria-label={status} />
+        <span className="status-dot" data-status={status} aria-label={t(`status.${status}`)} />
       )}
     </div>
   );
@@ -138,6 +140,7 @@ function InlineRename({
   onCommit: (name: string) => Promise<void>;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const [value, setValue] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -150,8 +153,9 @@ function InlineRename({
 
   const validate = (text: string): string | null => {
     const trimmed = text.trim();
-    if (!trimmed) return `The ${kind} name cannot be empty.`;
-    if (trimmed.length > 128) return 'The name is too long (128 characters at most).';
+    if (!trimmed)
+      return kind === 'folder' ? t('conn.rename.emptyFolder') : t('conn.rename.emptyConnection');
+    if (trimmed.length > 128) return t('conn.rename.tooLong');
     return null;
   };
 
@@ -178,7 +182,7 @@ function InlineRename({
         done.current = true;
         return onCancel();
       }
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
     }
   };
 
@@ -192,7 +196,9 @@ function InlineRename({
         ref={input}
         className="input rename-input"
         value={value}
-        aria-label={`Rename ${kind}`}
+        aria-label={
+          kind === 'folder' ? t('conn.rename.folderAria') : t('conn.rename.connectionAria')
+        }
         aria-invalid={error ? true : undefined}
         title={error ?? undefined}
         maxLength={200}

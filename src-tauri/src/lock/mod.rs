@@ -250,8 +250,9 @@ impl LockService {
         {
             let inner = self.inner();
             if !inner.enabled {
-                return Err(AppError::Validation(
-                    "Application lock is not set up. Set a lock password first.".into(),
+                return Err(AppError::validation_key(
+                    "lock.notSetUp",
+                    "Application lock is not set up. Set a lock password first.",
                 ));
             }
         }
@@ -269,17 +270,21 @@ impl LockService {
         current: Option<&SecretString>,
     ) -> AppResult<()> {
         if new.expose().chars().count() < MIN_PASSWORD_CHARS {
-            return Err(AppError::Validation(format!(
-                "The lock password must have at least {MIN_PASSWORD_CHARS} characters."
-            )));
+            return Err(AppError::validation_key(
+                "lock.minLength",
+                format!("The lock password must have at least {MIN_PASSWORD_CHARS} characters."),
+            )
+            .with_param("min", MIN_PASSWORD_CHARS));
         }
         let has = self.has_password();
         if has {
-            let current = current
-                .ok_or_else(|| AppError::Validation("Enter the current lock password.".into()))?;
+            let current = current.ok_or_else(|| {
+                AppError::validation_key("lock.needCurrent", "Enter the current lock password.")
+            })?;
             if !self.verify_only(current)? {
-                return Err(AppError::Validation(
-                    "The current lock password is wrong.".into(),
+                return Err(AppError::validation_key(
+                    "lock.currentWrong",
+                    "The current lock password is wrong.",
                 ));
             }
         }
@@ -309,7 +314,10 @@ impl LockService {
     /// Remove the password (and with it the lock). Requires the current one.
     pub fn remove_password(&self, current: &SecretString) -> AppResult<()> {
         if !self.verify_only(current)? {
-            return Err(AppError::Validation("The lock password is wrong.".into()));
+            return Err(AppError::validation_key(
+                "lock.wrong",
+                "The lock password is wrong.",
+            ));
         }
         let mut inner = self.inner();
         let file = LockFile {

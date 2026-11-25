@@ -6,6 +6,8 @@
 // collapsible). Compact on purpose: a document list only when there is more than
 // one document, a small toolbar, the document.
 
+import { Trans, useTranslation } from 'react-i18next';
+import { formatDateTime, formatPercent } from '../../i18n/format';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { confirmAction, promptText } from '../../app/dialogs';
 import { ContextMenu, type MenuEntry } from '../../components/ContextMenu';
@@ -26,17 +28,7 @@ import {
 import { DocView, copyText } from './DocView';
 import { useNotes } from './store';
 
-const KIND_LABEL = {
-  internal: { markdown: 'Markdown note', text: 'Text note', html: 'Note' },
-  localFile: {
-    markdown: 'Linked Markdown file',
-    text: 'Linked text file',
-    html: 'Linked HTML file',
-  },
-  remoteUrl: { markdown: 'Web Markdown', text: 'Web text', html: 'Web page' },
-} as const;
-
-const when = (seconds: number) => new Date(seconds * 1000).toLocaleString();
+const when = (seconds: number) => formatDateTime(seconds * 1000);
 
 function hostOf(url: string | null): string {
   try {
@@ -61,6 +53,7 @@ export function NotesPanel({
   connectionId: Uuid;
   connectionName: string;
 }) {
+  const { t } = useTranslation();
   const overview = useNotes((s) => s.overview[connectionId]);
   const entry = useNotes((s) => {
     const o = s.overview[connectionId];
@@ -136,23 +129,28 @@ export function NotesPanel({
     const entries: MenuEntry[] = [
       {
         kind: 'item',
-        label: 'New Markdown note…',
+        label: t('notes.menu.newMarkdown'),
         icon: 'newFile',
         onSelect: () => newNote('markdown'),
       },
-      { kind: 'item', label: 'New text note…', icon: 'newFile', onSelect: () => newNote('text') },
+      {
+        kind: 'item',
+        label: t('notes.menu.newText'),
+        icon: 'newFile',
+        onSelect: () => newNote('text'),
+      },
       { kind: 'separator' },
       {
         kind: 'item',
-        label: 'Attach a file…',
+        label: t('notes.menu.attachFile'),
         icon: 'file',
         onSelect: () => void actions.attachFile(connectionId),
       },
-      { kind: 'item', label: 'Add a web address…', onSelect: addUrl },
+      { kind: 'item', label: t('notes.menu.addUrl'), onSelect: addUrl },
     ];
     entries.push({
       kind: 'item',
-      label: 'Attach an existing note…',
+      label: t('notes.menu.attachExisting'),
       onSelect: () => void attachExisting(),
     });
     setMenu({ x: r.left, y: r.bottom + 2, entries });
@@ -160,11 +158,11 @@ export function NotesPanel({
 
   const newNote = (format: 'markdown' | 'text') =>
     promptText({
-      title: format === 'markdown' ? 'New Markdown note' : 'New text note',
-      label: 'Title',
+      title: format === 'markdown' ? t('notes.newMarkdownTitle') : t('notes.newTextTitle'),
+      label: t('notes.titleLabel'),
       initial: '',
-      confirmLabel: 'Create',
-      validate: (v) => (v.trim() ? null : 'Give the note a title.'),
+      confirmLabel: t('folder.create'),
+      validate: (v) => (v.trim() ? null : t('notes.needTitle')),
       onSubmit: (title) => {
         void actions.createNote(connectionId, title, format).then((id) => {
           if (id) {
@@ -177,13 +175,12 @@ export function NotesPanel({
 
   const addUrl = () =>
     promptText({
-      title: 'Add a web document',
-      label: 'Address (https://…)',
+      title: t('notes.addUrlTitle'),
+      label: t('notes.addUrlLabel'),
       initial: '',
-      confirmLabel: 'Add',
-      hint: 'A Markdown, text or HTML page, for example a GitHub README. It is read-only and is not stored unless you save an offline copy.',
-      validate: (v) =>
-        /^https:\/\//i.test(v.trim()) ? null : 'Use an address that starts with https://',
+      confirmLabel: t('notes.add'),
+      hint: t('notes.addUrlHint'),
+      validate: (v) => (/^https:\/\//i.test(v.trim()) ? null : t('notes.httpsOnly')),
       onSubmit: (url) => void actions.attachUrl(connectionId, url.trim()),
     });
 
@@ -204,20 +201,20 @@ export function NotesPanel({
       entries: free.length
         ? free.map((n) => ({
             kind: 'item' as const,
-            label: n.orphan ? `${n.title} (unattached)` : n.title,
+            label: n.orphan ? t('notes.unattached', { title: n.title }) : n.title,
             onSelect: () => void actions.attachExisting(connectionId, n.id),
           }))
-        : [{ kind: 'item', label: 'No other notes', disabled: true, onSelect: () => undefined }],
+        : [{ kind: 'item', label: t('notes.noOthers'), disabled: true, onSelect: () => undefined }],
     });
   };
 
   const rename = (n: NoteSummary) =>
     promptText({
-      title: 'Rename note',
-      label: 'Title',
+      title: t('notes.renameTitle'),
+      label: t('notes.titleLabel'),
       initial: n.title,
-      confirmLabel: 'Rename',
-      validate: (v) => (v.trim() ? null : 'Give the note a title.'),
+      confirmLabel: t('rename.submit'),
+      validate: (v) => (v.trim() ? null : t('notes.needTitle')),
       onSubmit: (title) => void actions.rename(connectionId, n.id, title),
     });
 
@@ -227,10 +224,10 @@ export function NotesPanel({
     const r = e.currentTarget.getBoundingClientRect();
     const idx = list.findIndex((x) => x.id === n.id);
     const entries: MenuEntry[] = [
-      { kind: 'item', label: 'Rename…', icon: 'edit', onSelect: () => rename(n) },
+      { kind: 'item', label: t('sftp.menu.rename'), icon: 'edit', onSelect: () => rename(n) },
       {
         kind: 'item',
-        label: 'Copy all',
+        label: t('notes.copyAll'),
         icon: 'copy',
         disabled: text === null,
         onSelect: () => void copyText(text ?? ''),
@@ -241,18 +238,18 @@ export function NotesPanel({
         { kind: 'separator' },
         {
           kind: 'item',
-          label: 'Reload from disk',
+          label: t('notes.reload'),
           icon: 'refresh',
           onSelect: () => void actions.loadContent(n.id, true),
         },
         {
           kind: 'item',
-          label: 'Open in external application',
+          label: t('notes.openExternal'),
           onSelect: () => void ipc.noteOpenExternal(n.id).catch(reportError),
         },
         {
           kind: 'item',
-          label: 'Locate file…',
+          label: t('notes.locate'),
           onSelect: () => void actions.relocate(connectionId, n.id),
         },
       );
@@ -262,25 +259,25 @@ export function NotesPanel({
         { kind: 'separator' },
         {
           kind: 'item',
-          label: 'Refresh from source',
+          label: t('notes.refreshSource'),
           icon: 'refresh',
           onSelect: () => void actions.loadContent(n.id, true),
         },
         n.offline
           ? {
               kind: 'item',
-              label: 'Remove offline copy',
+              label: t('notes.removeOffline'),
               onSelect: () => void actions.removeOffline(connectionId, n.id),
             }
           : {
               kind: 'item',
-              label: 'Save offline copy',
+              label: t('notes.saveOffline'),
               icon: 'download',
               onSelect: () => void actions.saveOffline(connectionId, n.id),
             },
         {
           kind: 'item',
-          label: 'Open original in browser',
+          label: t('notes.openOriginal'),
           onSelect: () => void ipc.noteOpenExternal(n.id).catch(reportError),
         },
       );
@@ -289,34 +286,34 @@ export function NotesPanel({
       { kind: 'separator' },
       {
         kind: 'item',
-        label: 'Move up',
+        label: t('conn.menu.moveUp'),
         disabled: idx <= 0,
         onSelect: () => void actions.move(connectionId, n.id, -1),
       },
       {
         kind: 'item',
-        label: 'Move down',
+        label: t('conn.menu.moveDown'),
         disabled: idx >= list.length - 1,
         onSelect: () => void actions.move(connectionId, n.id, 1),
       },
       { kind: 'separator' },
       {
         kind: 'item',
-        label: 'Detach from this connection',
+        label: t('notes.detach'),
         onSelect: () => void actions.detach(connectionId, n.id),
       },
       {
         kind: 'item',
-        label: 'Delete everywhere…',
+        label: t('notes.deleteEverywhere'),
         danger: true,
         icon: 'trash',
         onSelect: () =>
           confirmAction({
-            title: 'Delete this document everywhere?',
+            title: t('notes.deleteTitle'),
             message: n.shared
-              ? `“${n.title}” is attached to ${n.sharedWith.length + 1} connections. It will be deleted from all of them. This cannot be undone. To remove it from this connection only, use “Detach from this connection”.`
-              : `“${n.title}” will be deleted. This cannot be undone.`,
-            confirmLabel: 'Delete everywhere',
+              ? t('notes.deleteShared', { title: n.title, count: n.sharedWith.length + 1 })
+              : t('notes.deleteOne', { title: n.title }),
+            confirmLabel: t('notes.deleteConfirm'),
             danger: true,
             onConfirm: () => void actions.remove(connectionId, n.id),
           }),
@@ -340,20 +337,23 @@ export function NotesPanel({
   // ---- empty ----------------------------------------------------------------
   if (overview && list.length === 0) {
     return (
-      <div className="notes-panel notes-empty" aria-label={`Notes of ${connectionName}`}>
-        <p className="hint">No notes for {connectionName} yet.</p>
+      <div
+        className="notes-panel notes-empty"
+        aria-label={t('notes.panelAria', { name: connectionName })}
+      >
+        <p className="hint">{t('notes.noneFor', { name: connectionName })}</p>
         <div className="notes-empty-actions">
           <button className="btn" onClick={() => newNote('markdown')}>
-            New note…
+            {t('notes.newNote')}
           </button>
           <button className="btn" onClick={() => void actions.attachFile(connectionId)}>
-            Attach a file…
+            {t('notes.menu.attachFile')}
           </button>
           <button className="btn" onClick={addUrl}>
-            Add a web address…
+            {t('notes.menu.addUrl')}
           </button>
           <button className="btn" onClick={() => void attachExisting()}>
-            Attach an existing note…
+            {t('notes.menu.attachExisting')}
           </button>
         </div>
         {menu && (
@@ -367,18 +367,32 @@ export function NotesPanel({
   const loading = !entry || entry.status === 'loading';
 
   return (
-    <div className="notes-panel" aria-label={`Notes of ${connectionName}`}>
+    <div className="notes-panel" aria-label={t('notes.panelAria', { name: connectionName })}>
       <div className="notes-head">
-        <span className="notes-title" title={`Notes — ${connectionName}`}>
-          Notes — <span className="notes-title-name">{connectionName}</span>
+        <span className="notes-title" title={t('notes.headTitle', { name: connectionName })}>
+          <Trans
+            i18nKey="notes.headTitleRich"
+            values={{ name: connectionName }}
+            components={{ name: <span className="notes-title-name" /> }}
+          />
         </span>
-        <button className="icon-btn" aria-label="Add a note" title="Add a note" onClick={addMenu}>
+        <button
+          className="icon-btn"
+          aria-label={t('notes.addNote')}
+          title={t('notes.addNote')}
+          onClick={addMenu}
+        >
           <Icon name="plus" />
         </button>
       </div>
 
       {list.length > 1 && (
-        <ul className="notes-list" role="listbox" aria-label="Documents" onKeyDown={onListKey}>
+        <ul
+          className="notes-list"
+          role="listbox"
+          aria-label={t('notes.documents')}
+          onKeyDown={onListKey}
+        >
           {list.map((n) => (
             <li key={n.id} role="presentation">
               <button
@@ -387,16 +401,19 @@ export function NotesPanel({
                 aria-selected={n.id === selected?.id}
                 title={
                   n.shared
-                    ? `${n.title} — shared with ${sharedNames(n).join(', ') || 'other connections'}`
+                    ? t('notes.sharedWith', {
+                        title: n.title,
+                        names: sharedNames(n).join(', ') || t('notes.otherConnections'),
+                      })
                     : n.title
                 }
                 tabIndex={n.id === selected?.id ? 0 : -1}
                 onClick={() => void actions.select(connectionId, n.id)}
               >
                 <span className="notes-item-title">{n.title}</span>
-                {n.shared && <span className="notes-badge">shared</span>}
+                {n.shared && <span className="notes-badge">{t('notes.sharedBadge')}</span>}
                 {drafts[n.id] && (
-                  <span className="notes-badge" title="Unsaved changes">
+                  <span className="notes-badge" title={t('notes.unsavedBadge')}>
                     •
                   </span>
                 )}
@@ -412,15 +429,19 @@ export function NotesPanel({
             <div className="notes-doc-title">
               <strong>{selected.title}</strong>
               <span className="hint">
-                {KIND_LABEL[selected.kind][content?.format ?? selected.format]}
+                {t(`notes.kind.${selected.kind}.${content?.format ?? selected.format}`)}
                 {selected.shared &&
-                  ` · shared with ${sharedNames(selected).join(', ') || `${selected.sharedWith.length} more`}`}
+                  ` · ${t('notes.sharedWithShort', {
+                    names:
+                      sharedNames(selected).join(', ') ||
+                      t('notes.sharedMore', { count: selected.sharedWith.length }),
+                  })}`}
               </span>
             </div>
             <button
               className="icon-btn"
-              aria-label="Document actions"
-              title="Document actions"
+              aria-label={t('notes.actions')}
+              title={t('notes.actions')}
               onClick={moreMenu}
             >
               <Icon name="chevronDown" />
@@ -429,28 +450,28 @@ export function NotesPanel({
 
           <div className="notes-toolbar">
             {editable && (
-              <div className="segmented" role="group" aria-label="Mode">
+              <div className="segmented" role="group" aria-label={t('notes.mode')}>
                 <button
                   type="button"
                   aria-pressed={mode === 'preview'}
                   onClick={() => setMode('preview')}
                 >
-                  Preview
+                  {t('notes.preview')}
                 </button>
                 <button
                   type="button"
                   aria-pressed={mode === 'edit'}
                   onClick={() => setMode('edit')}
                 >
-                  Edit
+                  {t('notes.edit')}
                 </button>
               </div>
             )}
             <input
               className="input notes-search"
               type="search"
-              placeholder="Search"
-              aria-label="Search in document"
+              placeholder={t('notes.search')}
+              aria-label={t('notes.searchAria')}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -463,14 +484,14 @@ export function NotesPanel({
             />
             {query.trim() && (
               <span className="hint" aria-live="polite" data-testid="search-count">
-                {hits ? `${Math.min(hit + 1, hits)} / ${hits}` : 'No matches'}
+                {hits ? `${Math.min(hit + 1, hits)} / ${hits}` : t('notes.noMatches')}
               </span>
             )}
-            <div className="notes-zoom" role="group" aria-label="Zoom">
+            <div className="notes-zoom" role="group" aria-label={t('notes.zoom')}>
               <button
                 className="icon-btn"
-                aria-label="Zoom out"
-                title="Zoom out"
+                aria-label={t('notes.zoomOut')}
+                title={t('notes.zoomOut')}
                 disabled={zoom <= 50}
                 onClick={() => setZoom(zoom - ZOOM_STEP)}
               >
@@ -478,16 +499,16 @@ export function NotesPanel({
               </button>
               <button
                 className="notes-zoom-value"
-                aria-label="Reset zoom to 100%"
-                title="Reset to 100%"
+                aria-label={t('notes.zoomResetAria')}
+                title={t('notes.zoomReset')}
                 onClick={() => setZoom(100)}
               >
-                {zoom}%
+                {formatPercent(zoom)}
               </button>
               <button
                 className="icon-btn"
-                aria-label="Zoom in"
-                title="Zoom in"
+                aria-label={t('notes.zoomIn')}
+                title={t('notes.zoomIn')}
                 disabled={zoom >= 200}
                 onClick={() => setZoom(zoom + ZOOM_STEP)}
               >
@@ -495,8 +516,8 @@ export function NotesPanel({
               </button>
               <button
                 className="icon-btn"
-                aria-label="Fit to width"
-                title="Fit to width"
+                aria-label={t('notes.fit')}
+                title={t('notes.fit')}
                 onClick={() => {
                   // wide code blocks and tables scroll inside the document; fit makes the widest one fit
                   const el = docRef.current;
@@ -514,25 +535,25 @@ export function NotesPanel({
           </div>
 
           <div className="notes-body" ref={scrollRef}>
-            {loading && <p className="hint">Loading…</p>}
+            {loading && <p className="hint">{t('notes.loading')}</p>}
             {failure && (
               <div className="notes-problem" role="alert">
                 <p>{failure}</p>
                 <button className="btn" onClick={() => void actions.loadContent(selected.id, true)}>
-                  Try again
+                  {t('notes.tryAgain')}
                 </button>
               </div>
             )}
             {content && content.status !== 'ok' && (
               <div className="notes-problem" role="alert">
-                <p>{content.problem ?? 'This document cannot be shown.'}</p>
+                <p>{content.problem ?? t('notes.cannotShow')}</p>
                 <div className="notes-empty-actions">
                   {content.status === 'missing' && (
                     <button
                       className="btn"
                       onClick={() => void actions.relocate(connectionId, selected.id)}
                     >
-                      Locate file…
+                      {t('notes.locate')}
                     </button>
                   )}
                   {(content.status === 'offline' || content.status === 'error') && (
@@ -540,7 +561,7 @@ export function NotesPanel({
                       className="btn"
                       onClick={() => void actions.loadContent(selected.id, true)}
                     >
-                      Try again
+                      {t('notes.tryAgain')}
                     </button>
                   )}
                   {selected.kind === 'remoteUrl' && (
@@ -548,7 +569,7 @@ export function NotesPanel({
                       className="btn"
                       onClick={() => void ipc.noteOpenExternal(selected.id).catch(reportError)}
                     >
-                      Open in browser
+                      {t('notes.openBrowser')}
                     </button>
                   )}
                   {selected.kind === 'localFile' && content.status !== 'missing' && (
@@ -556,14 +577,14 @@ export function NotesPanel({
                       className="btn"
                       onClick={() => void ipc.noteOpenExternal(selected.id).catch(reportError)}
                     >
-                      Open in external application
+                      {t('notes.openExternal')}
                     </button>
                   )}
                   <button
                     className="btn"
                     onClick={() => void actions.detach(connectionId, selected.id)}
                   >
-                    Detach
+                    {t('notes.detachShort')}
                   </button>
                 </div>
               </div>
@@ -576,7 +597,7 @@ export function NotesPanel({
             {mode === 'edit' && editable && text !== null && (
               <textarea
                 className="notes-editor"
-                aria-label="Edit note"
+                aria-label={t('notes.editAria')}
                 spellCheck={false}
                 value={text}
                 style={{ fontSize: `${(13 * zoom) / 100}px` }}
@@ -591,24 +612,26 @@ export function NotesPanel({
           <div className="notes-foot hint">
             {draft?.state === 'failed' ? (
               <>
-                <span role="alert">Not saved: {draft.error}</span>
+                <span role="alert">{t('notes.notSaved', { error: draft.error })}</span>
                 <button className="btn" onClick={() => void actions.flush(selected.id)}>
-                  Retry
+                  {t('notes.retry')}
                 </button>
               </>
             ) : draft ? (
-              <span>{draft.state === 'saving' ? 'Saving…' : 'Unsaved changes'}</span>
+              <span>{draft.state === 'saving' ? t('notes.saving') : t('notes.unsaved')}</span>
             ) : selected.kind === 'internal' ? (
-              <span>Saved on this computer</span>
+              <span>{t('notes.savedHere')}</span>
             ) : selected.kind === 'localFile' ? (
-              <span title={selected.source ?? ''}>Linked file (read-only)</span>
+              <span title={selected.source ?? ''}>{t('notes.linkedReadOnly')}</span>
             ) : (
               <span title={selected.source ?? ''}>
                 {content?.fromOffline
-                  ? `Offline copy saved ${selected.offline ? when(selected.offline.savedAt) : ''}`
-                  : `${hostOf(selected.source)} · read-only`}
+                  ? t('notes.offlineSaved', {
+                      when: selected.offline ? when(selected.offline.savedAt) : '',
+                    })
+                  : t('notes.readOnlyHost', { host: hostOf(selected.source) })}
                 {selected.offline && !content?.fromOffline
-                  ? ` · offline copy saved ${when(selected.offline.savedAt)}`
+                  ? ` · ${t('notes.offlineSaved', { when: when(selected.offline.savedAt) })}`
                   : ''}
               </span>
             )}

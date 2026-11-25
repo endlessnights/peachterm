@@ -717,22 +717,27 @@ Notes:
 
 ## npm packages
 
-| Package                    | Version | License           |
-| -------------------------- | ------- | ----------------- |
-| @dnd-kit/accessibility     | 3.1.1   | MIT               |
-| @dnd-kit/core              | 6.3.1   | MIT               |
-| @dnd-kit/sortable          | 10.0.0  | MIT               |
-| @dnd-kit/utilities         | 3.2.2   | MIT               |
-| @fontsource/jetbrains-mono | 5.3.0   | OFL-1.1           |
-| @tauri-apps/api            | 2.12.5  | Apache-2.0 OR MIT |
-| @tauri-apps/plugin-dialog  | 2.8.4   | MIT OR Apache-2.0 |
-| @types/react               | 19.3.0  | MIT               |
-| @xterm/addon-fit           | 0.11.0  | MIT               |
-| @xterm/addon-search        | 0.16.0  | MIT               |
-| @xterm/xterm               | 6.0.0   | MIT               |
-| csstype                    | 3.2.4   | MIT               |
-| react                      | 19.3.1  | MIT               |
-| react-dom                  | 19.3.1  | MIT               |
-| scheduler                  | 0.28.0  | MIT               |
-| tslib                      | 2.9.1   | 0BSD              |
-| zustand                    | 5.1.0   | MIT               |
+| Package                    | Version  | License           |
+| -------------------------- | -------- | ----------------- |
+| @dnd-kit/accessibility     | 3.1.1    | MIT               |
+| @dnd-kit/core              | 6.3.1    | MIT               |
+| @dnd-kit/sortable          | 10.0.0   | MIT               |
+| @dnd-kit/utilities         | 3.2.2    | MIT               |
+| @fontsource/jetbrains-mono | 5.3.0    | OFL-1.1           |
+| @tauri-apps/api            | 2.12.5   | Apache-2.0 OR MIT |
+| @tauri-apps/plugin-dialog  | 2.8.4    | MIT OR Apache-2.0 |
+| @types/react               | 19.3.0   | MIT               |
+| @xterm/addon-fit           | 0.11.0   | MIT               |
+| @xterm/addon-search        | 0.16.0   | MIT               |
+| @xterm/xterm               | 6.0.0    | MIT               |
+| csstype                    | 3.2.4    | MIT               |
+| html-parse-stringify       | 3.1.0    | MIT               |
+| i18next                    | 25.10.10 | MIT               |
+| react                      | 19.3.1   | MIT               |
+| react-dom                  | 19.3.1   | MIT               |
+| react-i18next              | 16.6.6   | MIT               |
+| scheduler                  | 0.28.0   | MIT               |
+| tslib                      | 2.9.1    | 0BSD              |
+| use-sync-external-store    | 1.7.0    | MIT               |
+| void-elements              | 3.1.0    | MIT               |
+| zustand                    | 5.1.0    | MIT               |

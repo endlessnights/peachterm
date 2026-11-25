@@ -11,6 +11,7 @@
 // Keys are matched by physical position (`KeyboardEvent.code`), so shortcuts
 // keep working on non-Latin keyboard layouts.
 
+import { t as tr } from '../i18n';
 import definitions from './shortcutDefaults.json';
 
 export type ActionId =
@@ -32,27 +33,15 @@ export type ActionId =
   | 'focusNextPane'
   | 'unsplit';
 
-export const ACTION_LABELS: Record<ActionId, string> = {
-  newTab: 'New terminal tab',
-  newConnection: 'New saved connection',
-  closeTab: 'Close active tab',
-  openSettings: 'Settings',
-  toggleSidebar: 'Toggle sidebar',
-  searchConnections: 'Search connections',
-  terminalSearch: 'Search in terminal',
-  rename: 'Rename selected connection/folder',
-  lockApp: 'Lock application',
-  nextTab: 'Next tab',
-  prevTab: 'Previous tab',
-  duplicateTab: 'Duplicate tab (new session)',
-  splitVertical: 'Split side by side',
-  splitHorizontal: 'Split stacked',
-  toggleSplitOrientation: 'Toggle split orientation',
-  focusNextPane: 'Focus next terminal pane',
-  unsplit: 'Close split view (keep sessions)',
-};
-
 export const ACTION_IDS = definitions.actions.map((a) => a.id) as ActionId[];
+
+/** Localized action names; read lazily so a language switch shows at once. */
+export const ACTION_LABELS = Object.defineProperties(
+  {} as Record<ActionId, string>,
+  Object.fromEntries(
+    ACTION_IDS.map((id) => [id, { enumerable: true, get: () => tr(`keys.action.${id}`) }]),
+  ),
+);
 
 export const DEFAULT_BINDINGS: Record<ActionId, string> = Object.fromEntries(
   definitions.actions.map((a) => [a.id, a.default]),
@@ -119,15 +108,15 @@ export function parseAccelerator(accel: string, mac = isMac()): ParseResult {
   const parts = accel.split('+');
   const key = parts[parts.length - 1] ?? '';
   const modifiers = parts.slice(0, -1);
-  if (!keyIsValid(key)) return { ok: false, error: `unsupported key "${key}"` };
+  if (!keyIsValid(key)) return { ok: false, error: tr('keys.err.key', { key }) };
   const on = { Mod: false, Ctrl: false, Alt: false, Shift: false, Meta: false };
   for (const m of modifiers) {
-    if (!(m in on)) return { ok: false, error: `unknown modifier "${m}"` };
-    if (on[m as keyof typeof on]) return { ok: false, error: 'a modifier is repeated' };
+    if (!(m in on)) return { ok: false, error: tr('keys.err.modifier', { key: m }) };
+    if (on[m as keyof typeof on]) return { ok: false, error: tr('keys.err.repeated') };
     on[m as keyof typeof on] = true;
   }
   if (modifiers.length === 0 && !isFunctionKey(key, 12)) {
-    return { ok: false, error: 'needs at least one modifier key (only F1–F12 may be used alone)' };
+    return { ok: false, error: tr('keys.err.needsModifier') };
   }
   const canonical = [
     ...(['Mod', 'Ctrl', 'Alt', 'Shift', 'Meta'] as const).filter((m) => on[m]),
@@ -267,15 +256,40 @@ export interface Problem {
   message: string;
 }
 
+const RESERVED_KEYS = {
+  'changes the web view zoom': 'zoom',
+  'closes the window (handled by the operating system)': 'closeWindow',
+  'hides the application (handled by macOS)': 'hide',
+  'is the Windows secure attention sequence': 'sas',
+  'minimises the window (handled by macOS)': 'minimise',
+  'opens Spotlight (handled by macOS)': 'spotlight',
+  'opens developer tools': 'devtools',
+  'opens the page source viewer': 'source',
+  'opens the system menu': 'sysmenu',
+  'opens the web view print dialog': 'print',
+  'opens the window menu': 'winmenu',
+  'quits the application (handled by macOS)': 'quit',
+  'reloads the web view and would discard the open tabs': 'reload',
+  'switches applications (handled by macOS)': 'switchApps',
+  'switches applications (handled by the operating system)': 'switchAppsOs',
+  'switches windows (handled by the operating system)': 'switchWindows',
+} as const;
+
+/** The localized sentence fragment for a reserved combination's (English) reason id. */
+export function reservedText(reason: string): string {
+  const key = RESERVED_KEYS[reason as keyof typeof RESERVED_KEYS];
+  return key ? tr(`keys.reason.${key}`) : reason;
+}
+
 function reservedReason(combo: Combo, mac: boolean): string | null {
   const lists = mac ? [definitions.reserved, definitions.reservedMac] : [definitions.reserved];
   for (const list of lists) {
     for (const entry of list) {
       const parsed = parseAccelerator(entry.accel, mac);
-      if (parsed.ok && sameCombo(parsed.combo, combo)) return entry.reason;
+      if (parsed.ok && sameCombo(parsed.combo, combo)) return reservedText(entry.reason);
     }
   }
-  if (!mac && combo.meta) return 'uses the Windows/Super key, which the operating system owns';
+  if (!mac && combo.meta) return tr('keys.reason.superKey');
   return null;
 }
 
@@ -295,12 +309,20 @@ export function checkBindings(overrides: Record<string, string>, mac = isMac()):
     if (!accel) continue;
     const parsed = parseAccelerator(accel, mac);
     if (!parsed.ok) {
-      problems.push({ action: id, kind: 'invalid', message: `Invalid shortcut: ${parsed.error}` });
+      problems.push({
+        action: id,
+        kind: 'invalid',
+        message: tr('keys.invalid', { error: parsed.error }),
+      });
       continue;
     }
     const reason = reservedReason(parsed.combo, mac);
     if (reason) {
-      problems.push({ action: id, kind: 'reserved', message: `Reserved: it ${reason}.` });
+      problems.push({
+        action: id,
+        kind: 'reserved',
+        message: tr('keys.reservedProblem', { reason }),
+      });
       continue;
     }
     const clash = seen.find((s) => sameCombo(s.combo, parsed.combo));
@@ -308,7 +330,7 @@ export function checkBindings(overrides: Record<string, string>, mac = isMac()):
       problems.push({
         action: id,
         kind: 'conflict',
-        message: `Already used by “${ACTION_LABELS[clash.action]}”.`,
+        message: tr('keys.usedBy', { action: ACTION_LABELS[clash.action] }),
       });
     } else {
       seen.push({ combo: parsed.combo, action: id });

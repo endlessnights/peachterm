@@ -68,7 +68,10 @@ pub struct Staging {
 }
 
 fn expired() -> AppError {
-    AppError::Validation("This step has expired or was cancelled. Please start again.".into())
+    AppError::validation_key(
+        "portability.expired",
+        "This step has expired or was cancelled. Please start again.",
+    )
 }
 
 impl Staging {

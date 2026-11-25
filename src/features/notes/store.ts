@@ -7,9 +7,10 @@
 // keeps the draft, says so, and offers a retry: nothing the user typed is
 // discarded without their say.
 
+import { errorMessage } from '../../i18n/errors';
 import { create } from 'zustand';
 import { reportError } from '../../components/Toasts';
-import { ipc, toAppError } from '../../shared/ipc';
+import { ipc } from '../../shared/ipc';
 import type { DocFormat, NoteContent, NotesOverview, NoteSummary, Uuid } from '../../shared/types';
 import { useActivity } from '../exit/activity';
 import { useLock } from '../lock/store';
@@ -66,7 +67,7 @@ interface NotesState {
 
 const timers = new Map<Uuid, ReturnType<typeof setTimeout>>();
 
-const message = (error: unknown) => toAppError(error).message;
+const message = (error: unknown) => errorMessage(error);
 
 export const useNotes = create<NotesState>((set, get) => {
   const syncUnsaved = () => {

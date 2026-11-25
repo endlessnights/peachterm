@@ -3,6 +3,8 @@
 
 // Pure helpers for the SFTP panel: sorting, filtering and formatting.
 
+import { t as tr } from '../../i18n';
+import { formatDecimal, formatNumber } from '../../i18n/format';
 import type { EntryKind, RemoteEntry } from '../../shared/types';
 
 export type SortKey = 'name' | 'size' | 'modified';
@@ -45,7 +47,7 @@ export function formatSize(bytes: number): string {
     value /= 1024;
     unit += 1;
   }
-  return `${value >= 10 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+  return `${value >= 10 ? formatNumber(Math.round(value)) : formatDecimal(value, 1)} ${units[unit]}`;
 }
 
 /** `drwxr-xr-x` style text for a mode and entry kind. */
@@ -92,25 +94,21 @@ export const joinRemote = (dir: string, name: string) =>
 
 export const baseName = (path: string) => path.replace(/\/+$/, '').split('/').pop() ?? path;
 
+const FAILURE_TOKENS = [
+  'already_exists',
+  'permission_denied',
+  'not_found',
+  'local_io',
+  'remote_changed',
+  'timeout',
+  'unavailable',
+] as const;
+
+/** A short localized reason for a transfer failure token (never the raw error). */
 export function describeFailure(reason: string): string {
-  switch (reason) {
-    case 'already_exists':
-      return 'already exists on the server';
-    case 'permission_denied':
-      return 'permission denied';
-    case 'not_found':
-      return 'not found';
-    case 'local_io':
-      return 'the local file could not be read or written';
-    case 'remote_changed':
-      return 'it changed on the server meanwhile';
-    case 'timeout':
-      return 'the server did not answer in time';
-    case 'unavailable':
-      return 'the connection was lost';
-    default:
-      return 'the server reported an error';
-  }
+  return (FAILURE_TOKENS as readonly string[]).includes(reason)
+    ? tr(`sftp.failure.${reason as (typeof FAILURE_TOKENS)[number]}`)
+    : tr('sftp.failure.other');
 }
 
 /**
@@ -118,14 +116,13 @@ export function describeFailure(reason: string): string {
  * server and Rust check again; this gives the answer before anything is sent.
  */
 export function validateRemoteName(name: string, existing: string[] = []): string | null {
-  if (name.trim() === '') return 'Enter a name.';
-  if (name === '.' || name === '..') return `"${name}" is not a valid name.`;
-  if (name.includes('/')) return 'A name cannot contain /.';
+  if (name.trim() === '') return tr('sftp.name.enter');
+  if (name === '.' || name === '..') return tr('sftp.name.invalid', { name });
+  if (name.includes('/')) return tr('sftp.name.slash');
   if ([...name].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) {
-    return 'A name cannot contain control characters.';
+    return tr('sftp.name.control');
   }
-  if (new TextEncoder().encode(name).length > 255)
-    return 'That name is too long (255 bytes at most).';
-  if (existing.includes(name)) return `"${name}" already exists in this folder.`;
+  if (new TextEncoder().encode(name).length > 255) return tr('sftp.name.tooLong');
+  if (existing.includes(name)) return tr('sftp.name.exists', { name });
   return null;
 }

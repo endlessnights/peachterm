@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /** Rust enforces the same minimum (`MIN_PASSPHRASE_CHARS`); this only guides. */
+import { t as tr } from '../../../i18n';
+
 export const MIN_PASSPHRASE_CHARS = 12;
 
 export type Strength = 'empty' | 'tooShort' | 'weak' | 'fair' | 'good' | 'strong';
@@ -30,8 +32,8 @@ export function assessPassphrase(value: string): Assessment {
     return {
       strength: 'tooShort',
       level: 1,
-      label: 'Too short',
-      advice: `Use at least ${MIN_PASSPHRASE_CHARS} characters.`,
+      label: tr('port.strength.tooShort'),
+      advice: tr('port.strength.tooShortAdvice', { min: MIN_PASSPHRASE_CHARS }),
     };
   }
   const lower = value.toLowerCase();
@@ -49,15 +51,30 @@ export function assessPassphrase(value: string): Assessment {
     return {
       strength: 'weak',
       level: 1,
-      label: 'Weak',
-      advice: 'Add more words or mix in different kinds of characters.',
+      label: tr('port.strength.weak'),
+      advice: tr('port.strength.weakAdvice'),
     };
   }
   if (bits < 60) {
-    return { strength: 'fair', level: 2, label: 'Fair', advice: 'A longer phrase would be safer.' };
+    return {
+      strength: 'fair',
+      level: 2,
+      label: tr('port.strength.fair'),
+      advice: tr('port.strength.fairAdvice'),
+    };
   }
   if (bits < 85) {
-    return { strength: 'good', level: 3, label: 'Good', advice: 'Reasonably strong.' };
+    return {
+      strength: 'good',
+      level: 3,
+      label: tr('port.strength.good'),
+      advice: tr('port.strength.goodAdvice'),
+    };
   }
-  return { strength: 'strong', level: 4, label: 'Strong', advice: 'Strong.' };
+  return {
+    strength: 'strong',
+    level: 4,
+    label: tr('port.strength.strong'),
+    advice: tr('port.strength.strongAdvice'),
+  };
 }

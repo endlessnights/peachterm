@@ -4,6 +4,9 @@
 // Formatting of live server readings. Memory and disk use binary units
 // (MiB, GiB, TiB) throughout; the kernel reports KiB.
 
+import { currentLanguage, t as tr } from '../../i18n';
+import { formatDecimal, formatNumber, formatPercent } from '../../i18n/format';
+
 const UNITS = ['KiB', 'MiB', 'GiB', 'TiB', 'PiB'] as const;
 
 /** `kib` -> { value, unit } in the largest unit that keeps the value >= 1. */
@@ -17,7 +20,7 @@ export function binary(kib: number): { value: number; unit: string } {
   return { value, unit: UNITS[i]! };
 }
 
-const num = (v: number) => (v >= 100 ? v.toFixed(0) : v.toFixed(1));
+const num = (v: number) => (v >= 100 ? formatNumber(Math.round(v)) : formatDecimal(v, 1));
 
 /** "39.2 GiB" */
 export function formatSize(kib: number): string {
@@ -34,8 +37,20 @@ export function formatUsage(usedKib: number, totalKib: number): string {
 }
 
 export function percent(value: number): string {
-  return `${Math.round(Math.min(100, Math.max(0, value)))}%`;
+  return formatPercent(Math.round(Math.min(100, Math.max(0, value))));
 }
+
+const unitText = (
+  n: number,
+  unit: 'day' | 'hour' | 'minute' | 'second',
+  display: 'narrow' | 'long',
+) =>
+  new Intl.NumberFormat(currentLanguage(), {
+    style: 'unit',
+    unit,
+    unitDisplay: display,
+    maximumFractionDigits: 0,
+  }).format(n);
 
 /** Compact: "12d 8h", "3h 25m", "5m", "40s". */
 export function formatUptime(secs: number): string {
@@ -43,10 +58,10 @@ export function formatUptime(secs: number): string {
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m`;
-  return `${s}s`;
+  if (d > 0) return `${unitText(d, 'day', 'narrow')} ${unitText(h, 'hour', 'narrow')}`;
+  if (h > 0) return `${unitText(h, 'hour', 'narrow')} ${unitText(m, 'minute', 'narrow')}`;
+  if (m > 0) return unitText(m, 'minute', 'narrow');
+  return unitText(s, 'second', 'narrow');
 }
 
 /** Long form for the details view: "12 days, 8 hours". */
@@ -55,30 +70,35 @@ export function formatUptimeLong(secs: number): string {
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
-  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
-  if (d > 0) return `${plural(d, 'day')}, ${plural(h, 'hour')}`;
-  if (h > 0) return `${plural(h, 'hour')}, ${plural(m, 'minute')}`;
-  return plural(m, 'minute');
+  const list = (...parts: [number, 'day' | 'hour' | 'minute'][]) =>
+    new Intl.ListFormat(currentLanguage(), { style: 'long', type: 'unit' }).format(
+      parts.map(([n, unit]) => unitText(n, unit, 'long')),
+    );
+  if (d > 0) return list([d, 'day'], [h, 'hour']);
+  if (h > 0) return list([h, 'hour'], [m, 'minute']);
+  return list([m, 'minute']);
 }
 
 export function formatAge(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
-  return s < 2 ? 'just now' : `${s} seconds ago`;
+  return s < 2
+    ? tr('monitor.justNow')
+    : new Intl.RelativeTimeFormat(currentLanguage(), { numeric: 'always' }).format(-s, 'second');
 }
 
 /** Concise, fixed explanations for the reason tokens Rust sends. */
 export function reasonText(reason: string | undefined): string {
   switch (reason) {
     case 'unsupported':
-      return 'This server does not expose the Linux /proc information PeachTerm reads (Linux servers only).';
+      return tr('monitor.reason.unsupported');
     case 'timeout':
-      return 'The server did not answer in time. PeachTerm will keep trying.';
+      return tr('monitor.reason.timeout');
     case 'channel':
-      return 'The server refused the monitoring request. PeachTerm will keep trying.';
+      return tr('monitor.reason.channel');
     case 'toolarge':
     case 'failed':
-      return 'The server returned an unexpected answer. PeachTerm will keep trying.';
+      return tr('monitor.reason.failed');
     default:
-      return 'Monitoring is not available right now.';
+      return tr('monitor.reason.default');
   }
 }

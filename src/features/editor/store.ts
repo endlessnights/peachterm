@@ -5,6 +5,8 @@
 // only names and the questions Rust asks ("upload this edit?", "the remote
 // file changed"). Answers go to Rust, which alone decides what is uploaded.
 
+import { t as tr } from '../../i18n';
+import { describeFailure } from '../sftp/model';
 import { create } from 'zustand';
 import { ipc, onEditorEvent } from '../../shared/ipc';
 import { notify, reportError } from '../../components/Toasts';
@@ -84,15 +86,18 @@ export const useEditor = create<EditorState>((set) => {
           set((s) => ({ questions: withoutQuestion(s.questions, event.editId) }));
           patch(event.editId, {
             state: 'uploaded',
-            note: event.atomic ? undefined : 'replaced without an atomic rename',
+            note: event.atomic ? undefined : tr('editor.notAtomic'),
           });
-          notify(`Uploaded ${event.name}.`);
+          notify(tr('editor.uploaded', { name: event.name }));
           break;
         case 'uploadFailed':
           patch(event.editId, { state: 'failed', note: event.message });
           reportError({
             code: event.reason,
-            message: `${event.name} was not uploaded: ${event.message}. Your local copy is kept.`,
+            message: tr('editor.uploadFailed', {
+              name: event.name,
+              reason: failureReason(event.reason, event.message),
+            }),
           });
           break;
         case 'conflict':
@@ -160,4 +165,10 @@ export const useEditor = create<EditorState>((set) => {
 
 export function listenForEditor(): () => void {
   return onEditorEvent((event) => useEditor.getState().handle(event));
+}
+
+/** A localized reason for known failure tokens; otherwise the backend's own short message. */
+function failureReason(token: string, fallback: string): string {
+  const known = describeFailure(token);
+  return known === tr('sftp.failure.other') ? fallback : known;
 }

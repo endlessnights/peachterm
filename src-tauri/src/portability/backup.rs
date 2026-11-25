@@ -382,8 +382,9 @@ pub fn create_backup(
         Ok(true) => {}
         Ok(false) | Err(_) => {
             fsio::discard(&temp);
-            return Err(AppError::Storage(
-                "The backup could not be verified after writing, so it was discarded. Nothing was saved.".into(),
+            return Err(AppError::storage_key(
+                "backup.verifyFailed",
+                "The backup could not be verified after writing, so it was discarded. Nothing was saved.",
             ));
         }
     }

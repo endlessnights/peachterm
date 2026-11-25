@@ -196,7 +196,7 @@ describe('encrypted backup and server notes', () => {
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Choose location…' }));
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Create encrypted backup' }));
     const report = await within(dialog).findByTestId('backup-notes-report');
-    expect(report.textContent).toContain('4 notes included');
+    expect(report.textContent).toContain('4 notes, 1 offline copy included');
     expect(report.textContent).toContain('1 offline copy');
     expect(report.textContent).toContain('1 linked file: only the path is saved, not the contents');
     expect(ssh.portability.backups[0]).toMatchObject({

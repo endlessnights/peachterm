@@ -3,6 +3,7 @@
 
 // Entry points to the notes panel: the connection and tab context menus.
 
+import { t } from '../../i18n';
 import { promptText } from '../../app/dialogs';
 import { notify, reportError } from '../../components/Toasts';
 import type { Connection } from '../../shared/types';
@@ -34,7 +35,7 @@ export function showNotesOfConnection(connection: Connection) {
     .getState()
     .tabs.find((t) => t.kind === 'ssh' && t.connectionId === connection.id);
   if (!tab) {
-    notify(`Open ${connection.name} to read its notes beside the terminal.`);
+    notify(t('notes.openFirst', { name: connection.name }));
     return;
   }
   showNotesOfTab(tab.id);
@@ -43,17 +44,17 @@ export function showNotesOfConnection(connection: Connection) {
 /** Add a Markdown note to a saved connection (no connection is needed). */
 export function addNoteToConnection(connection: Connection) {
   promptText({
-    title: `New note — ${connection.name}`,
-    label: 'Title',
+    title: t('notes.newNoteFor', { name: connection.name }),
+    label: t('notes.titleLabel'),
     initial: '',
-    confirmLabel: 'Create',
-    validate: (v) => (v.trim() ? null : 'Give the note a title.'),
+    confirmLabel: t('folder.create'),
+    validate: (v) => (v.trim() ? null : t('notes.needTitle')),
     onSubmit: (title) => {
       void useNotes
         .getState()
         .createNote(connection.id, title, 'markdown')
         .then((id) => {
-          if (id) notify('Note added. Open the connection to read or edit it.');
+          if (id) notify(t('notes.added'));
         });
     },
   });

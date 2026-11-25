@@ -1,6 +1,9 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { Trans, useTranslation } from 'react-i18next';
+import { t as tr } from '../../i18n';
+import { formatList } from '../../i18n/format';
 import { useEffect, useMemo, useState } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { notify, reportError } from '../../components/Toasts';
@@ -9,13 +12,18 @@ import type { DeletePlan, FolderDeleteMode, ItemRef } from '../../shared/types';
 import { useTabs } from '../sessions/store';
 import { useConnections } from './store';
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const counts = (connections: number, folders: number): string[] =>
+  [
+    connections > 0 && tr('count.connection', { count: connections }),
+    folders > 0 && tr('count.folder', { count: folders }),
+  ].filter((part): part is string => typeof part === 'string');
 
 /**
  * One consolidated confirmation for deleting any number of connections and
  * folders. The counts come from the backend, which also performs the deletion.
  */
 export function DeleteItemsDialog({ items, onClose }: { items: ItemRef[]; onClose: () => void }) {
+  const { t } = useTranslation();
   const tree = useConnections((s) => s.tree);
   const deleteItems = useConnections((s) => s.deleteItems);
   const tabs = useTabs((s) => s.tabs);
@@ -58,16 +66,17 @@ export function DeleteItemsDialog({ items, onClose }: { items: ItemRef[]; onClos
     setBusy(true);
     try {
       const outcome = await deleteItems(items, mode);
-      const parts = [
-        outcome.plan.connectionIds.length > 0 &&
-          plural(outcome.plan.connectionIds.length, 'connection'),
-        outcome.plan.folderIds.length > 0 && plural(outcome.plan.folderIds.length, 'folder'),
-      ].filter(Boolean);
-      notify(`Deleted ${parts.join(' and ')}.`);
+      notify(
+        t('conn.delete.deleted', {
+          what: formatList(
+            counts(outcome.plan.connectionIds.length, outcome.plan.folderIds.length),
+          ),
+        }),
+      );
       if (outcome.credentialFailures > 0) {
         reportError({
           code: 'credentials',
-          message: `${plural(outcome.credentialFailures, 'saved password')} could not be removed from the system keychain.`,
+          message: t('conn.delete.keychainFailed', { count: outcome.credentialFailures }),
         });
       }
       onClose();
@@ -83,9 +92,9 @@ export function DeleteItemsDialog({ items, onClose }: { items: ItemRef[]; onClos
   const title =
     items.length === 1
       ? selectedFolders
-        ? 'Delete folder'
-        : 'Delete connection'
-      : `Delete ${items.length} items`;
+        ? t('conn.delete.titleFolder')
+        : t('conn.delete.titleConnection')
+      : t('conn.delete.titleMany', { count: items.length });
 
   return (
     <Dialog
@@ -94,35 +103,31 @@ export function DeleteItemsDialog({ items, onClose }: { items: ItemRef[]; onClos
       footer={
         <>
           <button className="btn" onClick={onClose} data-autofocus>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             className="btn btn-danger"
             onClick={() => void confirm()}
             disabled={busy || !plan}
           >
-            Delete
+            {t('conn.delete.submit')}
           </button>
         </>
       }
     >
       <div className="dialog-body" role="alertdialog" aria-label={title}>
         <div>
-          You selected{' '}
-          <strong>
-            {[
-              selectedConnections > 0 && plural(selectedConnections, 'connection'),
-              selectedFolders > 0 && plural(selectedFolders, 'folder'),
-            ]
-              .filter(Boolean)
-              .join(' and ')}
-          </strong>
+          <Trans
+            i18nKey="conn.delete.selected"
+            values={{ what: formatList(counts(selectedConnections, selectedFolders)) }}
+            components={{ strong: <strong /> }}
+          />
           {names && <span className="hint"> ({names})</span>}.
         </div>
 
         {selectedFolders > 0 && (
           <fieldset className="delete-mode">
-            <legend>What should happen to the contents of the folders?</legend>
+            <legend>{t('conn.delete.contentsQuestion')}</legend>
             <label className="check">
               <input
                 type="radio"
@@ -130,7 +135,7 @@ export function DeleteItemsDialog({ items, onClose }: { items: ItemRef[]; onClos
                 checked={mode === 'moveToParent'}
                 onChange={() => setMode('moveToParent')}
               />
-              Keep them: move connections and sub-folders to the parent folder
+              {t('conn.delete.keep')}
             </label>
             <label className="check">
               <input
@@ -139,39 +144,34 @@ export function DeleteItemsDialog({ items, onClose }: { items: ItemRef[]; onClos
                 checked={mode === 'deleteContents'}
                 onChange={() => setMode('deleteContents')}
               />
-              Delete the folders together with everything inside them
+              {t('conn.delete.all')}
             </label>
           </fieldset>
         )}
 
         {plan && (
           <div className="notice" role="status">
-            This will delete{' '}
-            <strong>
-              {plural(doomedConnections, 'connection')}
-              {doomedFolders > 0 && ` and ${plural(doomedFolders, 'folder')}`}
-            </strong>
-            {(plan.movedConnections > 0 || plan.movedFolders > 0) && (
-              <>
-                {' '}
-                and move{' '}
-                {[
-                  plan.movedConnections > 0 && plural(plan.movedConnections, 'connection'),
-                  plan.movedFolders > 0 && plural(plan.movedFolders, 'folder'),
-                ]
-                  .filter(Boolean)
-                  .join(' and ')}{' '}
-                up one level
-              </>
-            )}
-            . Each deleted connection&apos;s saved password is removed from the system keychain; no
-            other credentials or files are touched. This cannot be undone.
+            <Trans
+              i18nKey={
+                plan.movedConnections > 0 || plan.movedFolders > 0
+                  ? 'conn.delete.willDeleteMove'
+                  : 'conn.delete.willDelete'
+              }
+              values={{
+                deleted: formatList([
+                  tr('count.connection', { count: doomedConnections }),
+                  ...(doomedFolders > 0 ? [tr('count.folder', { count: doomedFolders })] : []),
+                ]),
+                moved: formatList(counts(plan.movedConnections, plan.movedFolders)),
+              }}
+              components={{ strong: <strong /> }}
+            />{' '}
+            {t('conn.delete.consequence')}
           </div>
         )}
         {openTabs > 0 && (
           <div className="notice notice-warn" role="status">
-            {plural(openTabs, 'open tab')} use these connections. They stay open and keep running;
-            only the saved entries are deleted.
+            {t('conn.delete.openTabs', { count: openTabs })}
           </div>
         )}
       </div>

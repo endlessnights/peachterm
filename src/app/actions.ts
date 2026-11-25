@@ -9,6 +9,7 @@ import { isActiveStatus, useTabs } from '../features/sessions/store';
 import { useSettings } from '../features/settings/store';
 import type { Connection, ItemRef, Uuid } from '../shared/types';
 import { confirmAction, promptText, useDialogs } from './dialogs';
+import { t } from '../i18n';
 
 export function connect(connection: Connection) {
   // Phase 2 starts the SSH session here; Phase 1 opens the tab only.
@@ -32,18 +33,23 @@ export function requestCloseTabs(ids: string[]) {
   const close = () => useTabs.getState().closeTabs(tabs.map((t) => t.id));
   if (active.length >= 2 || (active.length === 1 && confirm)) {
     const single = tabs.length === 1;
+    const total = tabs.length > active.length ? tabs.length : null;
     confirmAction({
-      title: single ? 'Close active session?' : `Close ${tabs.length} tabs?`,
+      title: single ? t('closeTabs.titleSingle') : t('closeTabs.titleMany', { count: tabs.length }),
       message: single
         ? tabs[0]!.kind === 'ssh'
-          ? `"${tabs[0]!.title}" is still connected. Closing the tab ends the SSH session.`
-          : `"${tabs[0]!.title}" is a running local shell. Closing the tab ends it and the programs started in it.`
+          ? t('closeTabs.sshOne', { title: tabs[0]!.title })
+          : t('closeTabs.localOne', { title: tabs[0]!.title })
         : active.every((t) => t.kind === 'ssh')
-          ? `${active.length} active SSH session${active.length === 1 ? '' : 's'} will be disconnected` +
-            (tabs.length > active.length ? ` (${tabs.length} tabs in total).` : '.')
-          : `${active.length} active session${active.length === 1 ? '' : 's'} will be ended` +
-            (tabs.length > active.length ? ` (${tabs.length} tabs in total).` : '.'),
-      confirmLabel: single ? 'Close tab' : `Close ${tabs.length} tabs`,
+          ? total
+            ? t('closeTabs.sshTotal', { count: active.length, total })
+            : t('closeTabs.ssh', { count: active.length })
+          : total
+            ? t('closeTabs.anyTotal', { count: active.length, total })
+            : t('closeTabs.any', { count: active.length }),
+      confirmLabel: single
+        ? t('closeTabs.confirmSingle')
+        : t('closeTabs.confirmMany', { count: tabs.length }),
       danger: true,
       onConfirm: close,
     });
@@ -129,10 +135,10 @@ export function duplicateConnection(connection: Connection) {
 
 export function newFolder(parentId: Uuid | null) {
   promptText({
-    title: 'New folder',
-    label: 'Folder name',
+    title: t('folder.newTitle'),
+    label: t('folder.name'),
     initial: '',
-    confirmLabel: 'Create',
+    confirmLabel: t('folder.create'),
     onSubmit: (name) => {
       useConnections
         .getState()

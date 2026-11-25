@@ -6,6 +6,7 @@ import { Dialog } from '../../components/Dialog';
 import { useSettings } from '../settings/store';
 import { PRESETS, PRESET_ORDER, effectivePreset } from '../terminal/palettes';
 import { useTabs } from './store';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Terminal colours for ONE tab. The choice changes nothing else: not the
@@ -13,6 +14,7 @@ import { useTabs } from './store';
  * running (only the xterm colours are swapped).
  */
 export function TabColorsDialog({ tabId, onClose }: { tabId: string; onClose: () => void }) {
+  const { t } = useTranslation();
   const tab = useTabs((s) => s.tabs.find((t) => t.id === tabId));
   const setTabColors = useTabs((s) => s.setTabColors);
   const appearance = useSettings((s) => s.settings.appearance);
@@ -25,25 +27,22 @@ export function TabColorsDialog({ tabId, onClose }: { tabId: string; onClose: ()
   };
   return (
     <Dialog
-      title="Terminal colours"
+      title={t('tabColors.title')}
       onClose={onClose}
       footer={
         <>
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button className="btn btn-primary" onClick={apply}>
-            OK
+            {t('settings.ok')}
           </button>
         </>
       }
     >
       <div className="dialog-body">
-        <p className="hint">
-          Applies to “{tab.title}” only, without reconnecting. The application theme and other tabs
-          are not changed.
-        </p>
-        <div role="radiogroup" aria-label="Terminal colours for this tab" className="radio-list">
+        <p className="hint">{t('tabColors.hint', { title: tab.title })}</p>
+        <div role="radiogroup" aria-label={t('tabColors.group')} className="radio-list">
           <label className="check">
             <input
               type="radio"
@@ -51,7 +50,7 @@ export function TabColorsDialog({ tabId, onClose }: { tabId: string; onClose: ()
               checked={choice === null}
               onChange={() => setChoice(null)}
             />
-            Follow Global Theme ({global})
+            {t('tabColors.follow', { name: global })}
           </label>
           {PRESET_ORDER.map((id) => (
             <label className="check" key={id}>

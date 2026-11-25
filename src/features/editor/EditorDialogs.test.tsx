@@ -116,7 +116,8 @@ describe('"Remote file modified" prompt', () => {
     // not in the settings Rust persists, not in browser storage
     const saved = lastSaved(backend);
     expect(JSON.stringify(saved ?? {})).not.toMatch(/yesToAll|autoUpload|alwaysAllow/i);
-    expect(localStorage.length).toBe(0);
+    // only the interface-language hint may live in browser storage
+    expect(Object.keys(localStorage).filter((k) => k !== 'peachterm.language')).toEqual([]);
     expect(sessionStorage.length).toBe(0);
     // and the renderer keeps no memory of it: the next question is a full prompt again
     emit(confirm(sessionId));

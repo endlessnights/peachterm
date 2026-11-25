@@ -4,7 +4,14 @@
 // Global test setup: xterm.js needs a real layout engine, which jsdom lacks, so
 // tests use a small in-memory stand-in that records what the app does to it.
 
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
+import { applyLanguagePreference } from '../i18n';
+
+// Tests run in English unless they pick a language; undo any switch afterwards.
+applyLanguagePreference('en');
+afterEach(() => {
+  applyLanguagePreference('en');
+});
 
 export interface FakeTerminal {
   cols: number;

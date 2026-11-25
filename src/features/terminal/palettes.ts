@@ -8,6 +8,7 @@
 // and True Colour (RGB) sequences are never remapped, and output is never
 // parsed to colourise it.
 
+import { t as tr } from '../../i18n';
 import type { ITheme } from '@xterm/xterm';
 import type { Settings, ThemeMode } from '../../shared/types';
 
@@ -74,24 +75,8 @@ export const ANSI_KEYS = [
   'brightWhite',
 ] as const;
 
-export const ANSI_NAMES = [
-  'Black',
-  'Red',
-  'Green',
-  'Yellow',
-  'Blue',
-  'Magenta',
-  'Cyan',
-  'White',
-  'Bright black',
-  'Bright red',
-  'Bright green',
-  'Bright yellow',
-  'Bright blue',
-  'Bright magenta',
-  'Bright cyan',
-  'Bright white',
-] as const;
+/** Localized names of the 16 ANSI colours, by index. */
+export const ansiName = (index: number): string => tr(`colors.ansi.${index as 0}`);
 
 export const PRESETS: Record<TerminalPresetId, TerminalPalette> = {
   peachDark: {
@@ -487,7 +472,5 @@ export function readabilityWarning(background: string, foreground: string): stri
   const bg = solid(background);
   const fg = solid(foreground);
   if (!bg || !fg) return null;
-  return contrastRatio(bg, fg) < MIN_READABLE_CONTRAST
-    ? 'Text and background are too similar to read comfortably.'
-    : null;
+  return contrastRatio(bg, fg) < MIN_READABLE_CONTRAST ? tr('colors.readabilityShort') : null;
 }

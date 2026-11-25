@@ -5,11 +5,11 @@
 // (never silently, and never by closing anything).
 
 import { notify } from '../../components/Toasts';
-import { SPLIT_REFUSAL, useTabs, type SplitOrientation, type SplitResult } from './store';
+import { splitRefusal, useTabs, type SplitOrientation, type SplitResult } from './store';
 import type { Zone } from './layout';
 
 export function explain(result: SplitResult): SplitResult {
-  if (result === 'limit' || result === 'space') notify(SPLIT_REFUSAL[result]);
+  if (result === 'limit' || result === 'space') notify(splitRefusal(result));
   return result;
 }
 

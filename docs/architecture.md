@@ -181,6 +181,14 @@ Zustand stores, one per feature (`connections`, `sessions/tabs`, `settings`).
 Stores hold _metadata only_. High-frequency data (terminal output, transfer
 progress) bypasses stores and goes to imperative sinks.
 
+### Localization
+
+`src/i18n` (i18next): bundled JSON resources for six languages, English fallback, typed keys, `Intl` formatting.
+The language preference is `general.language` (`system` or a language code), validated in Rust
+(`storage/settings.rs`) and applied by the renderer without a restart. Backend errors expose stable keys/tokens
+(`AppError::Keyed`, `AppError::Remote`) that `src/i18n/errors.ts` translates. See
+[localization.md](localization.md).
+
 ## 10. Security boundaries summary
 
 - Tauri capabilities grant the renderer only `core:default`-style event access

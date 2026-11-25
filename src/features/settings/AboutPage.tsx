@@ -4,6 +4,9 @@
 // Settings → About: who made PeachTerm, which version this is, and under what
 // license. Links open in the default browser through a fixed list in Rust.
 
+import { useTranslation } from 'react-i18next';
+import { t as tr } from '../../i18n';
+import { formatDateTime } from '../../i18n/format';
 import { useEffect, useState } from 'react';
 import { reportError } from '../../components/Toasts';
 import { ipc } from '../../shared/ipc';
@@ -28,31 +31,32 @@ function ProjectLink({ to, href, children }: { to: LinkKey; href: string; childr
 }
 
 function statusText(phase: UpdatePhase, checking: boolean, version: string | undefined) {
-  if (checking) return 'Checking…';
+  if (checking) return tr('about.checking');
   switch (phase) {
     case 'upToDate':
-      return 'Up to date';
+      return tr('about.upToDate');
     case 'available':
-      return `Update available${version ? `: PeachTerm ${version}` : ''}`;
+      return version ? tr('about.availableVersion', { version }) : tr('app.updateAvailable');
     case 'downloading':
-      return 'Downloading…';
+      return tr('update.downloading');
     case 'ready':
-      return 'Ready to install';
+      return tr('about.readyInstall');
     case 'installing':
-      return 'Installing…';
+      return tr('about.installing');
     case 'failed':
-      return 'Update failed';
+      return tr('about.failed');
     case 'unavailable':
-      return 'Update check unavailable';
+      return tr('about.unavailable');
     default:
-      return 'Not checked yet';
+      return tr('about.notChecked');
   }
 }
 
 const when = (seconds: number | null | undefined) =>
-  seconds ? new Date(seconds * 1000).toLocaleString() : 'Never';
+  seconds ? formatDateTime(seconds * 1000) : tr('about.never');
 
 function UpdatesSection() {
+  const { t } = useTranslation();
   const { phase, checking, info, status, problem, check, openNotes, openNotice } = useUpdates();
   useEffect(() => {
     void useUpdates.getState().refresh();
@@ -60,11 +64,11 @@ function UpdatesSection() {
   const waiting = phase === 'available' || phase === 'ready' || phase === 'downloading';
   return (
     <section className="about-updates">
-      <h3>Updates</h3>
+      <h3>{t('about.updates')}</h3>
       <dl className="about-list">
-        <dt>Status</dt>
+        <dt>{t('about.status')}</dt>
         <dd data-testid="update-status">{statusText(phase, checking, info?.version)}</dd>
-        <dt>Last checked</dt>
+        <dt>{t('about.lastChecked')}</dt>
         <dd data-testid="update-last-check">{when(status?.lastCheckAt)}</dd>
       </dl>
       {problem && (phase === 'failed' || phase === 'unavailable') && (
@@ -78,15 +82,15 @@ function UpdatesSection() {
           disabled={checking || phase === 'downloading'}
           onClick={() => void check(true)}
         >
-          Check for Updates
+          {t('about.check')}
         </button>
         {waiting && (
           <>
             <button className="btn" onClick={openNotes}>
-              Release Notes
+              {t('update.releaseNotes')}
             </button>
             <button className="btn" onClick={openNotice}>
-              Show Update…
+              {t('about.showUpdate')}
             </button>
           </>
         )}
@@ -96,6 +100,7 @@ function UpdatesSection() {
 }
 
 export function AboutPage() {
+  const { t } = useTranslation();
   const [version, setVersion] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
@@ -110,15 +115,15 @@ export function AboutPage() {
 
   return (
     <div className="about">
-      <h3>About PeachTerm</h3>
+      <h3>{t('about.heading')}</h3>
       <p className="about-name">
         <strong>PeachTerm</strong> <span data-testid="about-version">{version ?? ''}</span>
       </p>
-      <p>Created by Bakhti Baymukhamedov.</p>
+      <p>{t('about.created')}</p>
       <UpdatesSection />
-      <h3>Links</h3>
+      <h3>{t('about.links')}</h3>
       <dl className="about-list about-links">
-        <dt>License</dt>
+        <dt>{t('about.license')}</dt>
         <dd>
           <ProjectLink
             to="license"
@@ -139,26 +144,23 @@ export function AboutPage() {
             https://t.me/pycarrot2
           </ProjectLink>
         </dd>
-        <dt>Source code</dt>
+        <dt>{t('about.source')}</dt>
         <dd>
           <ProjectLink to="repository" href="https://github.com/endlessnights/peachterm">
             https://github.com/endlessnights/peachterm
           </ProjectLink>
         </dd>
-        <dt>Notices</dt>
+        <dt>{t('about.notices')}</dt>
         <dd>
           <ProjectLink
             to="notices"
             href="https://github.com/endlessnights/peachterm/blob/main/THIRD_PARTY_NOTICES.md"
           >
-            Open-source license notices
+            {t('about.noticesLink')}
           </ProjectLink>
         </dd>
       </dl>
-      <p className="hint">
-        Copyright 2026 Bakhti Baymukhamedov. PeachTerm is free software under the Apache License,
-        Version 2.0, built with open-source components that keep their own licenses.
-      </p>
+      <p className="hint">{t('about.copyright')}</p>
     </div>
   );
 }

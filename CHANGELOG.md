@@ -5,6 +5,31 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-25
+
+### Added
+
+- **Complete interface localization** in six languages: English, Russian, German, French, Spanish and Serbian
+  (Latin script). Choose **Settings → Appearance → Language** (System default or a fixed language); it applies at
+  once with no restart and does not touch SSH sessions, transfers, tunnels, monitoring, notes or the terminal. The
+  default follows the system language (`sr-Cyrl-*` systems get Serbian Latin; unsupported languages get English).
+  Dialogs, menus, tooltips, accessible labels, warnings and errors are translated; user data, hosts, paths and
+  commands never are. Dates, numbers, percentages, lists and plurals use the interface language (Russian and
+  Serbian plural rules included).
+- **Structured backend errors**: user-facing errors carry a stable `key` (with parameters) or failure `token` that
+  the interface translates; the English text stays as diagnostics and fallback. Update failures now show the
+  specific reason (signature, network, no package) instead of a generic one.
+- `npm run i18n:check` (also in `npm run check` and CI) validates every translation file offline: key parity with
+  English, empty values, placeholders and markup, plural completeness per language, unused keys. See
+  `docs/localization.md`.
+
+### Changed
+
+- The language setting moved from the General page ("takes effect after restarting") to Appearance and now applies
+  immediately. The stored value is now `system` by default (an older `en` stays English); unknown values fall back
+  to `system`.
+- Third-party notices list `i18next`, `react-i18next` and their small dependencies.
+
 ## [0.5.0] - 2026-11-26
 
 ### Added

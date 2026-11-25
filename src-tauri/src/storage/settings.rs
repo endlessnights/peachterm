@@ -63,6 +63,10 @@ pub enum StartupBehavior {
     RestoreTabs,
 }
 
+/// Interface language preferences the renderer understands (`system` follows the OS).
+pub const SUPPORTED_LANGUAGE_PREFERENCES: [&str; 7] =
+    ["system", "en", "ru", "de", "fr", "es", "sr-Latn"];
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GeneralSettings {
@@ -85,7 +89,7 @@ impl Default for GeneralSettings {
             startup: StartupBehavior::Empty,
             confirm_close_active: true,
             auto_reconnect_restored: false,
-            language: "en".into(),
+            language: "system".into(),
             recent_sessions_limit: 3,
             show_status_bar: true,
             check_updates: true,
@@ -539,8 +543,10 @@ impl Settings {
         u.sidebar_width = u.sidebar_width.clamp(160, 640);
         u.sftp_width = u.sftp_width.clamp(220, 1200);
 
-        if self.general.language.trim().is_empty() {
-            self.general.language = "en".into();
+        // `system` follows the OS; anything unknown (old file, edited by hand,
+        // a backup from a newer build) falls back to it instead of failing.
+        if !SUPPORTED_LANGUAGE_PREFERENCES.contains(&self.general.language.as_str()) {
+            self.general.language = "system".into();
         }
         self
     }
@@ -700,6 +706,31 @@ mod tests {
         let mut s = Settings::default();
         s.appearance.interface_scale = 133;
         assert_eq!(s.normalized().appearance.interface_scale, 130);
+    }
+
+    #[test]
+    fn language_preference_defaults_to_the_system_and_survives_known_values() {
+        assert_eq!(GeneralSettings::default().language, "system");
+        for code in SUPPORTED_LANGUAGE_PREFERENCES {
+            let mut s = Settings::default();
+            s.general.language = code.to_string();
+            assert_eq!(s.normalized().general.language, code);
+        }
+    }
+
+    #[test]
+    fn unknown_or_empty_language_values_fall_back_to_the_system() {
+        for bad in ["", "  ", "xx", "sr-Cyrl", "RU", "klingon", "en-US"] {
+            let mut s = Settings::default();
+            s.general.language = bad.into();
+            assert_eq!(s.normalized().general.language, "system", "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn a_settings_file_without_a_language_gets_the_system_default() {
+        let parsed: Settings = serde_json::from_str(r#"{"general":{"startup":"empty"}}"#).unwrap();
+        assert_eq!(parsed.normalized().general.language, "system");
     }
 
     #[test]

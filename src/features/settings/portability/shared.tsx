@@ -1,17 +1,17 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { useTranslation } from 'react-i18next';
+import { formatDecimal, formatNumber, formatUnitList } from '../../../i18n/format';
 import type { ReactNode } from 'react';
 import type { NotesPreview, PreviewItem, RestoreResult } from '../../../shared/types';
 
 export const formatBytes = (n: number) =>
   n < 1024
-    ? `${n} B`
+    ? `${formatNumber(n)} B`
     : n < 1024 * 1024
-      ? `${(n / 1024).toFixed(1)} KB`
-      : `${(n / 1024 / 1024).toFixed(1)} MB`;
-
-export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+      ? `${formatDecimal(n / 1024, 1)} KB`
+      : `${formatDecimal(n / 1024 / 1024, 1)} MB`;
 
 export function Stat({ value, label, warn }: { value: ReactNode; label: string; warn?: boolean }) {
   return (
@@ -23,21 +23,14 @@ export function Stat({ value, label, warn }: { value: ReactNode; label: string; 
 }
 
 export function StepHeader({ step, total, title }: { step: number; total: number; title: string }) {
+  const { t } = useTranslation();
   return (
     <div className="wizard-step" aria-live="polite">
-      <span className="hint">
-        Step {step} of {total}
-      </span>
+      <span className="hint">{t('port.step', { step, total })}</span>
       <strong>{title}</strong>
     </div>
   );
 }
-
-const STATUS_LABEL: Record<PreviewItem['status'], string> = {
-  new: 'New',
-  duplicate: 'Duplicate',
-  changed: 'Changed',
-};
 
 /** Profile summaries only: never credentials. */
 export function ItemTable({
@@ -49,8 +42,9 @@ export function ItemTable({
   truncated: boolean;
   renderPick?: (item: PreviewItem) => ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
-    <div className="preview-table" role="table" aria-label="Profiles">
+    <div className="preview-table" role="table" aria-label={t('port.profiles')}>
       {items.map((item) => (
         <div className="preview-row" role="row" key={item.index}>
           {renderPick && <span className="preview-pick">{renderPick(item)}</span>}
@@ -63,11 +57,11 @@ export function ItemTable({
             </span>
           </span>
           <span className={`badge badge-${item.status}`} role="cell">
-            {STATUS_LABEL[item.status]}
+            {t(`port.status.${item.status}`)}
           </span>
         </div>
       ))}
-      {truncated && <div className="hint">Only the first {items.length} profiles are listed.</div>}
+      {truncated && <div className="hint">{t('port.truncated', { count: items.length })}</div>}
     </div>
   );
 }
@@ -80,79 +74,75 @@ export function ResultSummary({
   result: RestoreResult;
   showCredentials?: boolean;
 }) {
+  const { t } = useTranslation();
   const c = result.credentials;
   return (
     <div className="dialog-body" role="status">
       <div className="stat-grid">
-        <Stat value={result.created + result.copied} label="Imported" />
-        <Stat value={result.updated} label="Updated" />
-        <Stat value={result.skipped} label="Skipped" />
-        <Stat value={result.failed} label="Failed" warn={result.failed > 0} />
+        <Stat value={result.created + result.copied} label={t('port.result.imported')} />
+        <Stat value={result.updated} label={t('port.result.updated')} />
+        <Stat value={result.skipped} label={t('port.result.skipped')} />
+        <Stat value={result.failed} label={t('port.result.failed')} warn={result.failed > 0} />
       </div>
       {result.foldersCreated > 0 && (
-        <div className="hint">{plural(result.foldersCreated, 'folder', 'folders')} created.</div>
+        <div className="hint">{t('port.result.folders', { count: result.foldersCreated })}</div>
       )}
-      {result.settingsRestored && <div className="hint">Application settings restored.</div>}
+      {result.settingsRestored && <div className="hint">{t('port.result.settings')}</div>}
       {showCredentials && (
         <div className="hint">
-          Saved passwords: {c.restored} restored
-          {c.replaced > 0 ? `, ${c.replaced} replaced` : ''}
-          {c.keptExisting > 0 ? `, ${c.keptExisting} kept as they were` : ''}
-          {c.skipped > 0 ? `, ${c.skipped} skipped` : ''}
-          {c.failed > 0 ? `, ${c.failed} failed` : ''}.
+          {t('port.result.credentials', {
+            parts: formatUnitList(
+              [
+                t('port.result.credRestored', { count: c.restored }),
+                c.replaced > 0 && t('port.result.credReplaced', { count: c.replaced }),
+                c.keptExisting > 0 && t('port.result.credKept', { count: c.keptExisting }),
+                c.skipped > 0 && t('port.result.credSkipped', { count: c.skipped }),
+                c.failed > 0 && t('port.result.credFailed', { count: c.failed }),
+              ].filter((x): x is string => typeof x === 'string'),
+            ),
+          })}
         </div>
       )}
-      {result.safetyCopy && (
-        <div className="hint">
-          A copy of your previous connections was kept next to connections.json.
-        </div>
-      )}
+      {result.safetyCopy && <div className="hint">{t('port.result.safetyCopy')}</div>}
       {result.warnings.map((w) => (
         <div className="notice notice-warn" key={w}>
           {w}
         </div>
       ))}
-      <div className="hint">PeachTerm did not connect to any server.</div>
+      <div className="hint">{t('port.result.noConnect')}</div>
     </div>
   );
 }
 
 /** What a file or backup says about its server notes: counts only, never content. */
 export function NotesSummary({ notes, invalid = 0 }: { notes: NotesPreview; invalid?: number }) {
+  const { t } = useTranslation();
   const parts = [
-    notes.internal > 0 && plural(notes.internal, 'written note', 'written notes'),
-    notes.linkedFiles > 0 && plural(notes.linkedFiles, 'linked file', 'linked files'),
-    notes.webDocuments > 0 && plural(notes.webDocuments, 'web document', 'web documents'),
-  ].filter(Boolean);
+    notes.internal > 0 && t('count.writtenNote', { count: notes.internal }),
+    notes.linkedFiles > 0 && t('count.linkedFile', { count: notes.linkedFiles }),
+    notes.webDocuments > 0 && t('count.webDocument', { count: notes.webDocuments }),
+  ].filter((x): x is string => typeof x === 'string');
   return (
-    <div className="notes-summary" aria-label="Server notes in this file">
-      <strong>Server notes: {plural(notes.notes, 'note', 'notes')}</strong>
+    <div className="notes-summary" aria-label={t('port.notes.aria')}>
+      <strong>{t('port.notes.heading', { count: notes.notes })}</strong>
       <div className="hint">
         {parts.join(', ')}
-        {notes.snapshots > 0
-          ? `; ${plural(notes.snapshots, 'offline copy', 'offline copies')}`
-          : ''}
-        {notes.shared > 0 ? `; ${notes.shared} shared between connections` : ''}.
+        {notes.snapshots > 0 ? `; ${t('count.offlineCopy', { count: notes.snapshots })}` : ''}
+        {notes.shared > 0 ? `; ${t('port.notes.shared', { count: notes.shared })}` : ''}.
       </div>
       {notes.linkedFiles > 0 && (
         <div className="hint">
-          Linked files are stored as paths only, never as their contents.
-          {notes.missingFiles > 0 &&
-            ` ${plural(notes.missingFiles, 'linked file was', 'linked files were')} not found on this computer.`}
+          {t('port.notes.pathsOnly')}
+          {notes.missingFiles > 0 && ` ${t('port.notes.missing', { count: notes.missingFiles })}`}
         </div>
       )}
       {notes.conflicts > 0 && (
-        <div className="hint">
-          {plural(notes.conflicts, 'note already exists', 'notes already exist')} here and{' '}
-          {notes.conflicts === 1 ? 'is' : 'are'} kept as{' '}
-          {notes.conflicts === 1 ? 'it is' : 'they are'}; only missing attachments are added.
-        </div>
+        <div className="hint">{t('port.notes.conflicts', { count: notes.conflicts })}</div>
       )}
       {(notes.unattached > 0 || invalid > 0) && (
         <div className="hint">
-          {notes.unattached > 0 &&
-            `${plural(notes.unattached, 'note belongs', 'notes belong')} to connections that are not part of this operation and ${notes.unattached === 1 ? 'is' : 'are'} left out. `}
-          {invalid > 0 && `${plural(invalid, 'invalid note was', 'invalid notes were')} ignored.`}
+          {notes.unattached > 0 && `${t('port.notes.unattached', { count: notes.unattached })} `}
+          {invalid > 0 && t('port.notes.invalid', { count: invalid })}
         </div>
       )}
     </div>

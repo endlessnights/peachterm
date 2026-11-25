@@ -9,6 +9,7 @@
 // level 1). Legacy data that is deeper is preserved, and a move is allowed as
 // long as it does not make a folder deeper than it already is.
 
+import { t as tr } from '../../i18n';
 import type {
   Connection,
   ConnectionTree,
@@ -131,21 +132,21 @@ export function validateMove(
   items: ItemRef[],
   target: Uuid | null,
 ): string | null {
-  if (target && !folderOf(tree, target)) return 'The destination folder no longer exists.';
+  if (target && !folderOf(tree, target)) return tr('conn.move.depth');
   const list = normalizeItems(tree, items, true);
-  if (list.some((i) => !exists(tree, i))) return 'An item no longer exists.';
+  if (list.some((i) => !exists(tree, i))) return tr('conn.move.itemGone');
   const targetLevel = target ? folderLevel(tree, target) : 0;
   for (const item of list) {
     if (item.kind !== 'folder') continue;
     if (target && inSubtree(tree, target, item.id)) {
-      return 'A folder cannot be moved into itself or one of its own sub-folders.';
+      return tr('conn.move.intoSelf');
     }
     const height = subtreeHeight(tree, item.id);
     const reaches = targetLevel + height;
     const currently = folderLevel(tree, item.id) + height - 1;
     if (reaches > MAX_FOLDER_DEPTH && reaches > currently) {
       const name = folderOf(tree, item.id)?.name ?? '';
-      return `Folders can be nested at most ${MAX_FOLDER_DEPTH} levels deep. Moving “${name}” here would put its contents at level ${reaches}.`;
+      return tr('conn.move.tooDeep', { max: MAX_FOLDER_DEPTH, name, level: reaches });
     }
   }
   return null;

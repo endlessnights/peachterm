@@ -1,6 +1,7 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { useTranslation } from 'react-i18next';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -48,6 +49,7 @@ export function revealTab(strip: HTMLElement, tab: HTMLElement) {
 }
 
 export function TabBar() {
+  const { t } = useTranslation();
   const stripRef = useRef<HTMLDivElement>(null);
   const revealed = useRef<string | null>(null);
   const tabs = useTabs((s) => s.tabs);
@@ -62,23 +64,33 @@ export function TabBar() {
     const index = all.findIndex((t) => t.id === tab.id);
     const sameHost = tabsForSameConnection(tab.id);
     const entries: MenuEntry[] = [
-      { kind: 'item', label: 'Rename Tab…', icon: 'edit', onSelect: () => renameTabDialog(tab.id) },
-      { kind: 'item', label: 'Duplicate Tab', icon: 'copy', onSelect: () => duplicateTab(tab.id) },
       {
         kind: 'item',
-        label: 'Terminal Colors…',
+        label: t('tabs.rename'),
+        icon: 'edit',
+        onSelect: () => renameTabDialog(tab.id),
+      },
+      {
+        kind: 'item',
+        label: t('tabs.duplicate'),
+        icon: 'copy',
+        onSelect: () => duplicateTab(tab.id),
+      },
+      {
+        kind: 'item',
+        label: t('tabs.terminalColors'),
         onSelect: () => tabColorsDialog(tab.id),
       },
       ...(tab.kind === 'ssh'
         ? ([
             {
               kind: 'item',
-              label: 'Notes & Documentation',
+              label: t('tabs.notes'),
               onSelect: () => showNotesOfTab(tab.id),
             },
             {
               kind: 'item',
-              label: 'SSH Tunnels…',
+              label: t('tabs.tunnels'),
               onSelect: () => tunnelsDialog(tab.id),
             },
           ] as MenuEntry[])
@@ -86,7 +98,7 @@ export function TabBar() {
       { kind: 'separator' },
       {
         kind: 'item',
-        label: 'Split Horizontally',
+        label: t('tabs.splitH'),
         icon: 'splitHorizontal',
         onSelect: () => {
           useTabs.getState().activate(tab.id);
@@ -95,7 +107,7 @@ export function TabBar() {
       },
       {
         kind: 'item',
-        label: 'Split Vertically',
+        label: t('tabs.splitV'),
         icon: 'splitVertical',
         onSelect: () => {
           useTabs.getState().activate(tab.id);
@@ -104,27 +116,27 @@ export function TabBar() {
       },
       {
         kind: 'item',
-        label: 'Show in New Pane: Left',
+        label: t('tabs.paneLeft'),
         onSelect: () => moveToNewPane(tab.id, 'left'),
       },
       {
         kind: 'item',
-        label: 'Show in New Pane: Right',
+        label: t('tabs.paneRight'),
         onSelect: () => moveToNewPane(tab.id, 'right'),
       },
       {
         kind: 'item',
-        label: 'Show in New Pane: Above',
+        label: t('tabs.paneTop'),
         onSelect: () => moveToNewPane(tab.id, 'top'),
       },
       {
         kind: 'item',
-        label: 'Show in New Pane: Below',
+        label: t('tabs.paneBottom'),
         onSelect: () => moveToNewPane(tab.id, 'bottom'),
       },
       {
         kind: 'item',
-        label: 'Remove from Split',
+        label: t('tabs.removeFromSplit'),
         disabled: !visible.has(tab.id) || !layout,
         onSelect: () => {
           const leaf =
@@ -141,33 +153,38 @@ export function TabBar() {
               })(layout),
             ].find((l) => l.tabId === tab.id);
           if (leaf) useTabs.getState().removePane(leaf.id);
-          else notify('That tab is not shown in a split.');
+          else notify(t('tabs.notInSplit'));
         },
       },
       { kind: 'separator' },
-      { kind: 'item', label: 'Close Tab', icon: 'close', onSelect: () => requestCloseTab(tab.id) },
       {
         kind: 'item',
-        label: 'Close Other Tabs',
+        label: t('tabs.close'),
+        icon: 'close',
+        onSelect: () => requestCloseTab(tab.id),
+      },
+      {
+        kind: 'item',
+        label: t('tabs.closeOthers'),
         disabled: all.length < 2,
         onSelect: () => closeOtherTabs(tab.id),
       },
       {
         kind: 'item',
-        label: 'Close Tabs to the Right',
+        label: t('tabs.closeRight'),
         disabled: index === all.length - 1,
         onSelect: () => closeTabsToTheRight(tab.id),
       },
       { kind: 'separator' },
       {
         kind: 'item',
-        label: 'Close Other Tabs for This Host',
+        label: t('tabs.closeOthersHost'),
         disabled: sameHost.length < 2,
         onSelect: () => closeOtherTabsForHost(tab.id),
       },
       {
         kind: 'item',
-        label: 'Close All Tabs for This Host',
+        label: t('tabs.closeAllHost'),
         danger: true,
         onSelect: () => closeAllTabsForHost(tab.id),
       },
@@ -209,20 +226,20 @@ export function TabBar() {
     if (!useProfiles.getState().loaded) await useProfiles.getState().refresh();
     const profile = defaultProfile();
     if (profile) openLocalShell(profile);
-    else notify('No local shell was found on this computer.');
+    else notify(t('tabs.noLocalShell'));
   };
   const profileMenu = (x: number, y: number) => {
     const { profiles, defaultId } = useProfiles.getState();
     const entries: MenuEntry[] = profiles.map((p) => ({
       kind: 'item' as const,
-      label: p.id === defaultId ? `${p.name} (default)` : p.name,
+      label: p.id === defaultId ? t('tabs.defaultSuffix', { name: p.name }) : p.name,
       icon: 'terminal' as const,
       onSelect: () => openLocalShell(p),
     }));
     if (entries.length === 0) {
       entries.push({
         kind: 'item',
-        label: 'No local shells found',
+        label: t('tabs.noShells'),
         disabled: true,
         onSelect: () => {},
       });
@@ -231,7 +248,7 @@ export function TabBar() {
       { kind: 'separator' },
       {
         kind: 'item',
-        label: 'Refresh Profiles',
+        label: t('tabs.refreshProfiles'),
         icon: 'refresh',
         onSelect: () => void refreshProfiles(),
       },
@@ -249,8 +266,8 @@ export function TabBar() {
         <button
           className="icon-btn"
           aria-pressed={sidebarVisible}
-          aria-label="Toggle sidebar"
-          title={`Toggle sidebar (${sidebarLabel})`}
+          aria-label={t('tabs.toggleSidebar')}
+          title={t('tabs.toggleSidebarKey', { key: sidebarLabel })}
           onClick={() => {
             setUi({ sidebarVisible: !sidebarVisible });
             void persistUi();
@@ -261,7 +278,7 @@ export function TabBar() {
       </div>
       <div className="tabs-wrap">
         <SortableContext items={tabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
-          <div ref={stripRef} className="tabs" role="tablist" aria-label="Sessions">
+          <div ref={stripRef} className="tabs" role="tablist" aria-label={t('tabs.sessions')}>
             {tabs.map((tab) => (
               <SortableTab
                 key={tab.id}
@@ -276,8 +293,8 @@ export function TabBar() {
         </SortableContext>
         <button
           className="icon-btn tabs-add"
-          aria-label="New local terminal"
-          title="New local terminal (right-click to choose a shell)"
+          aria-label={t('tabs.newLocal')}
+          title={t('tabs.newLocalHint')}
           onClick={() => void startDefault()}
           onContextMenu={(e) => {
             e.preventDefault();
@@ -315,6 +332,7 @@ function SortableTab({
   onActivate: (id: string) => void;
   onMenu: (tab: Tab, x: number, y: number) => void;
 }) {
+  const { t } = useTranslation();
   const closeLabel = useShortcutLabel('closeTab');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id,
@@ -345,12 +363,16 @@ function SortableTab({
       }}
       onClick={() => onActivate(tab.id)}
     >
-      <span className="status-dot" data-status={tab.status} aria-label={tab.status} />
+      <span
+        className="status-dot"
+        data-status={tab.status}
+        aria-label={t(`status.${tab.status}`)}
+      />
       <span className="tab-title">{tab.title}</span>
       <button
         className="icon-btn"
-        aria-label={`Close ${tab.title}`}
-        title={`Close (${closeLabel})`}
+        aria-label={t('tabs.closeNamed', { title: tab.title })}
+        title={t('tabs.closeKey', { key: closeLabel })}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();

@@ -6,6 +6,7 @@
 // keeps the user in control: nothing downloads or installs without a click, and
 // installing asks first when sessions, tunnels, transfers or edits would be lost.
 
+import { t as tr } from '../../i18n';
 import { create } from 'zustand';
 import { ipc, toAppError } from '../../shared/ipc';
 import type { UpdateInfo, UpdateStatusDto } from '../../shared/types';
@@ -23,24 +24,21 @@ export type UpdatePhase =
   | 'unavailable';
 
 /** Fixed failure tokens from the backend, as one calm sentence each. */
+const PROBLEM_TOKENS = [
+  'not_configured',
+  'network',
+  'no_package',
+  'signature',
+  'bad_metadata',
+  'install_failed',
+] as const;
+
+/** A fixed, localized sentence for a failure token (never the raw error). */
 export function updateProblem(token: string | null): string {
-  switch (token) {
-    case 'not_configured':
-      return 'This build of PeachTerm has no update source (it is not an official release build).';
-    case 'network':
-    case 'timeout':
-      return 'Could not reach GitHub. Check your internet connection and try again.';
-    case 'no_package':
-      return 'The latest release has no update package for this system.';
-    case 'signature':
-      return 'The downloaded update did not pass the signature check and was discarded.';
-    case 'bad_metadata':
-      return 'The update information published for this release is not valid.';
-    case 'install_failed':
-      return 'The update could not be installed. Your current version is unchanged.';
-    default:
-      return 'The update did not work out. Your current version is unchanged.';
-  }
+  if (token === 'timeout') return tr('update.problem.network');
+  return (PROBLEM_TOKENS as readonly string[]).includes(token ?? '')
+    ? tr(`update.problem.${token as (typeof PROBLEM_TOKENS)[number]}`)
+    : tr('update.problem.default');
 }
 
 interface Progress {

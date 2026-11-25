@@ -1,23 +1,20 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { errorMessage } from '../../../i18n/errors';
+import { useTranslation } from 'react-i18next';
+import { formatUnitList } from '../../../i18n/format';
 import { useEffect, useRef, useState } from 'react';
 import { Dialog } from '../../../components/Dialog';
-import { ipc, toAppError } from '../../../shared/ipc';
+import { ipc } from '../../../shared/ipc';
 import type { BackupSummary } from '../../../shared/types';
 import { useConnections } from '../../connections/store';
 import { useNotes } from '../../notes/store';
 import { MIN_PASSPHRASE_CHARS, assessPassphrase } from './passphrase';
-import { Stat, StepHeader, formatBytes, plural } from './shared';
+import { Stat, StepHeader, formatBytes } from './shared';
 
 type Step = 'data' | 'passphrase' | 'destination' | 'result';
 
-const TITLES: Record<Step, string> = {
-  data: 'What to include',
-  passphrase: 'Backup passphrase',
-  destination: 'Destination',
-  result: 'Backup created',
-};
 const ORDER: Step[] = ['data', 'passphrase', 'destination', 'result'];
 
 /**
@@ -26,6 +23,7 @@ const ORDER: Step[] = ['data', 'passphrase', 'destination', 'result'];
  * and is wiped from state straight away.
  */
 export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const tree = useConnections((s) => s.tree);
   const [step, setStep] = useState<Step>('data');
   const [includeSettings, setIncludeSettings] = useState(true);
@@ -68,7 +66,7 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
         setDestination(picked);
       }
     } catch (e) {
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -89,7 +87,7 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
       setSummary(made);
       setStep('result');
     } catch (e) {
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
     } finally {
       // The passphrase is never kept longer than needed.
       setPassphrase('');
@@ -108,7 +106,7 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
   if (step === 'result') {
     footer = (
       <button className="btn btn-primary" onClick={onClose}>
-        Close
+        {t('common.close')}
       </button>
     );
   } else {
@@ -119,15 +117,15 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
         </span>
         {step !== 'data' && (
           <button className="btn" onClick={back} disabled={busy}>
-            Back
+            {t('port.back')}
           </button>
         )}
         <button className="btn" onClick={onClose} disabled={busy}>
-          Cancel
+          {t('common.cancel')}
         </button>
         {step === 'data' && (
           <button className="btn btn-primary" onClick={() => setStep('passphrase')}>
-            Next
+            {t('port.next')}
           </button>
         )}
         {step === 'passphrase' && (
@@ -136,7 +134,7 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
             onClick={() => setStep('destination')}
             disabled={!passphraseOk}
           >
-            Next
+            {t('port.next')}
           </button>
         )}
         {step === 'destination' && (
@@ -145,7 +143,7 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
             onClick={() => void create()}
             disabled={!destination || busy}
           >
-            {busy ? 'Encrypting…' : 'Create encrypted backup'}
+            {busy ? t('port.backup.encrypting') : t('port.backup.createButton')}
           </button>
         )}
       </>
@@ -153,15 +151,18 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Dialog title="Create encrypted backup" onClose={onClose} persistent footer={footer}>
+    <Dialog title={t('port.backup.title')} onClose={onClose} persistent footer={footer}>
       <div className="dialog-body">
-        <StepHeader step={index + 1} total={ORDER.length} title={TITLES[step]} />
+        <StepHeader step={index + 1} total={ORDER.length} title={t(`port.backup.step.${step}`)} />
 
         {step === 'data' && (
           <>
             <label className="check">
               <input type="checkbox" checked disabled readOnly />
-              Connection profiles ({tree.connections.length}) and folders ({tree.folders.length})
+              {t('port.backup.profiles', {
+                connections: tree.connections.length,
+                folders: tree.folders.length,
+              })}
             </label>
             <label className="check">
               <input
@@ -169,7 +170,7 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
                 checked={includeSettings}
                 onChange={(e) => setIncludeSettings(e.target.checked)}
               />
-              Application settings (themes, terminal palette, shortcuts)
+              {t('port.backup.settings')}
             </label>
             <label className="check">
               <input
@@ -177,7 +178,7 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
                 checked={includeCredentials}
                 onChange={(e) => setIncludeCredentials(e.target.checked)}
               />
-              Include saved passwords and SSH key passphrases ({credentialCount})
+              {t('port.backup.credentials', { count: credentialCount })}
             </label>
             {noteTotal > 0 && (
               <>
@@ -187,39 +188,23 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
                     checked={includeNotes}
                     onChange={(e) => setIncludeNotes(e.target.checked)}
                   />
-                  Include Server Notes ({noteTotal})
+                  {t('port.backup.notes', { count: noteTotal })}
                 </label>
-                {includeNotes && (
-                  <div className="hint">
-                    Written notes, their connections, web addresses and saved offline copies go into
-                    the encrypted file. Linked local files are saved as paths only: their contents
-                    are not copied. Nothing is downloaded.
-                  </div>
-                )}
+                {includeNotes && <div className="hint">{t('port.backup.notesHint')}</div>}
               </>
             )}
             {includeCredentials && (
-              <div className="notice notice-warn">
-                Passwords will be stored inside the encrypted file. Anyone who has the file and the
-                passphrase can read them. Never put such a backup in a public Git repository or a
-                shared folder.
-              </div>
+              <div className="notice notice-warn">{t('port.backup.credsWarn')}</div>
             )}
-            <div className="hint">
-              SSH private key files are never included. Profiles that use a key file need the key
-              copied to the new computer and may need to be reconfigured.
-            </div>
+            <div className="hint">{t('port.backup.keysNever')}</div>
           </>
         )}
 
         {step === 'passphrase' && (
           <>
-            <div className="notice notice-warn">
-              If you lose this passphrase, your backup cannot be recovered. PeachTerm does not store
-              it anywhere.
-            </div>
+            <div className="notice notice-warn">{t('port.backup.lostWarn')}</div>
             <label className="field">
-              <span>Passphrase</span>
+              <span>{t('port.passphrase')}</span>
               <input
                 className="input"
                 type={show ? 'text' : 'password'}
@@ -231,7 +216,7 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
               />
             </label>
             <label className="field">
-              <span>Confirm passphrase</span>
+              <span>{t('port.passphraseConfirm')}</span>
               <input
                 className="input"
                 type={show ? 'text' : 'password'}
@@ -244,7 +229,7 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
             </label>
             <label className="check">
               <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
-              Show passphrase
+              {t('port.showPassphrase')}
             </label>
             <div className="pw-meter" aria-hidden="true">
               {[1, 2, 3, 4].map((n) => (
@@ -253,19 +238,19 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
             </div>
             <div className="hint" role="status">
               {strength.strength === 'empty'
-                ? `At least ${MIN_PASSPHRASE_CHARS} characters. A few unrelated words make a good passphrase.`
-                : `${strength.label}. ${strength.advice}`}
-              {confirm !== '' && !matches && ' The two entries do not match.'}
+                ? t('port.passphraseEmpty', { min: MIN_PASSPHRASE_CHARS })
+                : t('port.passphraseRated', { label: strength.label, advice: strength.advice })}
+              {confirm !== '' && !matches && ` ${t('port.passphraseMismatch')}`}
             </div>
           </>
         )}
 
         {step === 'destination' && (
           <>
-            <p>Choose where to save the backup. The file is encrypted before it is written.</p>
+            <p>{t('port.dest.text')}</p>
             <div>
               <button className="btn" onClick={() => void chooseDestination()} disabled={busy}>
-                {destination ? 'Choose another location…' : 'Choose location…'}
+                {destination ? t('port.dest.another') : t('port.dest.choose')}
               </button>
             </div>
             {destination && (
@@ -279,48 +264,53 @@ export function CreateBackupWizard({ onClose }: { onClose: () => void }) {
         {step === 'result' && summary && (
           <div role="status">
             <p>
-              <strong>The backup was encrypted, written and verified.</strong>
+              <strong>{t('port.backup.done')}</strong>
             </p>
             <div className="hint" style={{ userSelect: 'text', wordBreak: 'break-all' }}>
-              {summary.savedTo} ({formatBytes(summary.sizeBytes)})
+              {t('port.backup.savedTo', {
+                path: summary.savedTo,
+                size: formatBytes(summary.sizeBytes),
+              })}
             </div>
             <div className="stat-grid">
-              <Stat value={summary.connections} label="Connections" />
-              <Stat value={summary.folders} label="Folders" />
-              <Stat value={summary.credentialsIncluded} label="Passwords included" />
+              <Stat value={summary.connections} label={t('port.stat.connections')} />
+              <Stat value={summary.folders} label={t('port.stat.folders')} />
+              <Stat value={summary.credentialsIncluded} label={t('port.stat.passIncluded')} />
               <Stat
                 value={summary.credentialsSkipped}
-                label="Passwords skipped"
+                label={t('port.stat.passSkipped')}
                 warn={summary.credentialsSkipped > 0}
               />
             </div>
             {summary.notesRequested && (
               <div className="hint" data-testid="backup-notes-report">
-                Server notes: {plural(summary.notesIncluded ?? 0, 'note', 'notes')} included
-                {(summary.snapshotsIncluded ?? 0) > 0
-                  ? `, ${plural(summary.snapshotsIncluded ?? 0, 'offline copy', 'offline copies')}`
-                  : ''}
-                .
+                {t('port.backup.notesReport', {
+                  what: formatUnitList(
+                    [
+                      t('count.note', { count: summary.notesIncluded ?? 0 }),
+                      (summary.snapshotsIncluded ?? 0) > 0 &&
+                        t('count.offlineCopy', { count: summary.snapshotsIncluded ?? 0 }),
+                    ].filter((x): x is string => typeof x === 'string'),
+                  ),
+                })}
                 {(summary.linkedFiles ?? 0) > 0
-                  ? ` ${plural(summary.linkedFiles ?? 0, 'linked file', 'linked files')}: only the path is saved, not the contents.`
+                  ? ` ${t('port.backup.linkedReport', { count: summary.linkedFiles ?? 0 })}`
                   : ''}
               </div>
             )}
-            <div className="hint">Backup format version {summary.formatVersion}.</div>
+            <div className="hint">
+              {t('port.backup.formatVersion', { version: summary.formatVersion })}
+            </div>
             {summary.credentialsSkipped > 0 && (
               <div className="notice notice-warn">
-                {plural(summary.credentialsSkipped, 'saved password', 'saved passwords')} could not
-                be included
+                {t('port.backup.skipped', { count: summary.credentialsSkipped })}
                 {summary.credentialsUnreadable > 0
-                  ? ` (${summary.credentialsUnreadable} could not be read from the system credential store)`
+                  ? ` ${t('port.backup.unreadable', { count: summary.credentialsUnreadable })}`
                   : ''}
-                . This backup does not contain all of your saved passwords.
               </div>
             )}
             {summary.credentialsRequested && summary.credentialsIncluded > 0 && (
-              <div className="notice">
-                This file contains passwords. Keep it private and do not publish it.
-              </div>
+              <div className="notice">{t('port.backup.containsPasswords')}</div>
             )}
           </div>
         )}

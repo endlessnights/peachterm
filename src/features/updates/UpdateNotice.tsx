@@ -1,10 +1,11 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { useTranslation } from 'react-i18next';
+import { t as tr } from '../../i18n';
+import { formatPercent } from '../../i18n/format';
 import { Dialog } from '../../components/Dialog';
 import { useUpdates, updateProblem } from './store';
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** First meaningful line of the release notes, kept short. */
 function summaryOf(notes: string | null): string {
@@ -14,11 +15,7 @@ function summaryOf(notes: string | null): string {
     .filter((l) => !/^\s*#/.test(l))
     .map((l) => l.replace(/^[>*\-\s]+/, '').trim())
     .find((l) => l.length > 0);
-  return line
-    ? line.length > 140
-      ? `${line.slice(0, 137)}…`
-      : line
-    : 'Bug fixes and improvements.';
+  return line ? (line.length > 140 ? `${line.slice(0, 137)}…` : line) : tr('update.summaryDefault');
 }
 
 /**
@@ -26,6 +23,7 @@ function summaryOf(notes: string | null): string {
  * clicks the small indicator); "Later" closes it and leaves only the indicator.
  */
 export function UpdateNotice() {
+  const { t } = useTranslation();
   const phase = useUpdates((s) => s.phase);
   const open = useUpdates((s) => s.noticeOpen);
   const info = useUpdates((s) => s.info);
@@ -41,49 +39,46 @@ export function UpdateNotice() {
       : null;
 
   return (
-    <aside className="update-notice" role="region" aria-label="Software update">
+    <aside className="update-notice" role="region" aria-label={t('update.region')}>
       {phase === 'ready' || phase === 'installing' ? (
         <>
-          <strong>PeachTerm {info.version} is ready</strong>
-          <p className="hint">
-            The update is downloaded and verified. Nothing changes until you install it.
-          </p>
+          <strong>{t('update.ready', { version: info.version })}</strong>
+          <p className="hint">{t('update.readyHint')}</p>
           <div className="update-actions">
             <button
               className="btn btn-primary"
               onClick={() => void requestInstall()}
               disabled={phase === 'installing'}
             >
-              Install &amp; Restart
+              {t('update.installRestart')}
             </button>
             <button className="btn" onClick={closeNotice}>
-              Later
+              {t('update.later')}
             </button>
           </div>
         </>
       ) : (
         <>
-          <strong>PeachTerm {info.version} is available</strong>
-          <p className="hint">Your version: {status?.currentVersion ?? ''}</p>
+          <strong>{t('update.available', { version: info.version })}</strong>
+          <p className="hint">
+            {t('update.yourVersion', { version: status?.currentVersion ?? '' })}
+          </p>
           <p>{summaryOf(info.notes)}</p>
           {phase === 'downloading' && (
             <p role="status" className="hint">
-              {percent === null ? 'Downloading…' : `Downloading… ${percent}%`}
+              {percent === null
+                ? t('update.downloading')
+                : t('update.downloadingPercent', { percent: formatPercent(percent) })}
             </p>
           )}
           {problem && <p className="field-error">{updateProblem(problem)}</p>}
-          {status && !status.canInstall && (
-            <p className="hint">
-              This installation (a .deb package) cannot update itself. Download the new package from
-              the release page.
-            </p>
-          )}
+          {status && !status.canInstall && <p className="hint">{t('update.noSelfUpdate')}</p>}
           <div className="update-actions">
             <button className="btn" onClick={openNotes}>
-              {status && !status.canInstall ? 'Release Page' : 'Release Notes'}
+              {status && !status.canInstall ? t('update.releasePage') : t('update.releaseNotes')}
             </button>
             <button className="btn" onClick={closeNotice}>
-              Later
+              {t('update.later')}
             </button>
             {(!status || status.canInstall) && (
               <button
@@ -91,7 +86,7 @@ export function UpdateNotice() {
                 onClick={() => void download()}
                 disabled={phase === 'downloading'}
               >
-                Download Update
+                {t('update.download')}
               </button>
             )}
           </div>
@@ -103,58 +98,46 @@ export function UpdateNotice() {
 
 /** Asked before installing when something would be lost. "Install Later" is the default. */
 export function InstallConfirm() {
+  const { t } = useTranslation();
   const summary = useUpdates((s) => s.confirm);
   const info = useUpdates((s) => s.info);
   const { cancelInstall, install } = useUpdates.getState();
   if (!summary) return null;
   const lines: string[] = [];
-  if (summary.sshActive > 0)
-    lines.push(plural(summary.sshActive, 'active SSH session', 'active SSH sessions'));
-  if (summary.tunnels > 0)
-    lines.push(plural(summary.tunnels, 'active SSH tunnel', 'active SSH tunnels'));
-  if (summary.localActive > 0)
-    lines.push(plural(summary.localActive, 'local terminal', 'local terminals'));
+  if (summary.sshActive > 0) lines.push(t('update.have.ssh', { count: summary.sshActive }));
+  if (summary.tunnels > 0) lines.push(t('update.have.tunnels', { count: summary.tunnels }));
+  if (summary.localActive > 0) lines.push(t('update.have.local', { count: summary.localActive }));
   if (summary.connecting > 0)
-    lines.push(
-      plural(summary.connecting, 'connection being established', 'connections being established'),
-    );
-  if (summary.transfers > 0)
-    lines.push(
-      plural(summary.transfers, 'file transfer in progress', 'file transfers in progress'),
-    );
+    lines.push(t('update.have.connecting', { count: summary.connecting }));
+  if (summary.transfers > 0) lines.push(t('update.have.transfers', { count: summary.transfers }));
   if (summary.pendingUploads > 0)
-    lines.push(
-      `${plural(summary.pendingUploads, 'edited file', 'edited files')} not yet uploaded (local copies are kept)`,
-    );
-  if (summary.unsavedConnection) lines.push('unsaved changes in the connection dialog');
-  if (summary.unsavedSettings) lines.push('unsaved changes in the settings dialog');
-  if (summary.unsavedNotes) lines.push('a note with changes that are not saved yet');
+    lines.push(t('update.have.uploads', { count: summary.pendingUploads }));
+  if (summary.unsavedConnection) lines.push(t('update.have.unsavedConnection'));
+  if (summary.unsavedSettings) lines.push(t('update.have.unsavedSettings'));
+  if (summary.unsavedNotes) lines.push(t('update.have.unsavedNotes'));
   return (
     <Dialog
-      title="Install the update?"
+      title={t('update.confirmTitle')}
       onClose={cancelInstall}
       footer={
         <>
           <button className="btn btn-primary" onClick={cancelInstall} data-autofocus>
-            Install Later
+            {t('update.installLater')}
           </button>
           <button className="btn btn-danger" onClick={() => void install()}>
-            Install &amp; Restart
+            {t('update.installRestart')}
           </button>
         </>
       }
     >
       <div className="dialog-body">
-        <p>PeachTerm {info?.version ?? ''} is ready to install. You currently have:</p>
-        <ul className="exit-list" aria-label="What installing will end">
+        <p>{t('update.confirmIntro', { version: info?.version ?? '' })}</p>
+        <ul className="exit-list" aria-label={t('update.confirmList')}>
           {lines.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
-        <p>
-          Installing the update closes these sessions and restarts PeachTerm. Live connections are
-          not restored afterwards.
-        </p>
+        <p>{t('update.confirmBody')}</p>
       </div>
     </Dialog>
   );

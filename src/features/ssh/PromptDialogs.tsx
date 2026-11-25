@@ -1,6 +1,7 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { Trans, useTranslation } from 'react-i18next';
 import { useRef } from 'react';
 import { Dialog } from '../../components/Dialog';
 import type { SshPrompt } from '../../shared/types';
@@ -21,39 +22,40 @@ export function SshPromptHost() {
 }
 
 function HostKeyDialog({ prompt }: { prompt: HostKeyPrompt }) {
+  const { t } = useTranslation();
   const answer = usePrompts((s) => s.answerHostKey);
   const changed = prompt.previousFingerprint !== null;
   const where = `${prompt.host}:${prompt.port}`;
   const reject = () => void answer(prompt.promptId, 'reject');
   return (
     <Dialog
-      title={changed ? 'Host key has changed' : 'Unknown host'}
+      title={changed ? t('ssh.hostKey.changedTitle') : t('ssh.hostKey.unknownTitle')}
       onClose={reject}
       persistent
       footer={
         changed ? (
           <>
             <button className="btn" onClick={() => void answer(prompt.promptId, 'replace')}>
-              Replace saved key and connect
+              {t('ssh.hostKey.replace')}
             </button>
             <button className="btn btn-primary" onClick={reject} data-autofocus>
-              Disconnect
+              {t('ssh.hostKey.disconnect')}
             </button>
           </>
         ) : (
           <>
             <button className="btn" onClick={reject}>
-              Reject
+              {t('ssh.hostKey.reject')}
             </button>
             <button className="btn" onClick={() => void answer(prompt.promptId, 'trustOnce')}>
-              Connect once
+              {t('ssh.hostKey.once')}
             </button>
             <button
               className="btn btn-primary"
               onClick={() => void answer(prompt.promptId, 'trustAndSave')}
               data-autofocus
             >
-              Trust and save
+              {t('ssh.hostKey.trustSave')}
             </button>
           </>
         )
@@ -62,26 +64,31 @@ function HostKeyDialog({ prompt }: { prompt: HostKeyPrompt }) {
       <div className="dialog-body">
         {changed ? (
           <p className="callout callout-danger">
-            The key presented by <strong>{where}</strong> is different from the one you trusted
-            before. This can mean the server was reinstalled, or that someone is intercepting the
-            connection. Nothing has been sent to the server.
+            <Trans
+              i18nKey="ssh.hostKey.changedBody"
+              values={{ where }}
+              components={{ strong: <strong /> }}
+            />
           </p>
         ) : (
           <p>
-            The authenticity of <strong>{where}</strong> cannot be established. Compare the
-            fingerprint with one you got from the server&apos;s administrator.
+            <Trans
+              i18nKey="ssh.hostKey.unknownBody"
+              values={{ where }}
+              components={{ strong: <strong /> }}
+            />
           </p>
         )}
         <dl className="fingerprint">
-          <dt>Algorithm</dt>
+          <dt>{t('ssh.hostKey.algorithm')}</dt>
           <dd>{prompt.algorithm}</dd>
           {changed && (
             <>
-              <dt>Saved fingerprint</dt>
+              <dt>{t('ssh.hostKey.saved')}</dt>
               <dd className="mono">{prompt.previousFingerprint}</dd>
             </>
           )}
-          <dt>{changed ? 'New fingerprint' : 'Fingerprint (SHA-256)'}</dt>
+          <dt>{changed ? t('ssh.hostKey.new') : t('ssh.hostKey.fingerprint')}</dt>
           <dd className="mono">{prompt.fingerprint}</dd>
         </dl>
       </div>
@@ -89,13 +96,8 @@ function HostKeyDialog({ prompt }: { prompt: HostKeyPrompt }) {
   );
 }
 
-const TITLES: Record<AuthPrompt['method'], string> = {
-  password: 'Password required',
-  passphrase: 'Key passphrase required',
-  keyboardInteractive: 'Authentication',
-};
-
 function AuthDialog({ prompt }: { prompt: AuthPrompt }) {
+  const { t } = useTranslation();
   const answer = usePrompts((s) => s.answerAuth);
   // Kept in refs so a typed secret never sits in React state or a store.
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
@@ -109,16 +111,16 @@ function AuthDialog({ prompt }: { prompt: AuthPrompt }) {
   };
   return (
     <Dialog
-      title={prompt.name || TITLES[prompt.method]}
+      title={prompt.name || t(`ssh.auth.${prompt.method}`)}
       onClose={cancel}
       persistent
       footer={
         <>
           <button className="btn" onClick={cancel}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button className="btn btn-primary" onClick={submit}>
-            OK
+            {t('settings.ok')}
           </button>
         </>
       }
@@ -132,7 +134,7 @@ function AuthDialog({ prompt }: { prompt: AuthPrompt }) {
       >
         {prompt.retry && (
           <p className="callout callout-danger" role="alert">
-            That did not work. Try again.
+            {t('ssh.auth.retry')}
           </p>
         )}
         {prompt.instructions && <p>{prompt.instructions}</p>}

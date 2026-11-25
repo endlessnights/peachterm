@@ -1,13 +1,15 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { errorMessage } from '../../../i18n/errors';
+import { Trans, useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { Dialog } from '../../../components/Dialog';
 import { reportError } from '../../../components/Toasts';
-import { ipc, toAppError } from '../../../shared/ipc';
+import { ipc } from '../../../shared/ipc';
 import type { DuplicateChoice, ImportPreview, RestoreResult } from '../../../shared/types';
 import { useConnections } from '../../connections/store';
-import { ItemTable, NotesSummary, ResultSummary, Stat, plural } from './shared';
+import { ItemTable, NotesSummary, ResultSummary, Stat } from './shared';
 
 /**
  * Import PeachTerm connection JSON. Choosing a file only stages it in Rust and
@@ -15,6 +17,7 @@ import { ItemTable, NotesSummary, ResultSummary, Stat, plural } from './shared';
  * overwritten silently: the default skips duplicates.
  */
 export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const refresh = useConnections((s) => s.refresh);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [policy, setPolicy] = useState<DuplicateChoice>('skip');
@@ -44,7 +47,7 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
       setPolicy('skip');
       setUpdate(new Set());
     } catch (e) {
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -65,7 +68,7 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
       await refresh();
       setResult(outcome);
     } catch (e) {
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
       reportError(e);
     } finally {
       setBusy(false);
@@ -82,11 +85,11 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
   if (result) {
     return (
       <Dialog
-        title="Import finished"
+        title={t('port.import.finished')}
         onClose={onClose}
         footer={
           <button className="btn btn-primary" onClick={onClose}>
-            Close
+            {t('common.close')}
           </button>
         }
       >
@@ -98,28 +101,24 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
   if (!preview) {
     return (
       <Dialog
-        title="Import connections"
+        title={t('port.import.title')}
         onClose={onClose}
         footer={
           <>
             <button className="btn" onClick={onClose}>
-              Cancel
+              {t('common.cancel')}
             </button>
             <button className="btn btn-primary" onClick={() => void choose()} disabled={busy}>
-              Choose file…
+              {t('port.import.chooseFile')}
             </button>
           </>
         }
       >
         <div className="dialog-body">
           <p>
-            Select a PeachTerm connections file (<span className="kbd">.json</span>). You will see a
-            preview before anything is changed.
+            <Trans i18nKey="port.import.select" components={{ kbd: <span className="kbd" /> }} />
           </p>
-          <div className="hint">
-            Only files exported by PeachTerm are supported. Nothing in the file is executed, and no
-            connection is opened.
-          </div>
+          <div className="hint">{t('port.import.supported')}</div>
           {error && (
             <div className="error-text" role="alert">
               {error}
@@ -132,7 +131,7 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog
-      title="Import connections"
+      title={t('port.import.title')}
       wide
       persistent
       onClose={onClose}
@@ -142,7 +141,7 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
             {error && <span className="error-text">{error}</span>}
           </span>
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             className="btn btn-primary"
@@ -150,50 +149,57 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
             disabled={busy || willImport === 0}
           >
             {willImport === 0
-              ? 'Nothing to import'
-              : `Import ${plural(willImport, 'profile', 'profiles')}`}
+              ? t('port.import.nothing')
+              : t('port.import.button', { count: willImport })}
           </button>
         </>
       }
     >
       <div className="dialog-body">
         <div className="hint" style={{ wordBreak: 'break-all' }}>
-          {preview.fileName} · format version {preview.formatVersion}
+          {t('port.import.fileLine', { name: preview.fileName, version: preview.formatVersion })}
         </div>
-        <div className="stat-grid" role="group" aria-label="Import summary">
-          <Stat value={preview.connectionCount} label="Connections" />
-          <Stat value={preview.folderCount} label="Folders" />
-          <Stat value={preview.newCount} label="New" />
-          <Stat value={preview.duplicateCount + preview.changedCount} label="Possible duplicates" />
-          <Stat value={preview.invalidCount} label="Invalid" warn={preview.invalidCount > 0} />
+        <div className="stat-grid" role="group" aria-label={t('port.import.summaryAria')}>
+          <Stat value={preview.connectionCount} label={t('port.stat.connections')} />
+          <Stat value={preview.folderCount} label={t('port.stat.folders')} />
+          <Stat value={preview.newCount} label={t('port.stat.new')} />
+          <Stat
+            value={preview.duplicateCount + preview.changedCount}
+            label={t('port.stat.possibleDup')}
+          />
+          <Stat
+            value={preview.invalidCount}
+            label={t('port.stat.invalid')}
+            warn={preview.invalidCount > 0}
+          />
         </div>
         {preview.invalidCount > 0 && (
           <div className="notice notice-warn">
-            {plural(preview.invalidCount, 'entry', 'entries')} cannot be imported:{' '}
-            {preview.invalid
-              .slice(0, 3)
-              .map((i) => `${i.kind} #${i.index + 1} (${i.reason})`)
-              .join('; ')}
-            {preview.invalid.length > 3 ? '…' : ''}
+            {t('port.import.invalidList', {
+              count: preview.invalidCount,
+              list:
+                preview.invalid
+                  .slice(0, 3)
+                  .map((i) => `${i.kind} #${i.index + 1} (${i.reason})`)
+                  .join('; ') + (preview.invalid.length > 3 ? '…' : ''),
+            })}
           </div>
         )}
         {preview.unsupportedFields.length > 0 && (
           <div className="notice">
-            Unsupported fields were ignored: {preview.unsupportedFields.join(', ')}.
+            {t('port.import.unsupportedFields', { fields: preview.unsupportedFields.join(', ') })}
           </div>
         )}
         {preview.relocatedCount > 0 && (
           <div className="notice">
-            {plural(preview.relocatedCount, 'profile was', 'profiles were')} moved out of a folder
-            that cannot be imported.
+            {t('port.import.relocated', { count: preview.relocatedCount })}
           </div>
         )}
         {(preview.keyPathsMissing > 0 || preview.needsKey > 0) && (
           <div className="notice">
             {preview.keyPathsMissing > 0 &&
-              `${plural(preview.keyPathsMissing, 'key file path does', 'key file paths do')} not exist on this computer. `}
-            {preview.needsKey > 0 &&
-              `${plural(preview.needsKey, 'profile needs', 'profiles need')} an SSH key file chosen after import.`}
+              `${t('port.keyPathsMissing', { count: preview.keyPathsMissing })} `}
+            {preview.needsKey > 0 && t('port.needsKey', { count: preview.needsKey })}
           </div>
         )}
 
@@ -206,13 +212,13 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
                 checked={importNotes}
                 onChange={(e) => setImportNotes(e.target.checked)}
               />
-              Import the server notes (existing notes are never overwritten)
+              {t('port.import.notesCheck')}
             </label>
           </>
         )}
         {preview.duplicateCount + preview.changedCount > 0 && (
           <fieldset className="fieldset">
-            <legend>Possible duplicates</legend>
+            <legend>{t('port.dup.legend')}</legend>
             <label className="check">
               <input
                 type="radio"
@@ -220,7 +226,7 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
                 checked={policy === 'skip'}
                 onChange={() => setPolicy('skip')}
               />
-              Skip duplicates (default)
+              {t('port.dup.skip')}
             </label>
             <label className="check">
               <input
@@ -229,7 +235,7 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
                 checked={policy === 'copy'}
                 onChange={() => setPolicy('copy')}
               />
-              Import as copies
+              {t('port.dup.copy')}
             </label>
             <label className="check">
               <input
@@ -238,14 +244,9 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
                 checked={policy === 'update'}
                 onChange={() => setPolicy('update')}
               />
-              Update selected existing connections
+              {t('port.dup.update')}
             </label>
-            {policy === 'update' && (
-              <div className="hint">
-                Updates the name, authentication, timeout and directory. Host, port and user are
-                never changed, and saved passwords stay as they are.
-              </div>
-            )}
+            {policy === 'update' && <div className="hint">{t('port.dup.updateHint')}</div>}
           </fieldset>
         )}
 
@@ -258,7 +259,7 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
                   item.status === 'duplicate' ? (
                     <input
                       type="checkbox"
-                      aria-label={`Update ${item.name}`}
+                      aria-label={t('port.updateAria', { name: item.name })}
                       checked={update.has(item.index)}
                       onChange={() =>
                         setUpdate((prev) => {
@@ -274,7 +275,7 @@ export function ImportConnectionsDialog({ onClose }: { onClose: () => void }) {
           }
         />
         {policy === 'update' && duplicates.length === 0 && (
-          <div className="hint">There are no duplicates that can be updated.</div>
+          <div className="hint">{t('port.noUpdatable')}</div>
         )}
       </div>
     </Dialog>

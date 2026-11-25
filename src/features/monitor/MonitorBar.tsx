@@ -4,6 +4,8 @@
 // The compact resource readout in the status bar, for the active tab's server
 // (in Split View: the focused pane). A click opens a small details popover.
 
+import { useTranslation } from 'react-i18next';
+import { formatDecimal } from '../../i18n/format';
 import { useEffect, useRef, useState } from 'react';
 import { useSettings } from '../settings/store';
 import { useTabs } from '../sessions/store';
@@ -41,6 +43,7 @@ function useNow(active: boolean): number {
 }
 
 export function MonitorBar() {
+  const { t } = useTranslation();
   const sessionId = useTabs((s) => s.tabs.find((t) => t.id === s.activeId)?.sessionId ?? null);
   const entry: MonitorEntry | undefined = useMonitor((s) =>
     sessionId ? s.entries[sessionId] : undefined,
@@ -66,37 +69,41 @@ export function MonitorBar() {
 
   let body;
   if (entry.phase === 'waiting') {
-    body = <span className="mon-note">Server resources…</span>;
+    body = <span className="mon-note">{t('monitor.waiting')}</span>;
   } else if (entry.phase === 'unavailable') {
     body = (
       <span className="mon-note" title={reasonText(entry.reason)}>
-        Monitoring unavailable
+        {t('monitor.unavailable')}
       </span>
     );
   } else if (m) {
     body = (
       <>
         {cfg.cpu && (
-          <span className="mon-item" title="CPU utilisation (all cores)">
-            CPU {m.cpuPercent === null ? '—' : percent(m.cpuPercent)}
+          <span className="mon-item" title={t('monitor.cpuTip')}>
+            {t('monitor.cpu', { value: m.cpuPercent === null ? '—' : percent(m.cpuPercent) })}
             {m.cpuPercent !== null && <Meter value={m.cpuPercent} />}
           </span>
         )}
         {cfg.ram && (
-          <span className="mon-item" title="Memory in use (MemTotal − MemAvailable)">
-            RAM {m.memory ? formatUsage(m.memory.usedKib, m.memory.totalKib) : 'N/A'}
+          <span className="mon-item" title={t('monitor.ramTip')}>
+            {t('monitor.ram', {
+              value: m.memory ? formatUsage(m.memory.usedKib, m.memory.totalKib) : t('monitor.na'),
+            })}
             {m.memory && <Meter value={(m.memory.usedKib / m.memory.totalKib) * 100} />}
           </span>
         )}
         {cfg.disk && (
-          <span className="mon-item" title="Root filesystem (/) only, not every disk">
-            Disk / {m.disk ? percent(m.disk.percent) : 'N/A'}
+          <span className="mon-item" title={t('monitor.diskTip')}>
+            {t('monitor.disk', { value: m.disk ? percent(m.disk.percent) : t('monitor.na') })}
             {m.disk && <Meter value={m.disk.percent} />}
           </span>
         )}
         {cfg.uptime && (
-          <span className="mon-item" title="Server uptime (not the session duration)">
-            Up {m.uptimeSecs === null ? 'N/A' : formatUptime(m.uptimeSecs)}
+          <span className="mon-item" title={t('monitor.upTip')}>
+            {t('monitor.up', {
+              value: m.uptimeSecs === null ? t('monitor.na') : formatUptime(m.uptimeSecs),
+            })}
           </span>
         )}
       </>
@@ -109,9 +116,9 @@ export function MonitorBar() {
         type="button"
         className="mon-bar"
         data-stale={stale || undefined}
-        aria-label="Server resources"
+        aria-label={t('monitor.barAria')}
         aria-expanded={open}
-        title={stale ? 'Readings are stale' : 'Server resources (click for details)'}
+        title={stale ? t('monitor.staleTip') : t('monitor.barTip')}
         ref={button}
         onClick={() => {
           const r = button.current?.getBoundingClientRect();
@@ -125,59 +132,58 @@ export function MonitorBar() {
         }}
       >
         {body}
-        {stale && <span className="mon-note">stale</span>}
+        {stale && <span className="mon-note">{t('monitor.stale')}</span>}
       </button>
       {open && entry && (
         <div
           className="mon-popover"
           role="dialog"
-          aria-label="Server Resources"
+          aria-label={t('monitor.popTitle')}
           style={{ left: anchor.left, bottom: anchor.bottom }}
         >
-          <h4>Server Resources</h4>
+          <h4>{t('monitor.popTitle')}</h4>
           {entry.phase !== 'live' || !m ? (
             <p className="mon-detail-note">
-              {entry.phase === 'waiting'
-                ? 'Waiting for the first reading…'
-                : reasonText(entry.reason)}
+              {entry.phase === 'waiting' ? t('monitor.waitingFirst') : reasonText(entry.reason)}
             </p>
           ) : (
             <dl className="mon-detail">
-              <dt>CPU</dt>
-              <dd>{m.cpuPercent === null ? '— (needs two readings)' : percent(m.cpuPercent)}</dd>
+              <dt>{t('monitor.cpuLabel')}</dt>
+              <dd>{m.cpuPercent === null ? t('monitor.cpuNeedsTwo') : percent(m.cpuPercent)}</dd>
               {m.load && (
                 <>
-                  <dt>Load</dt>
-                  <dd>{m.load.map((v) => v.toFixed(2)).join('  ')}</dd>
+                  <dt>{t('monitor.load')}</dt>
+                  <dd>{m.load.map((v) => formatDecimal(v, 2)).join('  ')}</dd>
                 </>
               )}
-              <dt>Memory</dt>
-              <dd>{m.memory ? formatUsage(m.memory.usedKib, m.memory.totalKib) : 'N/A'}</dd>
+              <dt>{t('monitor.memory')}</dt>
+              <dd>
+                {m.memory ? formatUsage(m.memory.usedKib, m.memory.totalKib) : t('monitor.na')}
+              </dd>
               {m.memory && (
                 <>
-                  <dt>Available</dt>
+                  <dt>{t('monitor.available')}</dt>
                   <dd>{formatSize(m.memory.availableKib)}</dd>
                 </>
               )}
-              <dt>Root FS</dt>
-              <dd>{m.disk ? percent(m.disk.percent) : 'N/A'}</dd>
+              <dt>{t('monitor.rootFs')}</dt>
+              <dd>{m.disk ? percent(m.disk.percent) : t('monitor.na')}</dd>
               {m.disk && (
                 <>
-                  <dt>Used</dt>
+                  <dt>{t('monitor.used')}</dt>
                   <dd>{formatUsage(m.disk.usedKib, m.disk.totalKib)}</dd>
                 </>
               )}
-              <dt>Uptime</dt>
-              <dd>{m.uptimeSecs === null ? 'N/A' : formatUptimeLong(m.uptimeSecs)}</dd>
+              <dt>{t('monitor.uptime')}</dt>
+              <dd>{m.uptimeSecs === null ? t('monitor.na') : formatUptimeLong(m.uptimeSecs)}</dd>
             </dl>
           )}
           {entry.at !== null && (
-            <p className="mon-detail-note">Last updated: {formatAge(now - entry.at)}</p>
+            <p className="mon-detail-note">
+              {t('monitor.lastUpdated', { age: formatAge(now - entry.at) })}
+            </p>
           )}
-          <p className="mon-detail-note">
-            Live values only: nothing is saved. Disk shows the root filesystem /, not every disk or
-            storage pool.
-          </p>
+          <p className="mon-detail-note">{t('monitor.footnote')}</p>
         </div>
       )}
     </span>

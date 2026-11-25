@@ -1,6 +1,7 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { errorMessage } from '../i18n/errors';
 import { useEffect, useState } from 'react';
 import { ConfirmDialog, PromptDialog } from '../components/Dialog';
 import { ResizeHandle } from '../components/ResizeHandle';
@@ -26,7 +27,7 @@ import { TerminalWorkspace } from '../features/terminal/TerminalWorkspace';
 import { LockScreen } from '../features/lock/LockScreen';
 import { useLock } from '../features/lock/store';
 import { useActivityTouch } from '../features/lock/useActivityTouch';
-import { ipc, isTauri, toAppError } from '../shared/ipc';
+import { ipc, isTauri } from '../shared/ipc';
 import { restoreWorkspace, startWorkspacePersistence } from '../features/sessions/persistence';
 import { useRecent } from '../features/sessions/recentStore';
 import { TunnelsDialog } from '../features/tunnels/TunnelsDialog';
@@ -41,8 +42,11 @@ import { StatusBar } from './StatusBar';
 import { MonitorController } from '../features/monitor/MonitorController';
 import { useShortcuts } from './useShortcuts';
 import { useTheme } from './useTheme';
+import { useTranslation } from 'react-i18next';
+import { applyLanguagePreference, t as tr } from '../i18n';
 
 export function App() {
+  const { t } = useTranslation();
   const settings = useSettings((s) => s.settings);
   const settingsLoaded = useSettings((s) => s.loaded);
   const setUi = useSettings((s) => s.setUi);
@@ -62,6 +66,10 @@ export function App() {
       : { ...settings.appearance, theme: lock?.theme ?? 'dark', accent: lock?.accent ?? 'peach' },
   );
   useShortcuts();
+  // The interface language follows the saved preference at once (no restart, no remount).
+  useEffect(() => {
+    applyLanguagePreference(settings.general.language);
+  }, [settings.general.language]);
   useActivityTouch();
   useInterfaceScale(settingsLoaded ? (preview ?? settings.appearance).interfaceScale : undefined);
   useEffect(() => startWorkspacePersistence(), []);
@@ -79,7 +87,7 @@ export function App() {
     try {
       await Promise.all([useSettings.getState().load(), useConnections.getState().load()]);
     } catch (e) {
-      setFatal(toAppError(e).message);
+      setFatal(errorMessage(e));
       return;
     }
     // Tabs of the previous run (metadata only; connecting is the user's choice).
@@ -104,10 +112,7 @@ export function App() {
         if (status.enabled && !status.active) {
           useToasts
             .getState()
-            .push(
-              'error',
-              `File logging is unavailable (${describeReason(status.error)}). PeachTerm keeps working; check Settings → Diagnostics.`,
-            );
+            .push('error', tr('app.loggingUnavailable', { reason: describeReason(status.error) }));
         }
       })
       .catch(() => undefined);
@@ -122,7 +127,7 @@ export function App() {
       .then((view) => {
         if (!view.locked) void bootstrap();
       })
-      .catch((e) => setFatal(toAppError(e).message));
+      .catch((e) => setFatal(errorMessage(e)));
     // The backend tells us when the timer or another window locks the app.
     let stop: (() => void) | undefined;
     if (isTauri()) {
@@ -161,11 +166,9 @@ export function App() {
   if (fatal) {
     return (
       <div className="placeholder" role="alert">
-        <h2>PeachTerm could not load its data</h2>
+        <h2>{t('app.fatalTitle')}</h2>
         <p>{fatal}</p>
-        <p className="hint">
-          No file was modified. Fix or move the file mentioned above and restart.
-        </p>
+        <p className="hint">{t('app.fatalHint')}</p>
       </div>
     );
   }
@@ -189,7 +192,7 @@ export function App() {
             <>
               <Sidebar width={ui.sidebarWidth} />
               <ResizeHandle
-                label="Resize sidebar"
+                label={t('app.resizeSidebar')}
                 value={ui.sidebarWidth}
                 min={160}
                 max={640}

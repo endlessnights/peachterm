@@ -6,6 +6,7 @@
 // copies (a command is never run); links open the system browser through a fixed,
 // validated command, or scroll inside the document.
 
+import { useTranslation } from 'react-i18next';
 import { Fragment, useRef, type ReactNode } from 'react';
 import { notify, reportError } from '../../components/Toasts';
 import { ipc } from '../../shared/ipc';
@@ -55,18 +56,19 @@ function Highlight({ text, query }: { text: string; query: string }): ReactNode 
   return <>{parts}</>;
 }
 
-function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
+function CopyButton({ text }: { text: string }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
       className="doc-copy"
-      title="Copy to the clipboard (does not run anything)"
-      aria-label={`${label} code`}
+      title={t('notes.copyHint')}
+      aria-label={t('notes.copyCode')}
       onClick={() => {
-        void copyText(text).then((ok) => notify(ok ? 'Copied.' : 'Could not copy.'));
+        void copyText(text).then((ok) => notify(ok ? t('notes.copied') : t('notes.copyFailed')));
       }}
     >
-      {label}
+      {t('notes.copy')}
     </button>
   );
 }

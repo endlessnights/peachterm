@@ -4,6 +4,7 @@
 import { Icon } from '../../components/Icon';
 import { leaves, shownTabs } from '../sessions/layout';
 import { useTabs } from '../sessions/store';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Shown in a new pane: start a NEW session like the one next to it, show an
@@ -11,6 +12,7 @@ import { useTabs } from '../sessions/store';
  * closed by any of these.
  */
 export function PanePicker({ leafId }: { leafId: string }) {
+  const { t } = useTranslation();
   const tabs = useTabs((s) => s.tabs);
   const layout = useTabs((s) => s.layout);
   const fillLeaf = useTabs((s) => s.fillLeaf);
@@ -25,16 +27,17 @@ export function PanePicker({ leafId }: { leafId: string }) {
     tabs.find((t) => t.id === useTabs.getState().activeId) ??
     tabs[0];
   return (
-    <div className="pane-picker" role="group" aria-label="Choose what to show in this pane">
-      <h3>Show in this pane</h3>
+    <div className="pane-picker" role="group" aria-label={t('pane.group')}>
+      <h3>{t('pane.heading')}</h3>
       <button
         className="btn btn-primary"
         onClick={() => fillLeafWithNewSession(leafId)}
         data-autofocus
       >
-        <Icon name="plus" /> New session{source ? ` — ${source.title}` : ''}
+        <Icon name="plus" />{' '}
+        {source ? t('pane.newSessionNamed', { title: source.title }) : t('pane.newSession')}
       </button>
-      {hidden.length > 0 && <div className="pane-picker-label">Or an open tab</div>}
+      {hidden.length > 0 && <div className="pane-picker-label">{t('pane.orOpen')}</div>}
       <ul>
         {hidden.map((tab) => (
           <li key={tab.id}>
@@ -47,7 +50,7 @@ export function PanePicker({ leafId }: { leafId: string }) {
         ))}
       </ul>
       <button className="btn" onClick={() => removePane(leafId)}>
-        Cancel
+        {t('common.cancel')}
       </button>
     </div>
   );

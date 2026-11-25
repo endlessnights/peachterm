@@ -5,13 +5,15 @@
 // separate login). If the server has no SFTP subsystem the panel says so and
 // the terminal keeps working.
 
+import { errorMessage } from '../../i18n/errors';
+import { useTranslation } from 'react-i18next';
 import { useActivity } from '../exit/activity';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Icon } from '../../components/Icon';
 import { notify, reportError } from '../../components/Toasts';
 import { confirmAction, promptText } from '../../app/dialogs';
-import { ipc, toAppError } from '../../shared/ipc';
+import { ipc } from '../../shared/ipc';
 import type { Listing, RemoteEntry, TransferEvent } from '../../shared/types';
 import { useSettings } from '../settings/store';
 import type { Tab } from '../sessions/store';
@@ -47,6 +49,7 @@ interface Props {
 }
 
 export function SftpPanel({ tab, onOpenFile }: Props) {
+  const { t } = useTranslation();
   const sessionId = tab.sessionId;
   const showHidden = useSettings((s) => s.settings.sftp.showHidden);
   const confirmDelete = useSettings((s) => s.settings.sftp.confirmDelete);
@@ -80,7 +83,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
         setPathText(null);
       } catch (e) {
         if (requestNo.current !== mine) return;
-        const message = toAppError(e).message;
+        const message = errorMessage(e);
         setError(message);
         // A path that cannot be opened keeps the previous listing visible.
       } finally {
@@ -119,8 +122,8 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
         .then((opened) =>
           notify(
             opened.alreadyOpen
-              ? `${opened.name} is already open; the editor was started again.`
-              : `Opened ${opened.name} in your editor. Save there to upload.`,
+              ? t('sftp.alreadyOpen', { name: opened.name })
+              : t('sftp.opened', { name: opened.name }),
           ),
         )
         .catch(reportError);
@@ -194,9 +197,17 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
         await start(false);
       } else {
         confirmAction({
-          title: 'Replace existing files?',
-          message: `${clashes.slice(0, 5).join(', ')}${clashes.length > 5 ? ` and ${clashes.length - 5} more` : ''} already exist${clashes.length === 1 ? 's' : ''} in this folder on the server. Uploading replaces ${clashes.length === 1 ? 'it' : 'them'}.`,
-          confirmLabel: 'Replace',
+          title: t('sftp.replaceTitle'),
+          message: t(clashes.length === 1 ? 'sftp.replaceOne' : 'sftp.replaceMany', {
+            names:
+              clashes.length > 5
+                ? t('sftp.namesMore', {
+                    names: clashes.slice(0, 5).join(', '),
+                    count: clashes.length - 5,
+                  })
+                : clashes.join(', '),
+          }),
+          confirmLabel: t('sftp.replace'),
           danger: true,
           onConfirm: () => void start(true),
         });
@@ -217,11 +228,11 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
     const dir = listing.path;
     const existing = listing.entries.map((e) => e.name);
     promptText({
-      title: kind === 'file' ? 'New file' : 'New folder',
-      label: kind === 'file' ? 'File name' : 'Folder name',
-      hint: `Will be created in ${dir}`,
+      title: kind === 'file' ? t('sftp.newFile') : t('folder.newTitle'),
+      label: kind === 'file' ? t('sftp.fileName') : t('folder.name'),
+      hint: t('sftp.createdIn', { dir }),
       initial: '',
-      confirmLabel: 'Create',
+      confirmLabel: t('folder.create'),
       validate: (name) => validateRemoteName(name, existing),
       onSubmit: (name) => {
         const create =
@@ -240,10 +251,15 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
   };
 
   const newMenu = (): MenuEntry[] => [
-    { kind: 'item', label: 'New File…', icon: 'newFile', onSelect: () => createEntry('file') },
     {
       kind: 'item',
-      label: 'New Folder…',
+      label: t('sftp.menu.newFile'),
+      icon: 'newFile',
+      onSelect: () => createEntry('file'),
+    },
+    {
+      kind: 'item',
+      label: t('sftp.menu.newFolder'),
       icon: 'newFolder',
       onSelect: () => createEntry('folder'),
     },
@@ -258,7 +274,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
       entries: [
         ...newMenu(),
         { kind: 'separator' },
-        { kind: 'item', label: 'Refresh', icon: 'refresh', onSelect: refresh },
+        { kind: 'item', label: t('sftp.refresh'), icon: 'refresh', onSelect: refresh },
       ],
     });
   };
@@ -271,10 +287,10 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
   const rename = (entry: RemoteEntry) => {
     if (!sessionId) return;
     promptText({
-      title: 'Rename',
-      label: 'New name',
+      title: t('sftp.renameTitle'),
+      label: t('sftp.newName'),
       initial: entry.name,
-      confirmLabel: 'Rename',
+      confirmLabel: t('rename.submit'),
       onSubmit: (name) => {
         ipc.sftpRename(sessionId, entry.path, name).then(refresh).catch(reportError);
       },
@@ -287,7 +303,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
       ipc
         .sftpDelete(sessionId, entry.path)
         .then(({ removed }) => {
-          if (removed > 1) notify(`Deleted ${removed} items.`);
+          if (removed > 1) notify(t('sftp.deletedMany', { count: removed }));
           refresh();
         })
         .catch(reportError);
@@ -296,11 +312,11 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
       return;
     }
     confirmAction({
-      title: isDir(entry) ? 'Delete folder?' : 'Delete file?',
+      title: isDir(entry) ? t('sftp.deleteFolderTitle') : t('sftp.deleteFileTitle'),
       message: isDir(entry)
-        ? `"${entry.name}" and everything inside it will be deleted from the server. This cannot be undone.`
-        : `"${entry.name}" will be deleted from the server. This cannot be undone.`,
-      confirmLabel: 'Delete',
+        ? t('sftp.deleteFolderMessage', { name: entry.name })
+        : t('sftp.deleteFileMessage', { name: entry.name }),
+      confirmLabel: t('conn.delete.submit'),
       danger: true,
       onConfirm: () => void run(),
     });
@@ -310,7 +326,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
     const entries: MenuEntry[] = [
       {
         kind: 'item',
-        label: isDir(entry) ? 'Open' : 'Open in editor',
+        label: isDir(entry) ? t('sftp.menu.open') : t('sftp.menu.openEditor'),
         icon: 'edit',
         onSelect: () => open(entry),
       },
@@ -318,24 +334,24 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
     if (!isDir(entry)) {
       entries.push({
         kind: 'item',
-        label: 'Download…',
+        label: t('sftp.downloadTitle'),
         icon: 'download',
         onSelect: () => download(entry),
       });
     }
     entries.push(
       { kind: 'separator' },
-      { kind: 'item', label: 'Rename…', icon: 'edit', onSelect: () => rename(entry) },
+      { kind: 'item', label: t('sftp.menu.rename'), icon: 'edit', onSelect: () => rename(entry) },
       {
         kind: 'item',
-        label: 'Copy path',
+        label: t('sftp.menu.copyPath'),
         icon: 'copy',
         onSelect: () => void navigator.clipboard?.writeText(entry.path).catch(() => undefined),
       },
       { kind: 'separator' },
       {
         kind: 'item',
-        label: 'Delete…',
+        label: t('conn.menu.delete'),
         icon: 'trash',
         danger: true,
         onSelect: () => remove(entry),
@@ -350,8 +366,8 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
     return (
       <div className="sftp-message" role="status">
         <Icon name="folder" size={22} />
-        <p>This server does not offer SFTP.</p>
-        <p className="hint">The terminal is not affected.</p>
+        <p>{t('sftp.unavailable')}</p>
+        <p className="hint">{t('sftp.unavailableHint')}</p>
       </div>
     );
   }
@@ -360,8 +376,8 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
       <div className="sftp-message" role="status">
         <p className="hint">
           {tab.status === 'connected' || tab.status === 'connecting'
-            ? 'Starting SFTP…'
-            : 'Connect to browse files.'}
+            ? t('sftp.starting')
+            : t('sftp.connectToBrowse')}
         </p>
       </div>
     );
@@ -380,32 +396,42 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
       <div className="sftp-toolbar">
         <button
           className="icon-btn"
-          aria-label="Parent folder"
-          title="Parent folder"
+          aria-label={t('sftp.parent')}
+          title={t('sftp.parent')}
           disabled={!listing?.parent}
           onClick={() => listing?.parent && void load(listing.parent)}
         >
           <Icon name="parent" />
         </button>
-        <button className="icon-btn" aria-label="Refresh" title="Refresh" onClick={refresh}>
+        <button
+          className="icon-btn"
+          aria-label={t('sftp.refresh')}
+          title={t('sftp.refresh')}
+          onClick={refresh}
+        >
           <Icon name="refresh" />
         </button>
         <button
           className="icon-btn"
-          aria-label="New file or folder"
+          aria-label={t('sftp.newEntry')}
           aria-haspopup="menu"
-          title="New file or folder"
+          title={t('sftp.newEntry')}
           onClick={(e) => menuAtElement(e.currentTarget, newMenu())}
         >
           <Icon name="plus" />
         </button>
-        <button className="icon-btn" aria-label="Upload files" title="Upload…" onClick={upload}>
+        <button
+          className="icon-btn"
+          aria-label={t('sftp.uploadAria')}
+          title={t('sftp.uploadTitle')}
+          onClick={upload}
+        >
           <Icon name="upload" />
         </button>
         <button
           className="icon-btn"
-          aria-label="Download selected file"
-          title="Download…"
+          aria-label={t('sftp.downloadAria')}
+          title={t('sftp.downloadTitle')}
           disabled={!current || isDir(current)}
           onClick={() => current && download(current)}
         >
@@ -414,9 +440,9 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
         <span className="spacer" />
         <button
           className="icon-btn"
-          aria-label="Show hidden files"
+          aria-label={t('settings.sftp.showHidden')}
           aria-pressed={showHidden}
-          title="Show hidden files"
+          title={t('settings.sftp.showHidden')}
           data-active={showHidden || undefined}
           onClick={() => {
             const settings = useSettings.getState().settings;
@@ -439,7 +465,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
       >
         <input
           className="input"
-          aria-label="Remote path"
+          aria-label={t('sftp.remotePath')}
           spellCheck={false}
           value={pathText ?? listing?.path ?? ''}
           onChange={(e) => setPathText(e.target.value)}
@@ -447,7 +473,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
         />
       </form>
       {listing && (
-        <nav className="sftp-crumbs" aria-label="Path">
+        <nav className="sftp-crumbs" aria-label={t('sftp.pathAria')}>
           {breadcrumbs(listing.path).map((c) => (
             <button key={c.path} className="crumb" onClick={() => void load(c.path)}>
               {c.name}
@@ -467,9 +493,9 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
             key={key}
             className={`sftp-col sftp-col-${key}`}
             onClick={() => toggleSort(key)}
-            aria-label={`Sort by ${key}`}
+            aria-label={t('sftp.sortBy', { column: t(`sftp.colAria.${key}`) })}
           >
-            {key[0]!.toUpperCase() + key.slice(1)}
+            {t(`sftp.col.${key}`)}
             {sort.key === key && (sort.ascending ? ' ▲' : ' ▼')}
           </button>
         ))}
@@ -477,7 +503,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
       <div
         className="sftp-list"
         role="listbox"
-        aria-label="Remote files"
+        aria-label={t('sftp.remoteFiles')}
         aria-busy={loading}
         tabIndex={0}
         // Right click on the empty area: the folder's own menu.
@@ -520,7 +546,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
           }
         }}
       >
-        {rows.length === 0 && !loading && <div className="sftp-empty">This folder is empty.</div>}
+        {rows.length === 0 && !loading && <div className="sftp-empty">{t('sftp.empty')}</div>}
         {rows.map((entry) => (
           <div
             key={entry.path}
@@ -548,29 +574,29 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
       </div>
 
       {transfers.length > 0 && (
-        <ul className="sftp-transfers" aria-label="Transfers">
-          {transfers.map((t) => (
-            <li key={t.id} data-state={t.state}>
-              <Icon name={t.direction === 'upload' ? 'upload' : 'download'} />
-              <span className="sftp-transfer-name">{baseName(t.name)}</span>
-              {t.state === 'running' ? (
+        <ul className="sftp-transfers" aria-label={t('sftp.transfers')}>
+          {transfers.map((x) => (
+            <li key={x.id} data-state={x.state}>
+              <Icon name={x.direction === 'upload' ? 'upload' : 'download'} />
+              <span className="sftp-transfer-name">{baseName(x.name)}</span>
+              {x.state === 'running' ? (
                 <>
-                  <progress value={t.done} max={Math.max(1, t.total)} />
+                  <progress value={x.done} max={Math.max(1, x.total)} />
                   <button
                     className="icon-btn"
-                    aria-label={`Cancel ${t.name}`}
-                    onClick={() => void ipc.sftpCancel(t.id).catch(reportError)}
+                    aria-label={t('sftp.cancelTransfer', { name: x.name })}
+                    onClick={() => void ipc.sftpCancel(x.id).catch(reportError)}
                   >
                     <Icon name="close" />
                   </button>
                 </>
               ) : (
                 <span className="sftp-transfer-state">
-                  {t.state === 'done'
-                    ? 'done'
-                    : t.state === 'cancelled'
-                      ? 'cancelled'
-                      : `failed: ${t.note ?? ''}`}
+                  {x.state === 'done'
+                    ? t('sftp.state.done')
+                    : x.state === 'cancelled'
+                      ? t('sftp.state.cancelled')
+                      : t('sftp.state.failed', { note: x.note ?? '' })}
                 </span>
               )}
             </li>

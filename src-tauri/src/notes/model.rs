@@ -104,7 +104,10 @@ pub fn clean_title(title: &str) -> AppResult<String> {
         .collect();
     let t = t.trim();
     if t.is_empty() {
-        return Err(AppError::Validation("Give the note a title.".into()));
+        return Err(AppError::validation_key(
+            "notes.needTitle",
+            "Give the note a title.",
+        ));
     }
     if t.chars().count() > MAX_TITLE_CHARS {
         return Err(AppError::Validation(format!(

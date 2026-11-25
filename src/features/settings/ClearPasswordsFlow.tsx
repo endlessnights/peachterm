@@ -1,10 +1,12 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { errorMessage } from '../../i18n/errors';
+import { Trans, useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { notify, reportError } from '../../components/Toasts';
-import { ipc, toAppError } from '../../shared/ipc';
+import { ipc } from '../../shared/ipc';
 import { useConnections } from '../connections/store';
 
 /** The answer to a question such as "7 + 5" or "4 × 3". */
@@ -29,6 +31,7 @@ interface Challenge {
  * together with a short-lived single-use token, so this UI cannot skip the check.
  */
 export function ClearPasswordsFlow({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const refreshConnections = useConnections((s) => s.refresh);
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [answer, setAnswer] = useState('');
@@ -64,14 +67,14 @@ export function ClearPasswordsFlow({ onClose }: { onClose: () => void }) {
       if (failed > 0) {
         reportError({
           code: 'partial',
-          message: `Removed ${deleted} saved password${deleted === 1 ? '' : 's'}; ${failed} could not be removed and are still saved.`,
+          message: t('clearpw.partial', { count: deleted, deleted, failed }),
         });
       } else {
-        notify(`Removed ${deleted} saved password${deleted === 1 ? '' : 's'}.`);
+        notify(t('clearpw.done', { count: deleted }));
       }
       onClose();
     } catch (e) {
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
       setAnswer('');
     } finally {
       setBusy(false);
@@ -81,33 +84,30 @@ export function ClearPasswordsFlow({ onClose }: { onClose: () => void }) {
   if (!challenge) {
     return (
       <Dialog
-        title="Remove all saved passwords?"
+        title={t('clearpw.title')}
         onClose={onClose}
         persistent
         footer={
           <>
             <button className="btn btn-primary" onClick={onClose} data-autofocus>
-              Cancel
+              {t('common.cancel')}
             </button>
             <button className="btn btn-danger" onClick={() => void cont()} disabled={busy}>
-              Continue
+              {t('clearpw.continue')}
             </button>
           </>
         }
       >
         <div className="dialog-body">
           <p>
-            <strong>
-              Are you sure you want to remove all saved passwords and SSH key passphrases from
-              PeachTerm?
-            </strong>
+            <strong>{t('clearpw.sure')}</strong>
           </p>
           <ul className="plain-list">
-            <li>Saved passwords and passphrases will be deleted.</li>
-            <li>Saved connection profiles will remain.</li>
-            <li>SSH private key files will not be deleted.</li>
-            <li>You may need to enter credentials again.</li>
-            <li>This cannot be undone automatically.</li>
+            <li>{t('clearpw.l1')}</li>
+            <li>{t('clearpw.l2')}</li>
+            <li>{t('clearpw.l3')}</li>
+            <li>{t('clearpw.l4')}</li>
+            <li>{t('clearpw.l5')}</li>
           </ul>
         </div>
       </Dialog>
@@ -116,20 +116,20 @@ export function ClearPasswordsFlow({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog
-      title="Confirm deletion"
+      title={t('clearpw.confirmTitle')}
       onClose={onClose}
       persistent
       footer={
         <>
           <button className="btn" onClick={onClose} data-autofocus>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             className="btn btn-danger"
             onClick={() => void finish()}
             disabled={!correct || busy}
           >
-            Delete {challenge.count} saved password{challenge.count === 1 ? '' : 's'}
+            {t('clearpw.deleteButton', { count: challenge.count })}
           </button>
         </>
       }
@@ -142,16 +142,19 @@ export function ClearPasswordsFlow({ onClose }: { onClose: () => void }) {
         }}
       >
         <p>
-          <strong>{challenge.count}</strong> saved password or passphrase{' '}
-          {challenge.count === 1 ? 'entry' : 'entries'} will be removed.
+          <Trans
+            i18nKey="clearpw.willRemove"
+            count={challenge.count}
+            components={{ strong: <strong /> }}
+          />
         </p>
         <label className="field">
-          <span>To confirm, solve: {challenge.question} = ?</span>
+          <span>{t('clearpw.solve', { question: challenge.question })}</span>
           <input
             className="input"
             inputMode="numeric"
             autoComplete="off"
-            aria-label={`${challenge.question} equals`}
+            aria-label={t('clearpw.equals', { question: challenge.question })}
             value={answer}
             onChange={(e) => {
               setAnswer(e.target.value);
@@ -159,7 +162,7 @@ export function ClearPasswordsFlow({ onClose }: { onClose: () => void }) {
             }}
           />
         </label>
-        <p className="hint">This only guards against accidental clicks.</p>
+        <p className="hint">{t('clearpw.guard')}</p>
         {error && (
           <p className="error-text" role="alert">
             {error}

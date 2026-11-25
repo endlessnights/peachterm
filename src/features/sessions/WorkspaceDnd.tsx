@@ -19,17 +19,19 @@ import {
 } from '@dnd-kit/core';
 import type { ReactNode } from 'react';
 import { useDrag } from './dragStore';
-import { zoneFor, type Zone } from './layout';
+import { MAX_LEAVES, zoneFor, type Zone } from './layout';
 import { dropTab } from './splitActions';
 import { useTabs } from './store';
+import { t as tr } from '../../i18n';
 
 const PANE_PREFIX = 'pane:';
 
-const INVALID_REASON = {
-  none: 'Already shown here',
-  limit: 'At most 6 panes',
-  space: 'Not enough room',
-} as const;
+const invalidReason = (result: 'none' | 'limit' | 'space'): string =>
+  result === 'none'
+    ? tr('split.invalid.none')
+    : result === 'limit'
+      ? tr('split.invalid.limit', { max: MAX_LEAVES })
+      : tr('split.invalid.space');
 
 /** Inside the tab bar tabs sort; over the workspace panes are drop targets. */
 const collision: CollisionDetection = (args) => {
@@ -79,7 +81,7 @@ export function WorkspaceDnd({ children }: { children: ReactNode }) {
             .getState()
             .canDrop(String(event.active.id), leafId, zone as Exclude<Zone, 'center'>);
     const valid = result === 'ok';
-    const reason = valid ? undefined : INVALID_REASON[result];
+    const reason = valid ? undefined : invalidReason(result);
     const current = useDrag.getState().preview;
     if (
       current?.leafId !== leafId ||

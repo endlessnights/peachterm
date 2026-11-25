@@ -1,12 +1,14 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { errorMessage } from '../../i18n/errors';
 import { useEffect, useMemo, useState } from 'react';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
+import { useTranslation } from 'react-i18next';
 import type { SettingsPage } from '../../app/dialogs';
 import { Dialog } from '../../components/Dialog';
 import { formatArgs, parseArgs } from '../../shared/args';
-import { ipc, isTauri, toAppError } from '../../shared/ipc';
+import { ipc, isTauri } from '../../shared/ipc';
 import { checkBindings } from '../../shared/shortcuts';
 import { effectiveFontSize } from '../../shared/scale';
 import {
@@ -32,18 +34,19 @@ import { ShortcutsPage } from './ShortcutsPage';
 import { useCredentialStatus } from '../connections/useCredentialStatus';
 import { useActivity } from '../exit/activity';
 import { useSettings } from './store';
+import { LANGUAGE_NAMES, SUPPORTED_LANGUAGES, normalizePreference } from '../../i18n/languages';
 
-const PAGES: { id: SettingsPage; label: string }[] = [
-  { id: 'general', label: 'General' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'shortcuts', label: 'Keyboard Shortcuts' },
-  { id: 'ssh', label: 'SSH' },
-  { id: 'sftp', label: 'SFTP & editor' },
-  { id: 'security', label: 'Security' },
-  { id: 'data', label: 'Data & Backup' },
-  { id: 'diagnostics', label: 'Diagnostics' },
-  { id: 'about', label: 'About' },
+const PAGES: SettingsPage[] = [
+  'general',
+  'appearance',
+  'terminal',
+  'shortcuts',
+  'ssh',
+  'sftp',
+  'security',
+  'data',
+  'diagnostics',
+  'about',
 ];
 
 const ACCENTS: { id: Accent; color: string }[] = [
@@ -51,11 +54,6 @@ const ACCENTS: { id: Accent; color: string }[] = [
   { id: 'teal', color: '#5cc8b8' },
   { id: 'violet', color: '#b39cf0' },
   { id: 'blue', color: '#78aef0' },
-];
-
-/** Settings whose change is only picked up by the next launch. */
-const RESTART_FIELDS: { label: string; get: (s: Settings) => unknown }[] = [
-  { label: 'Interface language', get: (s) => s.general.language },
 ];
 
 /** Layout (`ui`) is saved by its own controls, so it does not make the dialog dirty. */
@@ -68,8 +66,8 @@ export function SettingsDialog({
   onClose: () => void;
   initialPage?: SettingsPage;
 }) {
+  const { t } = useTranslation();
   const saved = useSettings((s) => s.settings);
-  const startup = useSettings((s) => s.startupSnapshot);
   const save = useSettings((s) => s.save);
   const [draft, setDraft] = useState<Settings>(saved);
   const [baseline, setBaseline] = useState<Settings>(saved);
@@ -101,7 +99,7 @@ export function SettingsDialog({
 
   const apply = async (): Promise<boolean> => {
     if (problems.length > 0) {
-      setError('Resolve the keyboard shortcut conflicts first.');
+      setError(t('settings.shortcutConflicts'));
       setPage('shortcuts');
       return false;
     }
@@ -118,7 +116,7 @@ export function SettingsDialog({
       await useLock.getState().refresh();
       return true;
     } catch (e) {
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
       return false;
     } finally {
       setBusy(false);
@@ -129,13 +127,9 @@ export function SettingsDialog({
     if (!dirty || (await apply())) onClose();
   };
 
-  const needsRestart = startup
-    ? RESTART_FIELDS.filter((f) => f.get(baseline) !== f.get(startup)).map((f) => f.label)
-    : [];
-
   return (
     <Dialog
-      title="Settings"
+      title={t('settings.title')}
       wide
       persistent
       onClose={onClose}
@@ -144,10 +138,8 @@ export function SettingsDialog({
           <span className="left settings-status" role="status">
             {error ? (
               <span className="error-text">{error}</span>
-            ) : needsRestart.length > 0 ? (
-              <span className="hint">Restart PeachTerm to apply: {needsRestart.join(', ')}.</span>
             ) : dirty ? (
-              <span className="hint">Unapplied changes</span>
+              <span className="hint">{t('settings.unapplied')}</span>
             ) : null}
           </span>
           <button
@@ -155,30 +147,30 @@ export function SettingsDialog({
             onClick={() => void ok()}
             disabled={busy || problems.length > 0}
           >
-            OK
+            {t('settings.ok')}
           </button>
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             className="btn"
             onClick={() => void apply()}
             disabled={!dirty || busy || problems.length > 0}
           >
-            Apply
+            {t('settings.apply')}
           </button>
         </>
       }
     >
       <div className="settings">
-        <nav className="settings-nav" aria-label="Settings sections">
-          {PAGES.map((p) => (
+        <nav className="settings-nav" aria-label={t('settings.sections')}>
+          {PAGES.map((id) => (
             <button
-              key={p.id}
-              aria-current={page === p.id ? 'page' : undefined}
-              onClick={() => setPage(p.id)}
+              key={id}
+              aria-current={page === id ? 'page' : undefined}
+              onClick={() => setPage(id)}
             >
-              {p.label}
+              {t(`settings.page.${id}`)}
             </button>
           ))}
         </nav>
@@ -206,11 +198,12 @@ export function SettingsDialog({
 }
 
 function GeneralPage({ draft, patch }: PageProps) {
+  const { t } = useTranslation();
   const g = draft.general;
   return (
     <>
-      <h3>Startup</h3>
-      <Field label="When PeachTerm starts" hint="Applies the next time PeachTerm starts.">
+      <h3>{t('settings.general.startup')}</h3>
+      <Field label={t('settings.general.whenStarts')} hint={t('settings.general.whenStartsHint')}>
         <select
           className="select"
           value={g.startup}
@@ -218,8 +211,8 @@ function GeneralPage({ draft, patch }: PageProps) {
             patch('general', { startup: e.target.value as Settings['general']['startup'] })
           }
         >
-          <option value="empty">Start with no tabs</option>
-          <option value="restoreTabs">Restore previous tabs (layout only)</option>
+          <option value="empty">{t('settings.general.startEmpty')}</option>
+          <option value="restoreTabs">{t('settings.general.restoreTabs')}</option>
         </select>
       </Field>
       <label className="check">
@@ -228,20 +221,14 @@ function GeneralPage({ draft, patch }: PageProps) {
           checked={g.autoReconnectRestored}
           onChange={(e) => patch('general', { autoReconnectRestored: e.target.checked })}
         />
-        Reconnect restored tabs automatically
+        {t('settings.general.autoReconnect')}
       </label>
-      <span className="hint">
-        Restoring never re-runs commands. Every restored connection is a new session and asks again
-        before uploading edited files.
-      </span>
-      <h3>Home screen</h3>
-      <Field
-        label="Recent sessions limit"
-        hint="How many recently used saved connections the home screen lists."
-      >
+      <span className="hint">{t('settings.general.autoReconnectHint')}</span>
+      <h3>{t('settings.general.home')}</h3>
+      <Field label={t('settings.general.recentLimit')} hint={t('settings.general.recentLimitHint')}>
         <select
           className="select"
-          aria-label="Recent sessions limit"
+          aria-label={t('settings.general.recentLimit')}
           value={g.recentSessionsLimit}
           onChange={(e) => patch('general', { recentSessionsLimit: Number(e.target.value) })}
         >
@@ -253,73 +240,78 @@ function GeneralPage({ draft, patch }: PageProps) {
         </select>
       </Field>
       <ClearHistory />
-      <h3>Window</h3>
+      <h3>{t('settings.general.window')}</h3>
       <label className="check">
         <input
           type="checkbox"
           checked={g.showStatusBar}
           onChange={(e) => patch('general', { showStatusBar: e.target.checked })}
         />
-        Show status bar
+        {t('settings.general.showStatusBar')}
       </label>
-      <h3>Updates</h3>
+      <h3>{t('settings.general.updates')}</h3>
       <label className="check">
         <input
           type="checkbox"
           checked={g.checkUpdates}
           onChange={(e) => patch('general', { checkUpdates: e.target.checked })}
         />
-        Automatically check for updates
+        {t('settings.general.autoUpdates')}
       </label>
-      <p className="hint">
-        Check for new PeachTerm versions periodically. Updates are never installed automatically.
-      </p>
-      <h3>Tabs</h3>
+      <p className="hint">{t('settings.general.autoUpdatesHint')}</p>
+      <h3>{t('settings.general.tabs')}</h3>
       <label className="check">
         <input
           type="checkbox"
           checked={g.confirmCloseActive}
           onChange={(e) => patch('general', { confirmCloseActive: e.target.checked })}
         />
-        Confirm before closing a connected tab
+        {t('settings.general.confirmClose')}
       </label>
-      <h3>Language</h3>
-      <Field label="Interface language" hint="Takes effect after restarting PeachTerm.">
-        <select
-          className="select"
-          value={g.language}
-          onChange={(e) => patch('general', { language: e.target.value })}
-        >
-          <option value="en">English</option>
-        </select>
-      </Field>
     </>
   );
 }
 
 function AppearancePage({ draft, patch, replace }: PageProps) {
+  const { t } = useTranslation();
   const a = draft.appearance;
   return (
     <>
-      <h3>Theme</h3>
+      <h3>{t('settings.language.heading')}</h3>
+      <Field label={t('settings.language.label')} hint={t('settings.language.hint')}>
+        <select
+          className="select"
+          aria-label={t('settings.language.label')}
+          value={normalizePreference(draft.general.language)}
+          onChange={(e) => patch('general', { language: e.target.value })}
+        >
+          <option value="system">{t('settings.language.system')}</option>
+          {SUPPORTED_LANGUAGES.map((code) => (
+            <option key={code} value={code} lang={code}>
+              {LANGUAGE_NAMES[code]}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <h3>{t('settings.appearance.theme')}</h3>
       <Segmented
         value={a.theme}
         options={[
-          { value: 'dark', label: 'Dark' },
-          { value: 'light', label: 'Light' },
+          { value: 'dark', label: t('settings.appearance.dark') },
+          { value: 'light', label: t('settings.appearance.light') },
           { value: 'olive', label: 'Industrial Olive' },
           { value: 'gray', label: 'Source Gray' },
-          { value: 'system', label: 'System' },
+          { value: 'system', label: t('settings.appearance.system') },
         ]}
         onChange={(theme) => patch('appearance', { theme })}
       />
       <Field
-        label="Accent colour"
+        label={t('settings.appearance.accent')}
         hint={
           a.theme === 'olive'
-            ? 'Industrial Olive uses its own mustard accent. Your accent choice is kept for the other themes.'
+            ? t('settings.appearance.accentOlive')
             : a.theme === 'gray'
-              ? 'Source Gray uses its own grey accent. Your accent choice is kept for the other themes.'
+              ? t('settings.appearance.accentGray')
               : undefined
         }
       >
@@ -329,7 +321,7 @@ function AppearancePage({ draft, patch, replace }: PageProps) {
               key={accent.id}
               type="button"
               className="swatch"
-              aria-label={accent.id}
+              aria-label={t(`settings.appearance.accentNames.${accent.id}`)}
               aria-pressed={a.accent === accent.id}
               style={{ background: accent.color }}
               onClick={() => patch('appearance', { accent: accent.id })}
@@ -337,15 +329,15 @@ function AppearancePage({ draft, patch, replace }: PageProps) {
           ))}
         </div>
       </Field>
-      <h3>Interface scale</h3>
+      <h3>{t('settings.appearance.scaleHeading')}</h3>
       <Field
-        label="Interface scale"
-        hint="Zooms the whole interface. The terminal font size below is separate and is not scaled again."
+        label={t('settings.appearance.scaleHeading')}
+        hint={t('settings.appearance.scaleHint')}
       >
         <div className="scale-row">
           <input
             type="range"
-            aria-label="Interface scale"
+            aria-label={t('settings.appearance.scaleHeading')}
             aria-valuetext={`${a.interfaceScale}%`}
             min={INTERFACE_SCALES[0]}
             max={INTERFACE_SCALES[INTERFACE_SCALES.length - 1]}
@@ -360,22 +352,19 @@ function AppearancePage({ draft, patch, replace }: PageProps) {
             disabled={a.interfaceScale === 100}
             onClick={() => patch('appearance', { interfaceScale: 100 })}
           >
-            Reset to 100%
+            {t('settings.appearance.resetScale')}
           </button>
         </div>
       </Field>
-      <h3>Terminal</h3>
-      <Field
-        label="Font"
-        hint="Only fonts that are really available are listed. The terminal font is separate from the interface scale."
-      >
+      <h3>{t('settings.appearance.terminal')}</h3>
+      <Field label={t('settings.appearance.font')} hint={t('settings.appearance.fontHint')}>
         <FontPicker
           value={a.terminalFontFamily}
           onChange={(terminalFontFamily) => patch('appearance', { terminalFontFamily })}
         />
       </Field>
       <div className="settings-grid">
-        <Field label="Font size">
+        <Field label={t('settings.appearance.fontSize')}>
           {numberInput(
             a.terminalFontSize,
             (n) => patch('appearance', { terminalFontSize: n }),
@@ -383,7 +372,7 @@ function AppearancePage({ draft, patch, replace }: PageProps) {
             32,
           )}
         </Field>
-        <Field label="Scrollback lines">
+        <Field label={t('settings.appearance.scrollback')}>
           {numberInput(a.scrollback, (n) => patch('appearance', { scrollback: n }), 500, 200000)}
         </Field>
       </div>
@@ -403,12 +392,13 @@ function AppearancePage({ draft, patch, replace }: PageProps) {
 }
 
 function SshPage({ draft, patch }: PageProps) {
+  const { t } = useTranslation();
   const s = draft.ssh;
   return (
     <>
-      <h3>Connection</h3>
+      <h3>{t('settings.ssh.connection')}</h3>
       <div className="settings-grid">
-        <Field label="Default timeout (seconds)">
+        <Field label={t('settings.ssh.timeout')}>
           {numberInput(
             s.connectTimeoutSecs,
             (n) => patch('ssh', { connectTimeoutSecs: n }),
@@ -416,13 +406,13 @@ function SshPage({ draft, patch }: PageProps) {
             300,
           )}
         </Field>
-        <Field label="Keepalive interval (seconds)" hint="0 disables keepalive.">
+        <Field label={t('settings.ssh.keepalive')} hint={t('settings.ssh.keepaliveHint')}>
           {numberInput(s.keepaliveSecs, (n) => patch('ssh', { keepaliveSecs: n }), 0, 3600)}
         </Field>
       </div>
-      <h3>Defaults for new connections</h3>
+      <h3>{t('settings.ssh.defaults')}</h3>
       <div className="settings-grid">
-        <Field label="Username">
+        <Field label={t('settings.ssh.username')}>
           <input
             className="input"
             value={s.defaultUsername}
@@ -430,80 +420,68 @@ function SshPage({ draft, patch }: PageProps) {
             spellCheck={false}
           />
         </Field>
-        <Field label="Authentication">
+        <Field label={t('settings.ssh.authentication')}>
           <select
             className="select"
             value={s.preferredAuth}
             onChange={(e) => patch('ssh', { preferredAuth: e.target.value as AuthMethod })}
           >
-            <option value="password">Password</option>
-            <option value="publicKey">Public key</option>
-            <option value="keyboardInteractive">Keyboard-interactive</option>
-            <option value="agent">SSH agent</option>
+            <option value="password">{t('settings.ssh.auth.password')}</option>
+            <option value="publicKey">{t('settings.ssh.auth.publicKey')}</option>
+            <option value="keyboardInteractive">
+              {t('settings.ssh.auth.keyboardInteractive')}
+            </option>
+            <option value="agent">{t('settings.ssh.auth.agent')}</option>
           </select>
         </Field>
       </div>
-      <h3>Server Monitoring</h3>
+      <h3>{t('settings.monitoring.heading')}</h3>
       <div className="settings-grid">
-        <Field
-          label="Show server resource usage"
-          hint="Display live CPU, memory, disk, and uptime information for supported Linux SSH servers. Readings are shown only and never saved."
-        >
+        <Field label={t('settings.monitoring.enable')} hint={t('settings.monitoring.enableHint')}>
           <input
             type="checkbox"
-            aria-label="Show server resource usage"
+            aria-label={t('settings.monitoring.enable')}
             checked={draft.monitoring.enabled}
             onChange={(e) => patch('monitoring', { enabled: e.target.checked })}
           />
         </Field>
-        <Field label="Refresh interval">
+        <Field label={t('settings.monitoring.interval')}>
           <select
             className="select"
-            aria-label="Monitoring refresh interval"
+            aria-label={t('settings.monitoring.intervalAria')}
             value={draft.monitoring.intervalSecs}
             onChange={(e) => patch('monitoring', { intervalSecs: Number(e.target.value) })}
           >
-            <option value={5}>Every 5 seconds</option>
-            <option value={10}>Every 10 seconds</option>
-            <option value={30}>Every 30 seconds</option>
+            {[5, 10, 30].map((n) => (
+              <option key={n} value={n}>
+                {t('settings.monitoring.every', { count: n })}
+              </option>
+            ))}
           </select>
         </Field>
-        <Field label="Visible metrics">
+        <Field label={t('settings.monitoring.visible')}>
           <span className="monitor-metrics-pick">
-            {(
-              [
-                ['cpu', 'CPU'],
-                ['ram', 'RAM'],
-                ['disk', 'Disk /'],
-                ['uptime', 'Uptime'],
-              ] as const
-            ).map(([key, label]) => (
+            {(['cpu', 'ram', 'disk', 'uptime'] as const).map((key) => (
               <label key={key} className="check-inline">
                 <input
                   type="checkbox"
                   checked={draft.monitoring[key]}
                   onChange={(e) => patch('monitoring', { [key]: e.target.checked })}
                 />{' '}
-                {label}
+                {t(`settings.monitoring.metric.${key}`)}
               </label>
             ))}
           </span>
         </Field>
       </div>
-      <div className="notice">
-        Linux servers only. Metrics are read over a separate exec channel of the existing SSH
-        connection, never typed into your shell. A connection can override this setting in its
-        editor.
-      </div>
-      <div className="notice">
-        Host keys are always verified. Unknown keys must be approved and changed keys are blocked
-        with a warning — this cannot be turned off.
-      </div>
+      <div className="notice">{t('settings.monitoring.notice')}</div>
+      <div className="notice">{t('settings.ssh.hostKeyNotice')}</div>
     </>
   );
 }
 
 function SftpPage({ draft, patch }: PageProps) {
+  const { t } = useTranslation();
   const f = draft.sftp;
   const e = draft.editor;
   const [presets, setPresets] = useState<EditorPreset[]>([]);
@@ -519,21 +497,21 @@ function SftpPage({ draft, patch }: PageProps) {
     const picked = await openFileDialog({
       multiple: false,
       directory: false,
-      title: 'Select editor',
+      title: t('settings.editor.select'),
     });
     if (typeof picked === 'string') patch('editor', { program: picked });
   };
 
   return (
     <>
-      <h3>File browser</h3>
+      <h3>{t('settings.sftp.fileBrowser')}</h3>
       <div className="settings-grid">
-        <Field label="Default panel position">
+        <Field label={t('settings.sftp.panelPosition')}>
           <Segmented
             value={f.defaultPosition}
             options={[
-              { value: 'left', label: 'Left' },
-              { value: 'right', label: 'Right' },
+              { value: 'left', label: t('settings.sftp.left') },
+              { value: 'right', label: t('settings.sftp.right') },
             ]}
             onChange={(defaultPosition) => patch('sftp', { defaultPosition })}
           />
@@ -545,7 +523,7 @@ function SftpPage({ draft, patch }: PageProps) {
               checked={f.defaultVisible}
               onChange={(ev) => patch('sftp', { defaultVisible: ev.target.checked })}
             />
-            Show panel for new sessions
+            {t('settings.sftp.showForNew')}
           </label>
           <label className="check">
             <input
@@ -553,7 +531,7 @@ function SftpPage({ draft, patch }: PageProps) {
               checked={f.showHidden}
               onChange={(ev) => patch('sftp', { showHidden: ev.target.checked })}
             />
-            Show hidden files
+            {t('settings.sftp.showHidden')}
           </label>
         </div>
       </div>
@@ -563,12 +541,12 @@ function SftpPage({ draft, patch }: PageProps) {
           checked={f.confirmDelete}
           onChange={(ev) => patch('sftp', { confirmDelete: ev.target.checked })}
         />
-        Confirm before deleting remote files
+        {t('settings.sftp.confirmDelete')}
       </label>
 
-      <h3>External editor</h3>
+      <h3>{t('settings.editor.heading')}</h3>
       {presets.length > 0 && (
-        <Field label="Preset">
+        <Field label={t('settings.editor.preset')}>
           <select
             className="select"
             value=""
@@ -579,7 +557,7 @@ function SftpPage({ draft, patch }: PageProps) {
               setArgsKey((k) => k + 1);
             }}
           >
-            <option value="">Choose a detected editor…</option>
+            <option value="">{t('settings.editor.choosePreset')}</option>
             {presets.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.label}
@@ -588,29 +566,26 @@ function SftpPage({ draft, patch }: PageProps) {
           </select>
         </Field>
       )}
-      <Field label="Editor executable">
+      <Field label={t('settings.editor.executable')}>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             className="input"
             value={e.program ?? ''}
             onChange={(ev) => patch('editor', { program: ev.target.value || null })}
-            placeholder="Not configured"
+            placeholder={t('settings.editor.notConfigured')}
             spellCheck={false}
           />
           {isTauri() && (
             <button type="button" className="btn" onClick={() => void browse()}>
-              Browse…
+              {t('settings.editor.browse')}
             </button>
           )}
         </div>
       </Field>
-      <Field
-        label="Arguments"
-        hint="Space-separated; quote arguments that contain spaces. {file} is replaced by the local copy of the remote file."
-      >
+      <Field label={t('settings.editor.arguments')} hint={t('settings.editor.argumentsHint')}>
         <ArgsInput key={argsKey} args={e.args} onChange={(args) => patch('editor', { args })} />
       </Field>
-      <Field label="Temporary directory" hint="Leave empty to use the application cache directory.">
+      <Field label={t('settings.editor.tempDir')} hint={t('settings.editor.tempDirHint')}>
         <input
           className="input"
           value={e.tempDir ?? ''}
@@ -618,10 +593,7 @@ function SftpPage({ draft, patch }: PageProps) {
           spellCheck={false}
         />
       </Field>
-      <div className="notice">
-        Uploading an edited file always asks for confirmation. “Yes to all” applies only to the
-        current connection session and is forgotten on disconnect, reconnect and restart.
-      </div>
+      <div className="notice">{t('settings.editor.uploadNotice')}</div>
     </>
   );
 }
@@ -642,6 +614,7 @@ function ArgsInput({ args, onChange }: { args: string[]; onChange: (args: string
 }
 
 function SecurityPage({ draft, patch, replace }: PageProps) {
+  const { t } = useTranslation();
   const credentials = useCredentialStatus();
   const [confirmingClear, setConfirmingClear] = useState(false);
 
@@ -649,15 +622,20 @@ function SecurityPage({ draft, patch, replace }: PageProps) {
     <>
       <ApplicationLockSection draft={draft} patch={patch} replace={replace} />
 
-      <h3>Credential storage</h3>
+      <h3>{t('settings.security.credentialStorage')}</h3>
       {credentials ? (
         <div className={credentials.available ? 'notice' : 'notice notice-warn'}>
           {credentials.available
-            ? `Passwords are stored in ${credentials.backend}. They are never written to PeachTerm's own files.`
-            : `${credentials.backend} is unavailable${credentials.detail ? ` (${credentials.detail})` : ''}. Passwords cannot be saved and will be requested when connecting.`}
+            ? t('settings.security.storedIn', { backend: credentials.backend })
+            : credentials.detail
+              ? t('settings.security.unavailableDetail', {
+                  backend: credentials.backend,
+                  detail: credentials.detail,
+                })
+              : t('settings.security.unavailable', { backend: credentials.backend })}
         </div>
       ) : (
-        <div className="hint">Checking…</div>
+        <div className="hint">{t('settings.security.checking')}</div>
       )}
       <div>
         <button
@@ -665,7 +643,7 @@ function SecurityPage({ draft, patch, replace }: PageProps) {
           onClick={() => setConfirmingClear(true)}
           disabled={!credentials?.available}
         >
-          Clear all saved passwords…
+          {t('settings.security.clearAll')}
         </button>
       </div>
       {confirmingClear && <ClearPasswordsFlow onClose={() => setConfirmingClear(false)} />}
@@ -675,6 +653,7 @@ function SecurityPage({ draft, patch, replace }: PageProps) {
 
 /** Clears only the recent-connection history (takes effect immediately, outside Apply/Cancel). */
 function ClearHistory() {
+  const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
   const count = useRecent((s) => s.ids.length);
   if (!confirming) {
@@ -686,17 +665,17 @@ function ClearHistory() {
           onClick={() => setConfirming(true)}
           disabled={count === 0}
         >
-          Clear Recent Sessions History
+          {t('settings.history.clear')}
         </button>
         <span className="hint" style={{ marginLeft: 8 }}>
-          Saved connections, passwords and open sessions are not affected.
+          {t('settings.history.clearHint')}
         </span>
       </div>
     );
   }
   return (
-    <div role="group" aria-label="Confirm clearing history" className="inline-confirm">
-      <span>Forget the recent sessions list?</span>
+    <div role="group" aria-label={t('settings.history.confirmAria')} className="inline-confirm">
+      <span>{t('settings.history.confirm')}</span>
       <button
         className="btn btn-danger"
         type="button"
@@ -705,10 +684,10 @@ function ClearHistory() {
           setConfirming(false);
         }}
       >
-        Clear history
+        {t('settings.history.clearButton')}
       </button>
       <button className="btn" type="button" onClick={() => setConfirming(false)}>
-        Keep
+        {t('settings.history.keep')}
       </button>
     </div>
   );

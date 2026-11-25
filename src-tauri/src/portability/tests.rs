@@ -431,6 +431,7 @@ fn backup_round_trip_restores_connections_folders_settings_and_credentials_on_an
     }
     let mut s = a.settings.get().unwrap();
     s.appearance.terminal_font_size = 19;
+    s.general.language = "sr-Latn".into();
     s.editor.program = Some("/usr/bin/evil".into());
     s.terminal.start_dir = Some("/home/a".into());
     a.settings.save(s).unwrap();
@@ -512,6 +513,10 @@ fn backup_round_trip_restores_connections_folders_settings_and_credentials_on_an
     assert_eq!(b.vault.len(), 2);
     let s = b.settings.get().unwrap();
     assert_eq!(s.appearance.terminal_font_size, 19);
+    assert_eq!(
+        s.general.language, "sr-Latn",
+        "the interface language travels with the other portable settings"
+    );
     assert_eq!(
         s.editor.program, None,
         "executable settings are never carried by a backup"

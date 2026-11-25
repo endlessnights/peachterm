@@ -14,6 +14,7 @@ import type { ActionId } from '../shared/shortcuts';
 import { useLock } from '../features/lock/store';
 import { connect, duplicateTab, newFolder, requestCloseTab } from './actions';
 import { openConnectionEditor, openSettings } from './dialogs';
+import { t } from '../i18n';
 
 const selectedItem = () => {
   const { tree, selectedId } = useConnections.getState();
@@ -34,12 +35,12 @@ function newTab() {
     ? useConnections.getState().tree.connections.find((c) => c.id === active.connectionId)
     : undefined;
   if (connection) return connect(connection);
-  notify('Select a saved connection first (or create one).');
+  notify(t('commands.selectConnection'));
 }
 
 function rename() {
   const item = selectedItem();
-  if (!item) return notify('Select a connection or folder to rename.');
+  if (!item) return notify(t('commands.selectToRename'));
   useConnections
     .getState()
     .startRename(item.kind === 'folder' ? item.folder.id : item.connection.id);
@@ -55,10 +56,10 @@ export function lockApplication() {
     useLock
       .getState()
       .lockNow()
-      .catch((e) => notify(e?.message ?? 'Could not lock PeachTerm.'));
+      .catch((e) => notify(e?.message ?? t('commands.lockFailed')));
     return;
   }
-  notify('Set up the application lock first: choose a password in Settings → Security.');
+  notify(t('commands.setUpLock'));
   openSettings('security');
 }
 

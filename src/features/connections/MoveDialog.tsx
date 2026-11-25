@@ -6,7 +6,8 @@ import { Dialog } from '../../components/Dialog';
 import { reportError } from '../../components/Toasts';
 import type { ItemRef, Uuid } from '../../shared/types';
 import { useConnections } from './store';
-import { folderLevel, normalizeItems, validateMove } from './treeOps';
+import { folderLevel, normalizeItems, validateMove, MAX_FOLDER_DEPTH } from './treeOps';
+import { useTranslation } from 'react-i18next';
 
 interface Option {
   id: Uuid | null;
@@ -21,6 +22,7 @@ interface Option {
  * say why.
  */
 export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () => void }) {
+  const { t } = useTranslation();
   const tree = useConnections((s) => s.tree);
   const moveItems = useConnections((s) => s.moveItems);
   const [choice, setChoice] = useState<Uuid | null | undefined>(undefined);
@@ -28,7 +30,12 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
 
   const options = useMemo(() => {
     const out: Option[] = [
-      { id: null, label: 'Top level', depth: 0, reason: validateMove(tree, items, null) },
+      {
+        id: null,
+        label: t('conn.move.topLevel'),
+        depth: 0,
+        reason: validateMove(tree, items, null),
+      },
     ];
     const walk = (parent: Uuid | null) => {
       const children = tree.folders
@@ -46,7 +53,7 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
     };
     walk(null);
     return out;
-  }, [tree, items]);
+  }, [tree, items, t]);
 
   const count = normalizeItems(tree, items, true).length;
   const submit = async () => {
@@ -64,29 +71,26 @@ export function MoveDialog({ items, onClose }: { items: ItemRef[]; onClose: () =
 
   return (
     <Dialog
-      title={count === 1 ? 'Move to…' : `Move ${count} items to…`}
+      title={count === 1 ? t('conn.move.title') : t('conn.menu.moveMany', { count })}
       onClose={onClose}
       footer={
         <>
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             className="btn btn-primary"
             disabled={choice === undefined || busy}
             onClick={() => void submit()}
           >
-            Move
+            {t('conn.move.submit')}
           </button>
         </>
       }
     >
       <div className="dialog-body">
-        <div className="hint">
-          Folders can be nested up to 3 levels deep. Moving never changes a connection&apos;s host,
-          user or saved password.
-        </div>
-        <div role="radiogroup" aria-label="Destination folder" className="move-list">
+        <div className="hint">{t('conn.move.hint', { max: MAX_FOLDER_DEPTH })}</div>
+        <div role="radiogroup" aria-label={t('conn.move.destination')} className="move-list">
           {options.map((o) => (
             <label
               key={o.id ?? 'root'}

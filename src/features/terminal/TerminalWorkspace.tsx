@@ -30,6 +30,7 @@ import { dropTab } from '../sessions/splitActions';
 import { useTabs } from '../sessions/store';
 import { PanePicker } from './PanePicker';
 import { TerminalView } from './TerminalView';
+import { useTranslation } from 'react-i18next';
 
 const HALF = DIVIDER / 2;
 
@@ -73,6 +74,7 @@ function DropTarget({ id, rect }: { id: string; rect: Rect }) {
 }
 
 function PaneArea() {
+  const { t } = useTranslation();
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
   const layout = useTabs((s) => s.layout);
@@ -184,7 +186,11 @@ function PaneArea() {
           style={paneStyle(previewRect(previewBase, preview.zone))}
           aria-hidden
         >
-          <span>{preview.valid ? ZONE_LABEL[preview.zone] : `Cannot drop: ${preview.reason}`}</span>
+          <span>
+            {preview.valid
+              ? t(`split.zone.${preview.zone}`)
+              : t('split.cannotDrop', { reason: preview.reason ?? '' })}
+          </span>
         </div>
       )}
 
@@ -203,16 +209,9 @@ function PaneArea() {
   );
 }
 
-const ZONE_LABEL = {
-  left: 'Split left',
-  right: 'Split right',
-  top: 'Split above',
-  bottom: 'Split below',
-  center: 'Drop for options',
-} as const;
-
 /** The four split targets of a pane (plus "replace"), offered after a drop in its middle. */
 function DropChooser({ chooser }: { chooser: { tabId: string; leafId: string } }) {
+  const { t } = useTranslation();
   const set = useDrag((s) => s.set);
   const close = () => set({ chooser: null });
   const go = (zone: 'left' | 'right' | 'top' | 'bottom') => {
@@ -220,19 +219,19 @@ function DropChooser({ chooser }: { chooser: { tabId: string; leafId: string } }
     dropTab(chooser.tabId, chooser.leafId, zone);
   };
   return (
-    <div className="drop-chooser" role="dialog" aria-label="Where should the tab go?">
-      <div className="drop-chooser-title">Show this tab…</div>
+    <div className="drop-chooser" role="dialog" aria-label={t('split.chooser.aria')}>
+      <div className="drop-chooser-title">{t('split.chooser.title')}</div>
       <button className="btn" onClick={() => go('left')} data-autofocus>
-        Left of this pane
+        {t('split.chooser.left')}
       </button>
       <button className="btn" onClick={() => go('right')}>
-        Right of this pane
+        {t('split.chooser.right')}
       </button>
       <button className="btn" onClick={() => go('top')}>
-        Above this pane
+        {t('split.chooser.top')}
       </button>
       <button className="btn" onClick={() => go('bottom')}>
-        Below this pane
+        {t('split.chooser.bottom')}
       </button>
       <button
         className="btn"
@@ -243,10 +242,10 @@ function DropChooser({ chooser }: { chooser: { tabId: string; leafId: string } }
           else s.activate(chooser.tabId);
         }}
       >
-        Replace this pane
+        {t('split.chooser.replace')}
       </button>
       <button className="btn" onClick={close}>
-        Cancel
+        {t('common.cancel')}
       </button>
     </div>
   );
@@ -261,6 +260,7 @@ function Divider({
   rect: Rect;
   onMove: (x: number, y: number) => void;
 }) {
+  const { t } = useTranslation();
   const area = useTabs((s) => s.area);
   const row = branch.dir === 'row';
   const pct = (v: number) => `${(v * 100).toFixed(4)}%`;
@@ -282,7 +282,7 @@ function Divider({
       data-orientation={row ? 'vertical' : 'horizontal'}
       role="separator"
       aria-orientation={row ? 'vertical' : 'horizontal'}
-      aria-label="Resize split panes"
+      aria-label={t('split.resize')}
       aria-valuenow={Math.round(branch.ratio * 100)}
       aria-valuemin={Math.round(lo * 100)}
       aria-valuemax={Math.round(hi * 100)}
@@ -314,6 +314,7 @@ function Divider({
 }
 
 function Welcome() {
+  const { t } = useTranslation();
   const newConnection = useShortcutLabel('newConnection');
   const toggleSidebar = useShortcutLabel('toggleSidebar');
   const search = useShortcutLabel('searchConnections');
@@ -323,24 +324,24 @@ function Welcome() {
     <div className="placeholder">
       <Logo className="logo" />
       <h2>PeachTerm</h2>
-      <p>Double-click a saved connection to open it in a new tab.</p>
+      <p>{t('welcome.hint')}</p>
       <button
         className="btn btn-primary"
         style={{ marginTop: 14 }}
         onClick={() => openConnectionEditor(null)}
       >
-        <Icon name="plus" /> New connection
+        <Icon name="plus" /> {t('welcome.newConnection')}
       </button>
       <div className="shortcut-list">
-        <span>New connection</span>
+        <span>{t('welcome.newConnection')}</span>
         <span className="kbd">{newConnection}</span>
-        <span>Toggle sidebar</span>
+        <span>{t('welcome.toggleSidebar')}</span>
         <span className="kbd">{toggleSidebar}</span>
-        <span>Search connections</span>
+        <span>{t('welcome.search')}</span>
         <span className="kbd">{search}</span>
-        <span>Close tab</span>
+        <span>{t('welcome.closeTab')}</span>
         <span className="kbd">{closeTab}</span>
-        <span>Settings</span>
+        <span>{t('welcome.settings')}</span>
         <span className="kbd">{settingsKey}</span>
       </div>
       <RecentSessions />

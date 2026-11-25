@@ -1,6 +1,8 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { useTranslation } from 'react-i18next';
+import { formatList } from '../../../i18n/format';
 import { useEffect, useMemo, useState } from 'react';
 import { Dialog } from '../../../components/Dialog';
 import { reportError } from '../../../components/Toasts';
@@ -8,7 +10,6 @@ import { ipc } from '../../../shared/ipc';
 import type { ConnectionsExportOutcome } from '../../../shared/types';
 import { useConnections } from '../../connections/store';
 import { useNotes } from '../../notes/store';
-import { plural } from './shared';
 
 /**
  * Export saved connection profiles as portable JSON. The file never contains
@@ -17,6 +18,7 @@ import { plural } from './shared';
  * dialog, so this component never handles a path.
  */
 export function ExportConnectionsDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const tree = useConnections((s) => s.tree);
   const [scope, setScope] = useState<'all' | 'selected'>('all');
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -69,32 +71,32 @@ export function ExportConnectionsDialog({ onClose }: { onClose: () => void }) {
   if (done) {
     return (
       <Dialog
-        title="Connections exported"
+        title={t('port.export.done')}
         onClose={onClose}
         footer={
           <button className="btn btn-primary" onClick={onClose}>
-            Close
+            {t('common.close')}
           </button>
         }
       >
         <div className="dialog-body" role="status">
           <p>
-            Exported {plural(done.connections, 'connection', 'connections')} and{' '}
-            {plural(done.folders, 'folder', 'folders')}.
+            {t('port.export.exported', {
+              what: formatList([
+                t('count.connection', { count: done.connections }),
+                t('count.folder', { count: done.folders }),
+              ]),
+            })}
           </p>
           <div className="hint" style={{ userSelect: 'text', wordBreak: 'break-all' }}>
             {done.savedTo}
           </div>
           {(done.notes ?? 0) > 0 && (
             <div className="notice notice-warn">
-              This file contains {plural(done.notes ?? 0, 'server note', 'server notes')} in plain
-              text. Keep it private.
+              {t('port.export.notesWarn', { count: done.notes ?? 0 })}
             </div>
           )}
-          <div className="notice">
-            Passwords and key passphrases are not in this file. To move them too, use an encrypted
-            backup.
-          </div>
+          <div className="notice">{t('port.export.noPasswords')}</div>
         </div>
       </Dialog>
     );
@@ -102,20 +104,20 @@ export function ExportConnectionsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog
-      title="Export connections"
+      title={t('port.export.title')}
       onClose={onClose}
       persistent
       footer={
         <>
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             className="btn btn-primary"
             onClick={() => void run()}
             disabled={busy || count === 0}
           >
-            Export {plural(count, 'connection', 'connections')}…
+            {t('port.export.button', { count })}
           </button>
         </>
       }
@@ -128,7 +130,7 @@ export function ExportConnectionsDialog({ onClose }: { onClose: () => void }) {
             checked={scope === 'all'}
             onChange={() => setScope('all')}
           />
-          All connections ({tree.connections.length})
+          {t('port.export.all', { count: tree.connections.length })}
         </label>
         <label className="check">
           <input
@@ -137,10 +139,10 @@ export function ExportConnectionsDialog({ onClose }: { onClose: () => void }) {
             checked={scope === 'selected'}
             onChange={() => setScope('selected')}
           />
-          Selected connections
+          {t('port.export.selected')}
         </label>
         {scope === 'selected' && (
-          <div className="preview-table" role="group" aria-label="Connections to export">
+          <div className="preview-table" role="group" aria-label={t('port.export.pickAria')}>
             {sorted.map((c) => (
               <label className="check preview-row" key={c.id}>
                 <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} />
@@ -164,14 +166,9 @@ export function ExportConnectionsDialog({ onClose }: { onClose: () => void }) {
             checked={keyPaths}
             onChange={(e) => setKeyPaths(e.target.checked)}
           />
-          Include SSH key file paths ({withKeys})
+          {t('port.export.keyPaths', { count: withKeys })}
         </label>
-        {keyPaths && (
-          <div className="notice notice-warn">
-            Key paths can reveal your user name and folder layout. Only the path is exported, never
-            the key itself.
-          </div>
-        )}
+        {keyPaths && <div className="notice notice-warn">{t('port.export.keyPathsWarn')}</div>}
         {noteTotal > 0 && (
           <>
             <label className="check">
@@ -180,32 +177,24 @@ export function ExportConnectionsDialog({ onClose }: { onClose: () => void }) {
                 checked={withNotes}
                 onChange={(e) => setWithNotes(e.target.checked)}
               />
-              Include server notes ({noteTotal})
+              {t('port.export.withNotes', { count: noteTotal })}
             </label>
             {withNotes && (
               <>
-                <div className="notice notice-warn">
-                  An export is plain, unencrypted JSON. Notes can contain sensitive operational
-                  details (commands, addresses, procedures). Linked local files are exported as
-                  paths only; their contents are never included. For private notes prefer an
-                  encrypted backup.
-                </div>
+                <div className="notice notice-warn">{t('port.export.notesWarnLong')}</div>
                 <label className="check">
                   <input
                     type="checkbox"
                     checked={withSnapshots}
                     onChange={(e) => setWithSnapshots(e.target.checked)}
                   />
-                  Also include saved offline copies of web documents
+                  {t('port.export.withSnapshots')}
                 </label>
               </>
             )}
           </>
         )}
-        <div className="hint">
-          The file contains no passwords, passphrases or private keys. Private SSH key files are
-          never exported.
-        </div>
+        <div className="hint">{t('port.export.hint')}</div>
       </div>
     </Dialog>
   );

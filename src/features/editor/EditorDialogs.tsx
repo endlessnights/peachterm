@@ -1,6 +1,7 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { Trans, useTranslation } from 'react-i18next';
 import { Dialog } from '../../components/Dialog';
 import { formatSize } from '../sftp/model';
 import { useEditor, type EditorQuestion } from './store';
@@ -17,43 +18,46 @@ export function EditorPromptHost() {
 }
 
 function ConfirmUpload({ question }: { question: Extract<EditorQuestion, { kind: 'confirm' }> }) {
+  const { t } = useTranslation();
   const answer = useEditor((s) => s.answer);
   const reply = (value: 'yes' | 'yesToAll' | 'no' | 'cancel') =>
     void answer(question.editId, value);
   return (
     <Dialog
-      title="Remote file modified"
+      title={t('editor.uploadTitle')}
       onClose={() => reply('cancel')}
       persistent
       footer={
         <>
           <button className="btn" onClick={() => reply('cancel')}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button className="btn" onClick={() => reply('no')}>
-            No
+            {t('editor.no')}
           </button>
           <button className="btn" onClick={() => reply('yesToAll')}>
-            Yes to all
+            {t('editor.yesAll')}
           </button>
           <button className="btn btn-primary" onClick={() => reply('yes')} data-autofocus>
-            Yes
+            {t('editor.yes')}
           </button>
         </>
       }
     >
       <div className="dialog-body">
         <p>
-          <strong>{question.name}</strong> was changed in your editor ({formatSize(question.size)}).
-          Upload it to the server and replace the remote file?
+          <Trans
+            i18nKey="editor.uploadBody"
+            values={{ name: question.name, size: formatSize(question.size) }}
+            components={{ strong: <strong /> }}
+          />
         </p>
         <dl className="fingerprint">
-          <dt>Remote path</dt>
+          <dt>{t('editor.remotePath')}</dt>
           <dd className="mono">{question.remotePath}</dd>
         </dl>
         <p className="hint">
-          <strong>Yes to all</strong> uploads further saves of files in this SSH connection without
-          asking, until it ends. It is never saved: a new or restored connection asks again.
+          <Trans i18nKey="editor.yesAllHint" components={{ strong: <strong /> }} />
         </p>
       </div>
     </Dialog>
@@ -61,10 +65,11 @@ function ConfirmUpload({ question }: { question: Extract<EditorQuestion, { kind:
 }
 
 function ConflictDialog({ question }: { question: Extract<EditorQuestion, { kind: 'conflict' }> }) {
+  const { t } = useTranslation();
   const resolve = useEditor((s) => s.resolveConflict);
   return (
     <Dialog
-      title="Remote file changed"
+      title={t('editor.conflictTitle')}
       onClose={() => void resolve(question.editId, 'keepLocal')}
       persistent
       footer={
@@ -73,30 +78,31 @@ function ConflictDialog({ question }: { question: Extract<EditorQuestion, { kind
             className="btn btn-danger"
             onClick={() => void resolve(question.editId, 'overwrite')}
           >
-            Overwrite remote file
+            {t('editor.overwrite')}
           </button>
           <button
             className="btn btn-primary"
             onClick={() => void resolve(question.editId, 'keepLocal')}
             data-autofocus
           >
-            Keep my local copy only
+            {t('editor.keepLocal')}
           </button>
         </>
       }
     >
       <div className="dialog-body">
         <p className="callout callout-danger">
-          <strong>{question.name}</strong> was changed on the server after you opened it. Uploading
-          now would discard those remote changes.
+          <Trans
+            i18nKey="editor.conflictBody"
+            values={{ name: question.name }}
+            components={{ strong: <strong /> }}
+          />
         </p>
         <dl className="fingerprint">
-          <dt>Remote path</dt>
+          <dt>{t('editor.remotePath')}</dt>
           <dd className="mono">{question.remotePath}</dd>
         </dl>
-        <p className="hint">
-          Your edit stays in the local copy; nothing was sent. You can save again later to retry.
-        </p>
+        <p className="hint">{t('editor.conflictHint')}</p>
       </div>
     </Dialog>
   );

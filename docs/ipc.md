@@ -3,7 +3,9 @@
 All commands are `#[tauri::command]` functions registered in `src-tauri/src/lib.rs`
 and called through the typed client in `src/shared/ipc.ts`. Payloads use
 `camelCase` JSON. Errors are always `AppError { code, message }` where `code` is
-a stable machine string and `message` never contains secrets.
+a stable machine string and `message` never contains secrets. User-facing errors may add `key` (+ `params`) or
+`token`: stable identifiers the interface translates (see [localization.md](localization.md)); `message` stays
+English and is the diagnostic/fallback text.
 
 Status legend: ✅ implemented (Phase 1) · 🟡 contract fixed, implemented later.
 

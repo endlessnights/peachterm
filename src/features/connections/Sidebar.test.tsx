@@ -234,7 +234,7 @@ describe('multi-selection', () => {
     click(row('alpha'));
     fireEvent.keyDown(row('alpha'), { key: 'Delete' });
     const dialog = await screen.findByRole('dialog');
-    expect(await within(dialog).findByText(/1 open tab use these connections/)).toBeTruthy();
+    expect(await within(dialog).findByText(/1 open tab uses these connections/)).toBeTruthy();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(useTabs.getState().tabs).toHaveLength(1); // session untouched

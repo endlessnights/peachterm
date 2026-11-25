@@ -26,11 +26,18 @@ Open an issue at <https://github.com/endlessnights/peachterm/issues> with:
    npm run check
    ```
 
-   It runs formatting, lint, TypeScript, the frontend tests, `cargo fmt`, `cargo clippy -D warnings`
+   It runs formatting, lint, TypeScript, the translation check (`npm run i18n:check`), the frontend tests, `cargo fmt`, `cargo clippy -D warnings`
    and the Rust tests. CI runs the same on Windows, Linux and macOS.
 
 4. Add or update tests for behaviour you change. Do not disable or weaken existing tests.
 5. Describe what changed and why; mention anything you could not test (for example a platform).
+
+## Translations
+
+User-visible text lives in `src/i18n/locales/*.json` (English is the source). Never hard-code interface strings
+in components and never concatenate sentences; use keys, interpolation and plural forms. To fix a translation edit
+the language file, run `npm run i18n:check` and `npm test`, and look at the result in the app. How languages are
+selected, the key conventions and how to add a language are in [docs/localization.md](docs/localization.md).
 
 ## Code style
 

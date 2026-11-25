@@ -41,6 +41,7 @@ import {
   type Node,
   type Zone,
 } from './layout';
+import { t as tr } from '../../i18n';
 
 export type TabStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'failed';
 
@@ -78,11 +79,9 @@ export type SplitOrientation = 'vertical' | 'horizontal';
 /** Why a layout change was refused (the UI explains it). */
 export type SplitResult = 'ok' | 'limit' | 'space' | 'none';
 
-export const SPLIT_REFUSAL: Record<Exclude<SplitResult, 'ok' | 'none'>, string> = {
-  limit: `A workspace shows at most ${MAX_LEAVES} panes. Close or hide one first; no session is closed.`,
-  space:
-    'There is not enough room to split this pane: every pane needs a usable size. Enlarge the window or hide the sidebar. No session is affected.',
-};
+/** Localized explanation of a refused layout change. */
+export const splitRefusal = (result: Exclude<SplitResult, 'ok' | 'none'>): string =>
+  tr(result === 'limit' ? 'split.limit' : 'split.space', { max: MAX_LEAVES });
 
 interface TabsState {
   tabs: Tab[];

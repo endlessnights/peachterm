@@ -343,8 +343,8 @@ impl NotesStore {
                 let _ = std::fs::remove_file(path);
             }
             return Err(match e {
-                AppError::Validation(_) => e,
-                _ => AppError::Storage("The notes could not be saved.".into()),
+                e if e.is_validation() => e,
+                _ => AppError::storage_key("notes.saveFailed", "The notes could not be saved."),
             });
         }
         Ok(result)

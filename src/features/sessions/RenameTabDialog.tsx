@@ -4,9 +4,11 @@
 import { useRef } from 'react';
 import { Dialog } from '../../components/Dialog';
 import { useTabs } from './store';
+import { useTranslation } from 'react-i18next';
 
 /** Changes only this tab's label; the saved connection is untouched. */
 export function RenameTabDialog({ tabId, onClose }: { tabId: string; onClose: () => void }) {
+  const { t } = useTranslation();
   const tab = useTabs((s) => s.tabs.find((t) => t.id === tabId));
   const renameTab = useTabs((s) => s.renameTab);
   const input = useRef<HTMLInputElement>(null);
@@ -17,7 +19,7 @@ export function RenameTabDialog({ tabId, onClose }: { tabId: string; onClose: ()
   };
   return (
     <Dialog
-      title="Rename tab"
+      title={t('rename.title')}
       onClose={onClose}
       footer={
         <>
@@ -28,15 +30,15 @@ export function RenameTabDialog({ tabId, onClose }: { tabId: string; onClose: ()
               onClose();
             }}
             disabled={tab.customTitle === null}
-            title="Use the saved connection's name again"
+            title={t('rename.resetHint')}
           >
-            Reset to “{tab.defaultTitle}”
+            {t('rename.reset', { name: tab.defaultTitle })}
           </button>
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button className="btn btn-primary" onClick={submit}>
-            Rename
+            {t('rename.submit')}
           </button>
         </>
       }
@@ -49,7 +51,7 @@ export function RenameTabDialog({ tabId, onClose }: { tabId: string; onClose: ()
         }}
       >
         <label className="field">
-          <span>Tab name</span>
+          <span>{t('rename.name')}</span>
           <input
             ref={input}
             className="input"
@@ -59,9 +61,7 @@ export function RenameTabDialog({ tabId, onClose }: { tabId: string; onClose: ()
             onFocus={(e) => e.currentTarget.select()}
           />
         </label>
-        <p className="hint">
-          Only this tab is renamed. The saved connection and other sessions keep their names.
-        </p>
+        <p className="hint">{t('rename.hint')}</p>
       </form>
     </Dialog>
   );

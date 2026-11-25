@@ -1,6 +1,7 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useState } from 'react';
 import {
   PREVIEW_TEXT,
@@ -50,6 +51,7 @@ interface Props {
  * or bundled), recommended ones first, each shown in its own face.
  */
 export function FontPicker({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const fonts = useFonts();
   const [query, setQuery] = useState('');
   const current = primaryFamily(value);
@@ -64,16 +66,16 @@ export function FontPicker({ value, onChange }: Props) {
       <input
         className="input"
         type="search"
-        placeholder="Search fonts"
-        aria-label="Search fonts"
+        placeholder={t('font.searchPlaceholder')}
+        aria-label={t('font.searchPlaceholder')}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
       {fonts === null ? (
-        <div className="hint">Looking for installed fonts…</div>
+        <div className="hint">{t('font.loading')}</div>
       ) : (
-        <ul className="font-list" role="listbox" aria-label="Terminal font">
-          {shown.length === 0 && <li className="hint">No matching font was found.</li>}
+        <ul className="font-list" role="listbox" aria-label={t('font.listAria')}>
+          {shown.length === 0 && <li className="hint">{t('font.none')}</li>}
           {shown.map((font) => (
             <li
               key={font.family}
@@ -93,9 +95,9 @@ export function FontPicker({ value, onChange }: Props) {
               <span className="font-name" style={{ fontFamily: `"${font.family}", monospace` }}>
                 {font.family}
               </span>
-              {font.bundled && <span className="badge">bundled</span>}
+              {font.bundled && <span className="badge">{t('font.bundled')}</span>}
               {font.recommended && !font.bundled && (
-                <span className="badge badge-soft">recommended</span>
+                <span className="badge badge-soft">{t('font.recommended')}</span>
               )}
             </li>
           ))}
@@ -107,7 +109,7 @@ export function FontPicker({ value, onChange }: Props) {
           the list. Pick one above to change it.
         </p>
       )}
-      <div className="font-preview" style={{ fontFamily: value }} aria-label="Font preview">
+      <div className="font-preview" style={{ fontFamily: value }} aria-label={t('font.preview')}>
         {PREVIEW_TEXT}
       </div>
       <p className="hint">

@@ -335,7 +335,10 @@ impl NotesStore {
         match std::fs::read(self.content_path(id)) {
             Ok(bytes) => Ok(String::from_utf8_lossy(&bytes).into_owned()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
-            Err(_) => Err(AppError::Storage("The note could not be read.".into())),
+            Err(_) => Err(AppError::storage_key(
+                "notes.readFailed",
+                "The note could not be read.",
+            )),
         }
     }
 

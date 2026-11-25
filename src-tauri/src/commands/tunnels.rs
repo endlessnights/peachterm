@@ -65,8 +65,9 @@ pub async fn tunnel_save(
     if let Some(id) = input.id
         && state.tunnel_engine.status(id).state != TunnelState::Stopped
     {
-        return Err(AppError::Validation(
-            "Stop the tunnel before editing it.".into(),
+        return Err(AppError::validation_key(
+            "tunnels.stopFirst",
+            "Stop the tunnel before editing it.",
         ));
     }
     state.tunnels.save(connection_id, input)
@@ -90,8 +91,9 @@ pub async fn tunnel_start(
     let session = session_of(&state, &session_id)?;
     let def = state.tunnels.get(tunnel_id)?;
     if def.connection_id != session.connection_id {
-        return Err(AppError::Validation(
-            "This tunnel belongs to a different connection.".into(),
+        return Err(AppError::validation_key(
+            "tunnels.otherConnection",
+            "This tunnel belongs to a different connection.",
         ));
     }
     state.tunnel_engine.start(&def, &session)
@@ -110,7 +112,10 @@ pub async fn tunnel_stop(state: AppStateRef<'_>, tunnel_id: Uuid) -> AppResult<(
 pub async fn tunnel_open_browser(state: AppStateRef<'_>, tunnel_id: Uuid) -> AppResult<()> {
     state.lock.guard()?;
     if state.tunnel_engine.status(tunnel_id).state != TunnelState::Listening {
-        return Err(AppError::Validation("The tunnel is not running.".into()));
+        return Err(AppError::validation_key(
+            "tunnels.notRunning",
+            "The tunnel is not running.",
+        ));
     }
     let endpoint = state
         .tunnel_engine

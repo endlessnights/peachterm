@@ -5,22 +5,14 @@
 // carried by THIS tab's SSH connection: it stops when that connection ends.
 // Saved definitions hold no credentials; whether a tunnel runs is never saved.
 
+import { errorMessage } from '../../i18n/errors';
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Dialog } from '../../components/Dialog';
-import { ipc, toAppError } from '../../shared/ipc';
-import type { TunnelState, TunnelView } from '../../shared/types';
+import { ipc } from '../../shared/ipc';
+import type { TunnelView } from '../../shared/types';
 import { useTabs } from '../sessions/store';
 
-const STATE_LABEL: Record<TunnelState, string> = {
-  stopped: 'Stopped',
-  starting: 'Starting',
-  // The local socket is bound; this does not promise the remote service answers.
-  listening: 'Listening',
-  connectionUnavailable: 'Connection unavailable',
-  error: 'Error',
-};
-
-/** Services that do not speak HTTP: no "Open in Browser" for them. */
 const NOT_WEB = new Set([
   21, 22, 23, 25, 53, 110, 143, 389, 445, 1433, 1521, 3306, 3389, 5432, 5672, 6379, 9092, 11211,
   27017,
@@ -66,6 +58,7 @@ function TunnelForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const { t: tl } = useTranslation();
   const [form, setForm] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -75,11 +68,11 @@ function TunnelForm({
     const localPort = Number(form.localPort);
     const remotePort = Number(form.remotePort);
     if (!Number.isInteger(localPort) || localPort < 1 || localPort > 65535) {
-      setError('The local port must be a number between 1 and 65535.');
+      setError(tl('tunnels.localPortInvalid'));
       return;
     }
     if (!Number.isInteger(remotePort) || remotePort < 1 || remotePort > 65535) {
-      setError('The remote port must be a number between 1 and 65535.');
+      setError(tl('tunnels.remotePortInvalid'));
       return;
     }
     setBusy(true);
@@ -95,7 +88,7 @@ function TunnelForm({
       });
       onDone();
     } catch (e) {
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
       setBusy(false);
     }
   };
@@ -103,14 +96,14 @@ function TunnelForm({
   return (
     <form
       className="dialog-body tunnel-form"
-      aria-label="SSH Port Forwarding"
+      aria-label={tl('tunnels.formAria')}
       onSubmit={(e) => {
         e.preventDefault();
         void submit();
       }}
     >
       <label className="field">
-        <span>Name</span>
+        <span>{tl('tunnels.name')}</span>
         <input
           className="input"
           value={form.name}
@@ -120,7 +113,7 @@ function TunnelForm({
         />
       </label>
       <label className="field">
-        <span>Local bind address</span>
+        <span>{tl('tunnels.bind')}</span>
         <select
           className="select"
           value={form.bindAddress}
@@ -131,7 +124,7 @@ function TunnelForm({
         </select>
       </label>
       <label className="field">
-        <span>Local port</span>
+        <span>{tl('tunnels.localPort')}</span>
         <input
           className="input"
           inputMode="numeric"
@@ -140,7 +133,7 @@ function TunnelForm({
         />
       </label>
       <label className="field">
-        <span>Remote destination</span>
+        <span>{tl('tunnels.remoteDest')}</span>
         <input
           className="input"
           value={form.remoteHost}
@@ -148,7 +141,7 @@ function TunnelForm({
         />
       </label>
       <label className="field">
-        <span>Remote port</span>
+        <span>{tl('tunnels.remotePort')}</span>
         <input
           className="input"
           inputMode="numeric"
@@ -156,17 +149,14 @@ function TunnelForm({
           onChange={(e) => set({ remotePort: e.target.value })}
         />
       </label>
-      <p className="hint">
-        The destination is reached from the SSH server, not from this computer: 127.0.0.1 means the
-        server&apos;s own loopback interface. The local port is listened on this computer only.
-      </p>
+      <p className="hint">{tl('tunnels.destHint')}</p>
       <label className="check">
         <input
           type="checkbox"
           checked={form.autoStart}
           onChange={(e) => set({ autoStart: e.target.checked })}
         />
-        Start automatically when SSH connects
+        {tl('tunnels.autoStart')}
       </label>
       {error && (
         <p className="field-error" role="alert">
@@ -175,10 +165,10 @@ function TunnelForm({
       )}
       <div className="update-actions">
         <button type="button" className="btn" onClick={onCancel}>
-          Cancel
+          {tl('common.cancel')}
         </button>
         <button type="submit" className="btn btn-primary" disabled={busy}>
-          Save
+          {tl('tunnels.save')}
         </button>
       </div>
     </form>
@@ -186,6 +176,7 @@ function TunnelForm({
 }
 
 export function TunnelsDialog({ tabId, onClose }: { tabId: string; onClose: () => void }) {
+  const { t: tl } = useTranslation();
   const tab = useTabs((s) => s.tabs.find((t) => t.id === tabId));
   const [tunnels, setTunnels] = useState<TunnelView[] | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
@@ -227,7 +218,7 @@ export function TunnelsDialog({ tabId, onClose }: { tabId: string; onClose: () =
     try {
       await work();
     } catch (e) {
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
     }
     await reload();
   };
@@ -237,17 +228,17 @@ export function TunnelsDialog({ tabId, onClose }: { tabId: string; onClose: () =
 
   return (
     <Dialog
-      title={`SSH Tunnels — ${tab.title}`}
+      title={tl('tunnels.title', { title: tab.title })}
       onClose={onClose}
       wide
       footer={
         form ? undefined : (
           <>
             <button className="btn left" onClick={() => setForm({ ...EMPTY })}>
-              Add Tunnel
+              {tl('tunnels.add')}
             </button>
             <button className="btn btn-primary" onClick={onClose}>
-              Close
+              {tl('common.close')}
             </button>
           </>
         )
@@ -266,17 +257,16 @@ export function TunnelsDialog({ tabId, onClose }: { tabId: string; onClose: () =
       ) : (
         <div className="dialog-body">
           <p className="hint">
-            Forwards listen on this computer only and are carried by this tab&apos;s SSH connection.
-            They stop when the connection ends.
-            {!connected && ' Connect this tab to start a tunnel.'}
+            {tl('tunnels.hint')}
+            {!connected && ` ${tl('tunnels.hintConnect')}`}
           </p>
           {error && (
             <p className="field-error" role="alert">
               {error}
             </p>
           )}
-          {tunnels && tunnels.length === 0 && <p>No tunnels saved for this connection yet.</p>}
-          <ul className="tunnel-list" aria-label="Tunnels">
+          {tunnels && tunnels.length === 0 && <p>{tl('tunnels.none')}</p>}
+          <ul className="tunnel-list" aria-label={tl('tunnels.listAria')}>
             {(tunnels ?? []).map((t) => {
               const running = t.status.state !== 'stopped';
               const here = !ownedElsewhere(t);
@@ -289,18 +279,21 @@ export function TunnelsDialog({ tabId, onClose }: { tabId: string; onClose: () =
                       {address(t)} → {remoteAddress(t)}
                     </span>
                     <span className="tunnel-status" role="status">
-                      {STATE_LABEL[t.status.state]}
-                      {ownedElsewhere(t) ? ' (in another tab)' : ''}
                       {t.status.state === 'listening' && t.status.activeConnections > 0
-                        ? ` · ${t.status.activeConnections} open`
-                        : ''}
+                        ? tl('tunnels.open', {
+                            state: tl('tunnels.state.listening'),
+                            count: t.status.activeConnections,
+                          })
+                        : ownedElsewhere(t)
+                          ? tl('tunnels.otherTab', { state: tl(`tunnels.state.${t.status.state}`) })
+                          : tl(`tunnels.state.${t.status.state}`)}
                     </span>
                   </div>
                   {t.status.lastError && <p className="hint tunnel-error">{t.status.lastError}</p>}
                   <div className="tunnel-actions">
                     {running ? (
                       <button className="btn" onClick={() => act(() => ipc.tunnelStop(t.id))}>
-                        Stop
+                        {tl('tunnels.stop')}
                       </button>
                     ) : (
                       <button
@@ -308,13 +301,13 @@ export function TunnelsDialog({ tabId, onClose }: { tabId: string; onClose: () =
                         disabled={!connected}
                         onClick={() => act(() => ipc.tunnelStart(sessionId!, t.id))}
                       >
-                        Start
+                        {tl('tunnels.start')}
                       </button>
                     )}
                     <button
                       className="btn"
                       disabled={running}
-                      title={running ? 'Stop the tunnel to edit it' : undefined}
+                      title={running ? tl('tunnels.stopToEdit') : undefined}
                       onClick={() =>
                         setForm({
                           id: t.id,
@@ -327,24 +320,24 @@ export function TunnelsDialog({ tabId, onClose }: { tabId: string; onClose: () =
                         })
                       }
                     >
-                      Edit
+                      {tl('tunnels.edit')}
                     </button>
                     <button
                       className="btn"
                       onClick={() => {
                         void navigator.clipboard
                           ?.writeText(address(t))
-                          .catch(() => setError('The address could not be copied.'));
+                          .catch(() => setError(tl('tunnels.copyFailed')));
                       }}
                     >
-                      Copy Local Address
+                      {tl('tunnels.copyLocal')}
                     </button>
                     {web && here && (
                       <button
                         className="btn"
                         onClick={() => act(() => ipc.tunnelOpenBrowser(t.id))}
                       >
-                        Open in Browser
+                        {tl('tunnels.openBrowser')}
                       </button>
                     )}
                     {confirmDelete === t.id ? (
@@ -355,11 +348,11 @@ export function TunnelsDialog({ tabId, onClose }: { tabId: string; onClose: () =
                           void act(() => ipc.tunnelDelete(t.id));
                         }}
                       >
-                        Confirm Delete
+                        {tl('tunnels.confirmDelete')}
                       </button>
                     ) : (
                       <button className="btn" onClick={() => setConfirmDelete(t.id)}>
-                        Delete
+                        {tl('tunnels.delete')}
                       </button>
                     )}
                   </div>

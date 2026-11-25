@@ -375,7 +375,13 @@ export interface ExportOutcome {
 /** Error shape returned by every command (`AppError` in Rust). */
 export interface AppError {
   code: string;
+  /** English diagnostic text; the interface prefers `key` / `token` when it knows them. */
   message: string;
+  /** Stable identifier of a user-facing error, translated by the interface. */
+  key?: string;
+  params?: Record<string, string>;
+  /** Failure token of a remote / transfer / update error. */
+  token?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -383,7 +389,7 @@ export const DEFAULT_SETTINGS: Settings = {
     startup: 'empty',
     confirmCloseActive: true,
     autoReconnectRestored: false,
-    language: 'en',
+    language: 'system',
     recentSessionsLimit: 3,
     showStatusBar: true,
     checkUpdates: true,

@@ -1,9 +1,11 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { errorMessage } from '../../../i18n/errors';
+import { Trans, useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { Dialog } from '../../../components/Dialog';
-import { ipc, toAppError } from '../../../shared/ipc';
+import { ipc } from '../../../shared/ipc';
 import type {
   BackupFileInfo,
   CredentialConflict,
@@ -14,30 +16,12 @@ import type {
 } from '../../../shared/types';
 import { useConnections } from '../../connections/store';
 import { useSettings } from '../store';
-import {
-  ItemTable,
-  NotesSummary,
-  ResultSummary,
-  Stat,
-  StepHeader,
-  formatBytes,
-  plural,
-} from './shared';
+import { ItemTable, NotesSummary, ResultSummary, Stat, StepHeader, formatBytes } from './shared';
 
 type Step = 'file' | 'passphrase' | 'options' | 'result';
 const ORDER: Step[] = ['file', 'passphrase', 'options', 'result'];
-const TITLES: Record<Step, string> = {
-  file: 'Select backup',
-  passphrase: 'Enter passphrase',
-  options: 'Review and restore',
-  result: 'Restore finished',
-};
-
-/**
- * The backup is decrypted in Rust; this wizard only ever sees a redacted
- * preview (counts and profile summaries). It never receives a saved password.
- */
 export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const refreshConnections = useConnections((s) => s.refresh);
   const loadSettings = useSettings((s) => s.load);
   const [step, setStep] = useState<Step>('file');
@@ -79,7 +63,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
       setFile(picked);
       setStep('passphrase');
     } catch (e) {
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -97,7 +81,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
       setStep('options');
       setPassphrase('');
     } catch (e) {
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -126,7 +110,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
       setResult(outcome);
       setStep('result');
     } catch (e) {
-      setError(toAppError(e).message);
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -151,7 +135,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
   if (step === 'result') {
     footer = (
       <button className="btn btn-primary" onClick={onClose}>
-        Close
+        {t('common.close')}
       </button>
     );
   } else {
@@ -161,11 +145,11 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
           {error && <span className="error-text">{error}</span>}
         </span>
         <button className="btn" onClick={onClose} disabled={busy}>
-          Cancel
+          {t('common.cancel')}
         </button>
         {step === 'file' && (
           <button className="btn btn-primary" onClick={() => void choose()} disabled={busy}>
-            Choose backup file…
+            {t('port.restore.chooseFile')}
           </button>
         )}
         {step === 'passphrase' && (
@@ -174,7 +158,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
             onClick={() => void unlock()}
             disabled={busy || passphrase === ''}
           >
-            {busy ? 'Decrypting…' : 'Decrypt'}
+            {busy ? t('port.restore.decrypting') : t('port.restore.decrypt')}
           </button>
         )}
         {step === 'options' && (
@@ -183,7 +167,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
             onClick={() => void apply()}
             disabled={!canApply}
           >
-            {mode === 'replace' ? 'Replace and restore' : 'Restore'}
+            {mode === 'replace' ? t('port.restore.replaceRestore') : t('port.restore.restore')}
           </button>
         )}
       </>
@@ -192,24 +176,24 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog
-      title="Restore encrypted backup"
+      title={t('port.restore.title')}
       wide={step === 'options'}
       persistent
       onClose={onClose}
       footer={footer}
     >
       <div className="dialog-body">
-        <StepHeader step={index + 1} total={ORDER.length} title={TITLES[step]} />
+        <StepHeader step={index + 1} total={ORDER.length} title={t(`port.restore.step.${step}`)} />
 
         {step === 'file' && (
           <>
             <p>
-              Select a PeachTerm backup (<span className="kbd">.peachbackup</span>). It works on any
-              supported operating system.
+              <Trans
+                i18nKey="port.restore.selectFile"
+                components={{ kbd: <span className="kbd" /> }}
+              />
             </p>
-            <div className="hint">
-              You will enter the passphrase next. Nothing is changed until you confirm the restore.
-            </div>
+            <div className="hint">{t('port.restore.nextHint')}</div>
           </>
         )}
 
@@ -222,10 +206,14 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
             className="dialog-body"
           >
             <div className="hint" style={{ wordBreak: 'break-all' }}>
-              {file.fileName} · {formatBytes(file.sizeBytes)} · format version {file.formatVersion}
+              {t('port.restore.fileLine', {
+                name: file.fileName,
+                size: formatBytes(file.sizeBytes),
+                version: file.formatVersion,
+              })}
             </div>
             <label className="field">
-              <span>Backup passphrase</span>
+              <span>{t('port.restore.passphraseLabel')}</span>
               <input
                 className="input"
                 type={show ? 'text' : 'password'}
@@ -238,7 +226,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
             </label>
             <label className="check">
               <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
-              Show passphrase
+              {t('port.showPassphrase')}
             </label>
           </form>
         )}
@@ -246,36 +234,42 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
         {step === 'options' && preview && (
           <>
             <div className="hint">
-              Created {preview.createdAt || 'at an unknown time'} by PeachTerm {preview.appVersion}
+              {t('port.restore.created', {
+                when: preview.createdAt || t('port.restore.unknownTime'),
+                version: preview.appVersion,
+              })}
             </div>
-            <div className="stat-grid" role="group" aria-label="Backup contents">
-              <Stat value={preview.connectionCount} label="Connections" />
-              <Stat value={preview.folderCount} label="Folders" />
-              <Stat value={preview.settingsIncluded ? 'Yes' : 'No'} label="Settings" />
-              <Stat value={preview.credentialCount} label="Saved passwords" />
+            <div className="stat-grid" role="group" aria-label={t('port.restore.contentsAria')}>
+              <Stat value={preview.connectionCount} label={t('port.stat.connections')} />
+              <Stat value={preview.folderCount} label={t('port.stat.folders')} />
+              <Stat
+                value={preview.settingsIncluded ? t('port.stat.yes') : t('port.stat.no')}
+                label={t('port.stat.settings')}
+              />
+              <Stat value={preview.credentialCount} label={t('port.stat.savedPasswords')} />
               <Stat
                 value={preview.duplicateCount + preview.changedCount}
-                label="Conflicts"
+                label={t('port.stat.conflicts')}
                 warn={preview.duplicateCount + preview.changedCount > 0}
               />
             </div>
             {preview.invalidCount > 0 && (
               <div className="notice notice-warn">
-                {plural(preview.invalidCount, 'entry', 'entries')} in the backup cannot be restored.
+                {t('port.restore.invalidEntries', { count: preview.invalidCount })}
               </div>
             )}
             {(preview.keyPathsMissing > 0 || preview.needsKey > 0) && (
               <div className="notice">
                 {preview.keyPathsMissing > 0 &&
-                  `${plural(preview.keyPathsMissing, 'SSH key file path does', 'SSH key file paths do')} not exist on this computer. `}
+                  `${t('port.restore.keyPathsMissing', { count: preview.keyPathsMissing })} `}
                 {preview.needsKey > 0 &&
-                  `${plural(preview.needsKey, 'profile needs', 'profiles need')} a key file chosen. `}
-                Private keys are not part of a backup; copy them yourself and re-select them.
+                  `${t('port.restore.needsKeyChosen', { count: preview.needsKey })} `}
+                {t('port.restore.keyNote')}
               </div>
             )}
 
             <fieldset className="fieldset">
-              <legend>Restore mode</legend>
+              <legend>{t('port.restore.modeLegend')}</legend>
               <label className="check">
                 <input
                   type="radio"
@@ -283,7 +277,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
                   checked={mode === 'merge'}
                   onChange={() => setMode('merge')}
                 />
-                Merge with existing connections (default)
+                {t('port.restore.modeMerge')}
               </label>
               <label className="check">
                 <input
@@ -292,7 +286,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
                   checked={mode === 'selected'}
                   onChange={() => setMode('selected')}
                 />
-                Restore selected profiles only
+                {t('port.restore.modeSelected')}
               </label>
               <label className="check">
                 <input
@@ -301,34 +295,32 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
                   checked={mode === 'replace'}
                   onChange={() => setMode('replace')}
                 />
-                Replace existing configuration
+                {t('port.restore.modeReplace')}
               </label>
             </fieldset>
 
             {mode === 'replace' && (
               <div className="notice notice-warn" role="alert">
-                <strong>This replaces your saved connections and folders.</strong> A copy of the
-                current connections file is kept. Saved passwords of connections that disappear are
-                removed.
+                <Trans i18nKey="port.restore.replaceWarn" components={{ strong: <strong /> }} />
                 <label className="check" style={{ marginTop: 6 }}>
                   <input
                     type="checkbox"
                     checked={confirmReplace}
                     onChange={(e) => setConfirmReplace(e.target.checked)}
                   />
-                  I understand that my current connections will be replaced
+                  {t('port.restore.replaceConfirm')}
                 </label>
               </div>
             )}
 
             {mode !== 'replace' && preview.duplicateCount + preview.changedCount > 0 && (
               <fieldset className="fieldset">
-                <legend>Profiles that already exist</legend>
+                <legend>{t('port.restore.existingLegend')}</legend>
                 {(
                   [
-                    ['skip', 'Skip them (default)'],
-                    ['copy', 'Restore as copies'],
-                    ['update', 'Update the ones I select'],
+                    ['skip', t('port.restore.existingSkip')],
+                    ['copy', t('port.restore.existingCopy')],
+                    ['update', t('port.restore.existingUpdate')],
                   ] as const
                 ).map(([value, label]) => (
                   <label className="check" key={value}>
@@ -352,7 +344,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
                   ? (item) => (
                       <input
                         type="checkbox"
-                        aria-label={`Restore ${item.name}`}
+                        aria-label={t('port.restore.restoreAria', { name: item.name })}
                         checked={selected.has(item.index)}
                         onChange={() => toggle(selected, setSelected, item.index)}
                       />
@@ -362,7 +354,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
                         item.status === 'duplicate' ? (
                           <input
                             type="checkbox"
-                            aria-label={`Update ${item.name}`}
+                            aria-label={t('port.updateAria', { name: item.name })}
                             checked={update.has(item.index)}
                             onChange={() => toggle(update, setUpdate, item.index)}
                           />
@@ -378,13 +370,13 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
                   checked={restoreSettings}
                   onChange={(e) => setRestoreSettings(e.target.checked)}
                 />
-                Restore application settings (themes, terminal palette, shortcuts)
+                {t('port.restore.settingsCheck')}
               </label>
             )}
 
             {preview.notes && (
               <fieldset className="fieldset">
-                <legend>Server notes</legend>
+                <legend>{t('port.restore.notesLegend')}</legend>
                 <NotesSummary notes={preview.notes} invalid={preview.notesInvalid} />
                 <label className="check">
                   <input
@@ -392,14 +384,14 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
                     checked={restoreNotes}
                     onChange={(e) => setRestoreNotes(e.target.checked)}
                   />
-                  Restore server notes (existing notes are kept; notes are only added)
+                  {t('port.restore.notesCheck')}
                 </label>
               </fieldset>
             )}
 
             {hasCredentials && (
               <fieldset className="fieldset">
-                <legend>Saved passwords</legend>
+                <legend>{t('port.restore.credsLegend')}</legend>
                 <label className="check">
                   <input
                     type="checkbox"
@@ -407,22 +399,19 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
                     disabled={!preview.credentialStoreAvailable}
                     onChange={(e) => setRestoreCredentials(e.target.checked)}
                   />
-                  Restore saved passwords and passphrases ({preview.credentialCount})
+                  {t('port.restore.credsCheck', { count: preview.credentialCount })}
                 </label>
                 {!preview.credentialStoreAvailable && (
-                  <div className="notice notice-warn">
-                    The system credential store is not available, so passwords cannot be restored.
-                    They are never written to a plain file.
-                  </div>
+                  <div className="notice notice-warn">{t('port.restore.storeUnavailable')}</div>
                 )}
                 {restoreCredentials && (
                   <>
-                    <div className="hint">If a password is already saved for a profile:</div>
+                    <div className="hint">{t('port.restore.credsConflict')}</div>
                     {(
                       [
-                        ['keep', 'Keep the existing one (default)'],
-                        ['replace', 'Replace it with the one from the backup'],
-                        ['skip', 'Skip: restore nothing for existing profiles'],
+                        ['keep', t('port.restore.credsKeep')],
+                        ['replace', t('port.restore.credsReplace')],
+                        ['skip', t('port.restore.credsSkip')],
                       ] as const
                     ).map(([value, label]) => (
                       <label className="check" key={value}>
@@ -442,7 +431,7 @@ export function RestoreBackupWizard({ onClose }: { onClose: () => void }) {
                           checked={confirmCredentials}
                           onChange={(e) => setConfirmCredentials(e.target.checked)}
                         />
-                        I confirm that existing saved passwords may be overwritten
+                        {t('port.restore.credsConfirm')}
                       </label>
                     )}
                   </>

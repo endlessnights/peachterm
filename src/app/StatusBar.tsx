@@ -8,8 +8,10 @@ import { Icon } from '../components/Icon';
 import { AppButtons } from './AppButtons';
 import { useSettings } from '../features/settings/store';
 import { MonitorBar } from '../features/monitor/MonitorBar';
+import { useTranslation } from 'react-i18next';
 
 export function StatusBar({ version }: { version: string }) {
+  const { t } = useTranslation();
   const count = useConnections((s) => s.tree.connections.length);
   const tabs = useTabs((s) => s.tabs);
   const active = useTabs((s) => s.tabs.find((t) => t.id === s.activeId));
@@ -23,27 +25,27 @@ export function StatusBar({ version }: { version: string }) {
       {active ? (
         <span className="statusbar-item">
           <span className="status-dot" data-status={active.status} />
-          {active.subtitle} · {active.status}
+          {active.subtitle} · {t(`status.${active.status}`)}
         </span>
       ) : (
-        <span className="statusbar-item">Ready</span>
+        <span className="statusbar-item">{t('status.ready')}</span>
       )}
       <MonitorBar />
       <span className="spacer" />
       <span className="statusbar-item">
-        {connected}/{tabs.length} sessions
+        {t('status.sessions', { connected, total: tabs.length })}
       </span>
-      <span className="statusbar-item">{count} saved</span>
+      <span className="statusbar-item">{t('status.saved', { count })}</span>
       <span
         className="statusbar-item"
         title={
           credentials?.available
-            ? `Saved passwords are stored in ${credentials.backend}`
-            : 'Secure credential storage is unavailable; passwords are not saved'
+            ? t('status.keychainStored', { backend: credentials.backend })
+            : t('status.keychainUnavailable')
         }
       >
         <Icon name="lock" size={12} />
-        {credentials ? (credentials.available ? credentials.backend : 'No keychain') : '…'}
+        {credentials ? (credentials.available ? credentials.backend : t('status.noKeychain')) : '…'}
       </span>
       {version && <span className="statusbar-item">v{version}</span>}
     </footer>

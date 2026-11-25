@@ -31,12 +31,16 @@ pub async fn credentials_set_password(
     state.lock.guard()?;
     let connection = state.connections.get(connection_id)?;
     if !connection.save_password {
-        return Err(AppError::Validation(
-            "Password saving is disabled for this connection".into(),
+        return Err(AppError::validation_key(
+            "credentials.savingDisabled",
+            "Password saving is disabled for this connection",
         ));
     }
     if secret.is_empty() {
-        return Err(AppError::Validation("Password is empty".into()));
+        return Err(AppError::validation_key(
+            "credentials.empty",
+            "Password is empty",
+        ));
     }
     let app = Arc::clone(&state);
     super::blocking(move || {
@@ -123,17 +127,24 @@ pub async fn credentials_clear_all(
                 Refusal::Unknown => "invalid",
             }
         );
-        AppError::Validation(
-            match r {
-                Refusal::WrongAnswer => "That is not the right answer. Nothing was deleted.",
-                Refusal::Expired => "The confirmation expired. Nothing was deleted.",
-                Refusal::TooManyAttempts => {
-                    "Too many wrong answers. Nothing was deleted; start again."
-                }
-                Refusal::Unknown => "There is no pending confirmation. Nothing was deleted.",
-            }
-            .into(),
-        )
+        match r {
+            Refusal::WrongAnswer => AppError::validation_key(
+                "credentials.clearWrong",
+                "That is not the right answer. Nothing was deleted.",
+            ),
+            Refusal::Expired => AppError::validation_key(
+                "credentials.clearExpired",
+                "The confirmation expired. Nothing was deleted.",
+            ),
+            Refusal::TooManyAttempts => AppError::validation_key(
+                "credentials.clearTooMany",
+                "Too many wrong answers. Nothing was deleted; start again.",
+            ),
+            Refusal::Unknown => AppError::validation_key(
+                "credentials.clearUnknown",
+                "There is no pending confirmation. Nothing was deleted.",
+            ),
+        }
     })?;
     let tree = state.connections.load()?;
     let entries: Vec<(Uuid, bool)> = tree

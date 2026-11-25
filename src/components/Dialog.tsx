@@ -3,6 +3,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Icon } from './Icon';
+import { useTranslation } from 'react-i18next';
 
 interface DialogProps {
   title: string;
@@ -16,6 +17,7 @@ interface DialogProps {
 
 /** Modal dialog with focus trap-lite: focuses the first field, Esc closes. */
 export function Dialog({ title, onClose, children, footer, wide, persistent }: DialogProps) {
+  const { t } = useTranslation();
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -52,7 +54,7 @@ export function Dialog({ title, onClose, children, footer, wide, persistent }: D
       >
         <div className="dialog-header">
           <h2 id={titleId}>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">
+          <button className="icon-btn" onClick={onClose} aria-label={t('common.close')}>
             <Icon name="close" />
           </button>
         </div>
@@ -80,6 +82,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmProps) {
+  const { t } = useTranslation();
   return (
     <Dialog
       title={title}
@@ -87,7 +90,7 @@ export function ConfirmDialog({
       footer={
         <>
           <button className="btn" onClick={onCancel}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             className={danger ? 'btn btn-danger' : 'btn btn-primary'}
@@ -125,11 +128,12 @@ export function PromptDialog({
   onSubmit,
   onCancel,
 }: PromptProps) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const submit = () => {
     const value = inputRef.current?.value.trim() ?? '';
-    const problem = validate ? validate(value) : value ? null : 'Enter a value.';
+    const problem = validate ? validate(value) : value ? null : t('common.enterValue');
     if (problem) {
       setError(problem);
       return;
@@ -143,7 +147,7 @@ export function PromptDialog({
       footer={
         <>
           <button className="btn" onClick={onCancel}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button className="btn btn-primary" onClick={submit}>
             {confirmLabel}

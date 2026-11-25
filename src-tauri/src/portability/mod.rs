@@ -400,14 +400,20 @@ impl PortabilityService {
     ) -> AppResult<RestoreResult> {
         let staged = self.staging.take(token, Kind::Import, stores.lock)?;
         let Staged::Import { parsed } = staged else {
-            return Err(AppError::Validation("Please start again.".into()));
+            return Err(AppError::validation_key(
+                "portability.startAgain",
+                "Please start again.",
+            ));
         };
         if update
             .iter()
             .any(|&i| i >= parsed.incoming.connections.len())
         {
             self.staging.put_back(token, Staged::Import { parsed });
-            return Err(AppError::Validation("Unknown profile selected.".into()));
+            return Err(AppError::validation_key(
+                "portability.unknownProfile",
+                "Unknown profile selected.",
+            ));
         }
         let update_set: HashSet<usize> = update.iter().copied().collect();
         match restore::commit_import(
@@ -453,12 +459,18 @@ impl PortabilityService {
     ) -> AppResult<BackupSummary> {
         stores.lock.guard()?;
         if passphrase.expose() != confirm.expose() {
-            return Err(AppError::Validation("The passphrases do not match.".into()));
+            return Err(AppError::validation_key(
+                "portability.passphraseMismatch",
+                "The passphrases do not match.",
+            ));
         }
         envelope::check_passphrase(passphrase.expose())?;
         let staged = self.staging.take(token, Kind::Destination, stores.lock)?;
         let Staged::Destination { path } = staged else {
-            return Err(AppError::Validation("Please start again.".into()));
+            return Err(AppError::validation_key(
+                "portability.startAgain",
+                "Please start again.",
+            ));
         };
         // The destination stays usable if writing fails (disk full, etc.).
         let result = backup::create_backup(
@@ -506,7 +518,10 @@ impl PortabilityService {
     ) -> AppResult<RestorePreview> {
         let staged = self.staging.take(token, Kind::BackupFile, stores.lock)?;
         let Staged::BackupFile { bytes, attempts } = staged else {
-            return Err(AppError::Validation("Please start again.".into()));
+            return Err(AppError::validation_key(
+                "portability.startAgain",
+                "Please start again.",
+            ));
         };
         let opened = match backup::open_backup(&bytes, passphrase) {
             Ok(o) => o,
@@ -578,7 +593,10 @@ impl PortabilityService {
     ) -> AppResult<RestoreResult> {
         let staged = self.staging.take(token, Kind::Opened, stores.lock)?;
         let Staged::Opened { backup } = staged else {
-            return Err(AppError::Validation("Please start again.".into()));
+            return Err(AppError::validation_key(
+                "portability.startAgain",
+                "Please start again.",
+            ));
         };
         let outcome: AppResult<RestoreResult> =
             restore::commit(stores, &backup, options, now_millis());

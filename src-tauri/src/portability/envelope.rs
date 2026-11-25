@@ -134,9 +134,27 @@ impl BackupError {
     }
 }
 
+impl BackupError {
+    /// Stable key the renderer localizes.
+    pub fn key(self) -> &'static str {
+        match self {
+            BackupError::NotABackup => "backup.notABackup",
+            BackupError::UnsupportedVersion => "backup.unsupportedVersion",
+            BackupError::UnsupportedAlgorithm => "backup.unsupportedAlgorithm",
+            BackupError::InvalidParameters => "backup.invalidParameters",
+            BackupError::Truncated => "backup.truncated",
+            BackupError::TooLarge => "backup.tooLarge",
+            BackupError::Authentication => "backup.authentication",
+            BackupError::InvalidContent => "backup.invalidContent",
+            BackupError::WeakPassphrase => "backup.weakPassphrase",
+            BackupError::Internal => "backup.internal",
+        }
+    }
+}
+
 impl From<BackupError> for crate::error::AppError {
     fn from(e: BackupError) -> Self {
-        crate::error::AppError::Validation(e.message().into())
+        crate::error::AppError::validation_key(e.key(), e.message())
     }
 }
 

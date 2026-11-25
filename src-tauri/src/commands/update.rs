@@ -152,9 +152,9 @@ pub async fn update_download(
 ) -> AppResult<()> {
     state.lock.guard()?;
     if !Platform::detect().can_install() {
-        return Err(AppError::Validation(
-            "This installation cannot be updated in place. Download the new version from GitHub."
-                .into(),
+        return Err(AppError::validation_key(
+            "update.noInPlace",
+            "This installation cannot be updated in place. Download the new version from GitHub.",
         ));
     }
     let update = state
@@ -204,18 +204,18 @@ pub async fn update_download(
 pub async fn update_install(app: AppHandle, state: AppStateRef<'_>) -> AppResult<()> {
     state.lock.guard()?;
     if !Platform::detect().can_install() {
-        return Err(AppError::Validation(
-            "This installation cannot be updated in place.".into(),
+        return Err(AppError::validation_key(
+            "update.noInPlace",
+            "This installation cannot be updated in place. Download the new version from GitHub.",
         ));
     }
     let update = state
         .update
         .pending()
         .ok_or_else(|| AppError::NotFound("update".into()))?;
-    let bytes = state
-        .update
-        .take_downloaded()
-        .ok_or_else(|| AppError::Validation("Download the update first.".into()))?;
+    let bytes = state.update.take_downloaded().ok_or_else(|| {
+        AppError::validation_key("update.downloadFirst", "Download the update first.")
+    })?;
     // Ends sessions and tunnels through their normal teardown before the
     // installer replaces the program (nothing is typed into any shell).
     let shared = Arc::clone(&state);

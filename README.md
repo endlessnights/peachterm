@@ -13,6 +13,8 @@ No telemetry, no accounts, no session limits.
 - **Local terminals**: Windows PowerShell, PowerShell 7, cmd, WSL distributions, and bash/zsh/fish on Linux/macOS
   through a native pseudo-terminal, plus your own shell profiles.
 - **Tabs and split view**: up to six panes, drag a tab onto a pane edge, resizable dividers, restore tabs on start.
+- **Six interface languages** — English, Russian, German, French, Spanish and Serbian (Latin) — switchable live,
+  following the system language by default ([docs](docs/localization.md)).
 - **Themes**: Dark, Light, System, Industrial Olive and Source Gray, each with a matching terminal palette;
   ten built-in terminal palettes, custom terminal colours and per-tab palettes.
 - **Server notes & documentation** attached to a connection, beside the terminal: Markdown/text notes, linked files,
@@ -80,6 +82,7 @@ Screenshots will be added to this section with the first public release.
 - [Diagnostic logging](docs/logging.md)
 - [Server notes & documentation](docs/notes.md)
 - [Server monitoring](docs/monitoring.md)
+- [Localization and translations](docs/localization.md)
 - [SSH tunnels](docs/tunnels.md) and [in-app updates](docs/updates.md)
 - [Connection export and import](docs/import-export.md), [encrypted backups](docs/backup-format.md)
 - [FTPeach review notes](docs/ftpeach-review.md)
@@ -130,6 +133,7 @@ npm run check          # everything below
 npm run format:check
 npm run lint
 npm run typecheck
+npm run i18n:check     # translation files (offline)
 npm test               # Vitest (frontend)
 npm run rust:fmt
 npm run rust:clippy

@@ -1,6 +1,7 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { Trans, useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import definitions from '../../shared/shortcutDefaults.json';
 import {
@@ -12,6 +13,7 @@ import {
   formatAccelerator,
   isMac,
   isTerminalUnsafe,
+  reservedText,
   parseAccelerator,
   sameCombo,
   suggestAlternative,
@@ -34,6 +36,7 @@ function isDefault(id: ActionId, accel: string): boolean {
 }
 
 export function ShortcutsPage({ draft, replace, problems }: Props) {
+  const { t } = useTranslation();
   const mac = isMac();
   const overrides = draft.shortcuts;
   const bindings = effectiveBindings(overrides);
@@ -70,7 +73,9 @@ export function ShortcutsPage({ draft, replace, problems }: Props) {
       if (!accel) return; // only modifiers so far
       const parsed = parseAccelerator(accel, mac);
       if (!parsed.ok) {
-        setRecordError(`“${formatAccelerator(accel, mac)}” cannot be used: ${parsed.error}.`);
+        setRecordError(
+          t('keys.cannotUse', { key: formatAccelerator(accel, mac), error: parsed.error }),
+        );
         return;
       }
       setRecordError(null);
@@ -90,15 +95,13 @@ export function ShortcutsPage({ draft, replace, problems }: Props) {
 
   return (
     <>
-      <h3>Keyboard shortcuts</h3>
+      <h3>{t('keys.heading')}</h3>
       <div className="hint">
-        Click <strong>Record</strong>, then press the new combination (Esc cancels, Backspace
-        unassigns). Shortcuts only work while PeachTerm is focused.
+        <Trans i18nKey="keys.intro" components={{ strong: <strong /> }} />
       </div>
       {problems.length > 0 && (
         <div className="notice notice-warn" role="alert">
-          {problems.length} shortcut {problems.length === 1 ? 'problem' : 'problems'} to fix before
-          you can apply.
+          {t('keys.problems', { count: problems.length })}
         </div>
       )}
       {recordError && (
@@ -109,8 +112,8 @@ export function ShortcutsPage({ draft, replace, problems }: Props) {
       <table className="table shortcut-table">
         <thead>
           <tr>
-            <th>Action</th>
-            <th>Shortcut</th>
+            <th>{t('keys.actionHeader')}</th>
+            <th>{t('keys.shortcut')}</th>
             <th />
           </tr>
         </thead>
@@ -138,7 +141,7 @@ export function ShortcutsPage({ draft, replace, problems }: Props) {
                             className="link-btn"
                             onClick={() => update(id, alternative)}
                           >
-                            Use {formatAccelerator(alternative, mac)} instead
+                            {t('keys.useInstead', { key: formatAccelerator(alternative, mac) })}
                           </button>
                         </>
                       )}
@@ -146,18 +149,20 @@ export function ShortcutsPage({ draft, replace, problems }: Props) {
                   )}
                   {!problem && unsafe && (
                     <div className="hint">
-                      Terminal programs use this key, so it only works outside terminals. Inside a
-                      terminal use {formatAccelerator(withShift(accel), mac)}.
+                      {t('keys.unsafe', { key: formatAccelerator(withShift(accel), mac) })}
                     </div>
                   )}
                 </td>
                 <td>
                   {recordingId === id ? (
                     <span className="kbd recording" aria-live="polite">
-                      Press keys…
+                      {t('keys.pressKeys')}
                     </span>
                   ) : (
-                    <span className="kbd" aria-label={`${ACTION_LABELS[id]} shortcut`}>
+                    <span
+                      className="kbd"
+                      aria-label={t('keys.shortcutAria', { action: ACTION_LABELS[id] })}
+                    >
                       {formatAccelerator(accel, mac)}
                     </span>
                   )}
@@ -171,16 +176,16 @@ export function ShortcutsPage({ draft, replace, problems }: Props) {
                       setRecordingId(recordingId === id ? null : id);
                     }}
                   >
-                    {recordingId === id ? 'Cancel' : 'Record'}
+                    {recordingId === id ? t('common.cancel') : t('keys.record')}
                   </button>
                   <button
                     type="button"
                     className="btn btn-ghost"
                     disabled={!customised}
                     onClick={() => update(id, null)}
-                    title="Restore the default for this action"
+                    title={t('keys.resetHint')}
                   >
-                    Reset
+                    {t('keys.reset')}
                   </button>
                 </td>
               </tr>
@@ -195,18 +200,14 @@ export function ShortcutsPage({ draft, replace, problems }: Props) {
           disabled={Object.keys(overrides).length === 0}
           onClick={() => replace('shortcuts', {})}
         >
-          Restore all defaults
+          {t('keys.restoreAll')}
         </button>
       </div>
 
-      <h3>Reserved shortcuts and platform limits</h3>
-      <div className="hint">
-        These combinations cannot be assigned because the operating system or the embedded web view
-        owns them. PeachTerm suppresses the web view&apos;s own shortcuts (reload, print, find,
-        zoom, developer tools) so they cannot disrupt your sessions.
-      </div>
+      <h3>{t('keys.reservedHeading')}</h3>
+      <div className="hint">{t('keys.reservedIntro')}</div>
       <details>
-        <summary>Show the reserved list</summary>
+        <summary>{t('keys.showReserved')}</summary>
         <ul className="reserved-list">
           {[...definitions.reserved, ...(mac ? definitions.reservedMac : [])].map((r) => {
             const parsed = parseAccelerator(r.accel, mac);
@@ -215,13 +216,11 @@ export function ShortcutsPage({ draft, replace, problems }: Props) {
                 <span className="kbd">
                   {formatAccelerator(parsed.ok ? parsed.canonical : r.accel, mac)}
                 </span>{' '}
-                {r.reason}
+                {reservedText(r.reason)}
               </li>
             );
           })}
-          {!mac && (
-            <li>Any combination with the Windows/Super key: owned by the operating system.</li>
-          )}
+          {!mac && <li>{t('keys.superKey')}</li>}
         </ul>
       </details>
     </>

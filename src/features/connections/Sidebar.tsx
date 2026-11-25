@@ -1,6 +1,7 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { useTranslation } from 'react-i18next';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
@@ -80,6 +81,7 @@ function RootDropZone({ highlighted }: { highlighted: boolean }) {
 }
 
 export function Sidebar({ width }: { width: number }) {
+  const { t } = useTranslation();
   const tree = useConnections((s) => s.tree);
   const query = useConnections((s) => s.query);
   const setQuery = useConnections((s) => s.setQuery);
@@ -259,14 +261,14 @@ export function Sidebar({ width }: { width: number }) {
       return [
         {
           kind: 'item',
-          label: `Move ${items.length} items to…`,
+          label: t('conn.menu.moveMany', { count: items.length }),
           icon: 'folder',
           onSelect: () => requestMoveItems(items),
         },
         { kind: 'separator' },
         {
           kind: 'item',
-          label: `Delete ${items.length} items…`,
+          label: t('conn.menu.deleteMany', { count: items.length }),
           icon: 'trash',
           danger: true,
           onSelect: () => requestDeleteItems(items),
@@ -276,7 +278,7 @@ export function Sidebar({ width }: { width: number }) {
     const common: MenuEntry[] = [
       {
         kind: 'item',
-        label: 'Rename',
+        label: t('conn.menu.rename'),
         icon: 'edit',
         shortcut: renameLabel,
         onSelect: () => useConnections.getState().startRename(row.ref.id),
@@ -285,16 +287,26 @@ export function Sidebar({ width }: { width: number }) {
     const order: MenuEntry[] = [
       {
         kind: 'item',
-        label: 'Move to…',
+        label: t('conn.menu.moveTo'),
         icon: 'folder',
         onSelect: () => requestMoveItems([row.ref]),
       },
-      { kind: 'item', label: 'Move up', shortcut: 'Alt+↑', onSelect: () => moveRelative(-1, row) },
-      { kind: 'item', label: 'Move down', shortcut: 'Alt+↓', onSelect: () => moveRelative(1, row) },
+      {
+        kind: 'item',
+        label: t('conn.menu.moveUp'),
+        shortcut: 'Alt+↑',
+        onSelect: () => moveRelative(-1, row),
+      },
+      {
+        kind: 'item',
+        label: t('conn.menu.moveDown'),
+        shortcut: 'Alt+↓',
+        onSelect: () => moveRelative(1, row),
+      },
     ];
     const remove: MenuEntry = {
       kind: 'item',
-      label: 'Delete…',
+      label: t('conn.menu.delete'),
       icon: 'trash',
       danger: true,
       onSelect: () => requestDeleteItems([row.ref]),
@@ -302,20 +314,25 @@ export function Sidebar({ width }: { width: number }) {
     if (row.node.kind === 'connection') {
       const c = row.node.connection;
       return [
-        { kind: 'item', label: 'Connect', icon: 'plug', onSelect: () => connect(c) },
+        { kind: 'item', label: t('conn.menu.connect'), icon: 'plug', onSelect: () => connect(c) },
         { kind: 'separator' },
         ...common,
-        { kind: 'item', label: 'Edit…', icon: 'edit', onSelect: () => openConnectionEditor(c) },
         {
           kind: 'item',
-          label: 'Notes & Documentation',
+          label: t('conn.menu.edit'),
+          icon: 'edit',
+          onSelect: () => openConnectionEditor(c),
+        },
+        {
+          kind: 'item',
+          label: t('tabs.notes'),
           icon: 'file',
           onSelect: () => showNotesOfConnection(c),
         },
-        { kind: 'item', label: 'Add note…', onSelect: () => addNoteToConnection(c) },
+        { kind: 'item', label: t('conn.menu.addNote'), onSelect: () => addNoteToConnection(c) },
         {
           kind: 'item',
-          label: 'Duplicate',
+          label: t('conn.menu.duplicate'),
           icon: 'copy',
           onSelect: () => duplicateConnection(c),
         },
@@ -330,7 +347,7 @@ export function Sidebar({ width }: { width: number }) {
     return [
       {
         kind: 'item',
-        label: 'New connection here…',
+        label: t('conn.menu.newHere'),
         icon: 'plus',
         onSelect: () => openConnectionEditor(null, f.id),
       },
@@ -340,7 +357,7 @@ export function Sidebar({ width }: { width: number }) {
         : [
             {
               kind: 'item',
-              label: 'New sub-folder…',
+              label: t('conn.menu.newSubfolder'),
               icon: 'folderPlus',
               onSelect: () => newFolder(f.id),
             } as MenuEntry,
@@ -356,11 +373,16 @@ export function Sidebar({ width }: { width: number }) {
   const emptyMenu: MenuEntry[] = [
     {
       kind: 'item',
-      label: 'New connection…',
+      label: t('conn.menu.newConnection'),
       icon: 'plus',
       onSelect: () => openConnectionEditor(null),
     },
-    { kind: 'item', label: 'New folder…', icon: 'folderPlus', onSelect: () => newFolder(null) },
+    {
+      kind: 'item',
+      label: t('conn.menu.newFolder'),
+      icon: 'folderPlus',
+      onSelect: () => newFolder(null),
+    },
   ];
 
   // ---- rename --------------------------------------------------------------
@@ -379,13 +401,13 @@ export function Sidebar({ width }: { width: number }) {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  const describe = (items: ItemRef[], t: ConnectionTree): string => {
-    if (items.length !== 1) return `${items.length} items`;
+  const describe = (items: ItemRef[], tree: ConnectionTree): string => {
+    if (items.length !== 1) return t('count.item', { count: items.length });
     const item = items[0]!;
     return (
       (item.kind === 'folder'
-        ? t.folders.find((f) => f.id === item.id)?.name
-        : t.connections.find((c) => c.id === item.id)?.name) ?? '1 item'
+        ? tree.folders.find((f) => f.id === item.id)?.name
+        : tree.connections.find((c) => c.id === item.id)?.name) ?? t('count.item', { count: 1 })
     );
   };
 
@@ -469,21 +491,21 @@ export function Sidebar({ width }: { width: number }) {
   const countOf = (row: Row) => (row.node.kind === 'folder' ? row.node.count : 0);
 
   return (
-    <aside className="sidebar" style={{ width }} aria-label="Saved connections">
+    <aside className="sidebar" style={{ width }} aria-label={t('conn.sidebarAria')}>
       <div className="sidebar-header">
-        <span className="sidebar-title">Connections</span>
+        <span className="sidebar-title">{t('conn.title')}</span>
         <button
           className="icon-btn"
-          title="New folder"
-          aria-label="New folder"
+          title={t('conn.newFolder')}
+          aria-label={t('conn.newFolder')}
           onClick={() => newFolder(null)}
         >
           <Icon name="folderPlus" />
         </button>
         <button
           className="icon-btn"
-          title="New connection"
-          aria-label="New connection"
+          title={t('conn.newConnection')}
+          aria-label={t('conn.newConnection')}
           onClick={() => openConnectionEditor(null)}
         >
           <Icon name="plus" />
@@ -494,21 +516,19 @@ export function Sidebar({ width }: { width: number }) {
         <input
           id="sidebar-search"
           className="input"
-          placeholder="Search name, host, user"
+          placeholder={t('conn.searchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') setQuery('');
           }}
           spellCheck={false}
-          aria-label="Search connections"
+          aria-label={t('conn.searchAria')}
         />
       </div>
       {deepCount > 0 && (
         <div className="notice notice-warn sidebar-banner" role="status">
-          {deepCount === 1 ? 'One folder is' : `${deepCount} folders are`} nested deeper than{' '}
-          {MAX_FOLDER_DEPTH} levels. Nothing was changed; move them up (drag, or right-click → Move
-          to…) to reorganise.
+          {t('conn.deep', { count: deepCount, max: MAX_FOLDER_DEPTH })}
         </div>
       )}
       <DndContext
@@ -535,13 +555,13 @@ export function Sidebar({ width }: { width: number }) {
           {rows.length === 0 ? (
             <div className="tree-empty">
               {searching ? (
-                'No connections match your search.'
+                t('conn.noMatch')
               ) : (
                 <>
-                  No saved connections yet.
+                  {t('conn.empty')}
                   <br />
                   <button className="btn btn-primary" onClick={() => openConnectionEditor(null)}>
-                    <Icon name="plus" /> New connection
+                    <Icon name="plus" /> {t('conn.newConnection')}
                   </button>
                 </>
               )}
@@ -584,7 +604,7 @@ export function Sidebar({ width }: { width: number }) {
       </DndContext>
       {drag && (
         <div className="drag-status" role="status" data-invalid={drag.problem ? 'true' : undefined}>
-          {drag.problem ?? (drag.plan ? 'Release to move here' : 'Drop on a folder to move')}
+          {drag.problem ?? (drag.plan ? t('conn.dragRelease') : t('conn.dragHint'))}
         </div>
       )}
       {menu && (

@@ -126,10 +126,16 @@ describe('Apply / OK / Cancel', () => {
     expect(backend.saves).toHaveLength(0);
   });
 
-  it('marks settings that need a restart', async () => {
+  it('switches the interface language immediately, without a restart', async () => {
     mountApp();
     const dialog = await open();
-    const field = within(dialog).getByText('Interface language').closest('label')!;
-    expect(field.textContent).toMatch(/restarting PeachTerm/);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Appearance' }));
+    const select = within(dialog).getByLabelText('Interface language') as HTMLSelectElement;
+    expect(select.value).toBe('system');
+    fireEvent.change(select, { target: { value: 'de' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Einstellungen' })).toBeTruthy());
+    expect(screen.getByRole('button', { name: 'Anwenden' })).toBeTruthy();
+    expect(screen.queryByText(/Restart PeachTerm/)).toBeNull();
   });
 });

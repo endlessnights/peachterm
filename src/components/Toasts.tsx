@@ -1,8 +1,8 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { errorMessage } from '../i18n/errors';
 import { create } from 'zustand';
-import { toAppError } from '../shared/ipc';
 
 interface Toast {
   id: number;
@@ -29,7 +29,7 @@ export const useToasts = create<ToastState>((set, get) => ({
 }));
 
 export const reportError = (error: unknown) =>
-  useToasts.getState().push('error', toAppError(error).message);
+  useToasts.getState().push('error', errorMessage(error));
 export const notify = (text: string) => useToasts.getState().push('info', text);
 
 export function Toasts() {

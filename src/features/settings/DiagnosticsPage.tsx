@@ -1,6 +1,9 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { useTranslation } from 'react-i18next';
+import { t as tr } from '../../i18n';
+import { formatBytes } from './portability/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog';
 import { reportError } from '../../components/Toasts';
@@ -8,36 +11,27 @@ import { ipc, isTauri } from '../../shared/ipc';
 import type { ExportOutcome, ExportPreview, LogLevel, LoggingStatus } from '../../shared/types';
 import { Field, Segmented, numberInput, type PageProps } from './controls';
 
-const LEVELS: { value: LogLevel; label: string }[] = [
-  { value: 'error', label: 'Error' },
-  { value: 'warn', label: 'Warn' },
-  { value: 'info', label: 'Info' },
-  { value: 'debug', label: 'Debug' },
-  { value: 'trace', label: 'Trace' },
-];
+const LEVELS: LogLevel[] = ['error', 'warn', 'info', 'debug', 'trace'];
 
-const REASONS: Record<string, string> = {
-  permission_denied: 'permission denied',
-  not_found: 'folder not found',
-  not_a_directory: 'the path is not a folder',
-  is_a_directory: 'the path is a folder',
-  disk_full: 'the disk is full',
-  read_only: 'the location is read-only',
-  invalid_path: 'the path is invalid',
-  relative_path: 'the folder must be an absolute path',
-  timeout: 'the logger did not respond',
-  writer_stopped: 'the logger has stopped',
-};
+const REASON_TOKENS = [
+  'permission_denied',
+  'not_found',
+  'not_a_directory',
+  'is_a_directory',
+  'disk_full',
+  'read_only',
+  'invalid_path',
+  'relative_path',
+  'timeout',
+  'writer_stopped',
+] as const;
 
 export const describeReason = (token: string | null) =>
-  token ? (REASONS[token] ?? token.replace(/_/g, ' ')) : '';
-
-const formatBytes = (n: number) =>
-  n < 1024
-    ? `${n} B`
-    : n < 1024 * 1024
-      ? `${(n / 1024).toFixed(1)} KB`
-      : `${(n / 1024 / 1024).toFixed(1)} MB`;
+  token
+    ? (REASON_TOKENS as readonly string[]).includes(token)
+      ? tr(`diag.reason.${token as (typeof REASON_TOKENS)[number]}`)
+      : token.replace(/_/g, ' ')
+    : '';
 
 type ExportState =
   | { step: 'idle' }
@@ -50,6 +44,7 @@ interface Props extends PageProps {
 }
 
 export function DiagnosticsPage({ draft, patch, appliedTick }: Props) {
+  const { t } = useTranslation();
   const d = draft.diagnostics;
   const [status, setStatus] = useState<LoggingStatus | null>(null);
   const [exporting, setExporting] = useState<ExportState>({ step: 'idle' });
@@ -64,7 +59,7 @@ export function DiagnosticsPage({ draft, patch, appliedTick }: Props) {
     const picked = await openFileDialog({
       directory: true,
       multiple: false,
-      title: 'Select log folder',
+      title: t('diag.selectFolder'),
     });
     if (typeof picked === 'string') patch('diagnostics', { logDir: picked });
   };
@@ -91,38 +86,37 @@ export function DiagnosticsPage({ draft, patch, appliedTick }: Props) {
 
   return (
     <>
-      <h3>File logging</h3>
+      <h3>{t('diag.fileLogging')}</h3>
       <label className="check">
         <input
           type="checkbox"
           checked={d.fileLogging}
           onChange={(e) => patch('diagnostics', { fileLogging: e.target.checked })}
         />
-        Write diagnostic logs to a file
+        {t('diag.writeLogs')}
       </label>
-      <Field
-        label="Log level"
-        hint="Debug and Trace add detail about events, never about content: passwords, keys, host names, paths and terminal data are never written at any level."
-      >
+      <Field label={t('diag.levelLabel')} hint={t('diag.levelHint')}>
         <Segmented
           value={d.level}
-          options={LEVELS}
+          options={LEVELS.map((value) => ({ value, label: t(`diag.level.${value}`) }))}
           onChange={(level) => patch('diagnostics', { level })}
         />
       </Field>
-      <Field label="Log folder" hint="Leave empty to use the default location.">
+      <Field label={t('diag.folder')} hint={t('diag.folderHint')}>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             className="input"
             value={d.logDir ?? ''}
-            placeholder={status && !status.customDir ? status.effectiveDir : 'Default location'}
+            placeholder={
+              status && !status.customDir ? status.effectiveDir : t('diag.defaultLocation')
+            }
             onChange={(e) => patch('diagnostics', { logDir: e.target.value || null })}
             spellCheck={false}
-            aria-label="Log folder"
+            aria-label={t('diag.folder')}
           />
           {isTauri() && (
             <button type="button" className="btn" onClick={() => void browse()}>
-              Browse…
+              {t('settings.editor.browse')}
             </button>
           )}
           {d.logDir && (
@@ -131,44 +125,41 @@ export function DiagnosticsPage({ draft, patch, appliedTick }: Props) {
               className="btn"
               onClick={() => patch('diagnostics', { logDir: null })}
             >
-              Default
+              {t('diag.default')}
             </button>
           )}
         </div>
       </Field>
       <div className="settings-grid">
-        <Field label="Keep logs for">
+        <Field label={t('diag.keepFor')}>
           <Segmented
             value={d.retentionDays}
-            options={[
-              { value: 7, label: '7 days' },
-              { value: 14, label: '14 days' },
-              { value: 30, label: '30 days' },
-            ]}
+            options={([7, 14, 30] as const).map((value) => ({
+              value,
+              label: t('diag.days', { count: value }),
+            }))}
             onChange={(retentionDays) => patch('diagnostics', { retentionDays })}
           />
         </Field>
-        <Field label="Maximum total size (MB)" hint="Oldest files are removed first.">
+        <Field label={t('diag.maxSize')} hint={t('diag.maxSizeHint')}>
           {numberInput(d.maxTotalMb, (n) => patch('diagnostics', { maxTotalMb: n }), 10, 1000)}
         </Field>
       </div>
-      <h3>Status</h3>
-      <div className="hint">
-        Shows the applied configuration. Changes take effect on Apply or OK.
-      </div>
+      <h3>{t('diag.status')}</h3>
+      <div className="hint">{t('diag.statusHint')}</div>
       <LoggingStatusView status={status} />
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button className="btn" onClick={() => ipc.loggingOpenDir().catch(reportError)}>
-          Open log folder
+          {t('diag.openFolder')}
         </button>
         <button className="btn" onClick={() => void startExport()} disabled={busy}>
-          Export diagnostic logs…
+          {t('diag.export')}
         </button>
       </div>
 
       {exporting.step === 'review' && (
-        <div className="notice" role="region" aria-label="Export review">
-          <strong>These files will be exported (sanitised copies):</strong>
+        <div className="notice" role="region" aria-label={t('diag.exportReview')}>
+          <strong>{t('diag.exportFiles')}</strong>
           <ul style={{ margin: '6px 0', paddingLeft: 18 }}>
             {exporting.preview.files.map((f) => (
               <li key={f.name} style={{ userSelect: 'text' }}>
@@ -177,36 +168,33 @@ export function DiagnosticsPage({ draft, patch, appliedTick }: Props) {
               </li>
             ))}
           </ul>
-          <div className="hint">
-            Not included: settings, connections, saved passwords, host keys. Nothing is uploaded;
-            you choose where the archive is saved and can open it before sharing.
-          </div>
+          <div className="hint">{t('diag.exportNotIncluded')}</div>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button className="btn btn-primary" onClick={() => void runExport()} disabled={busy}>
-              Choose location and export
+              {t('diag.chooseAndExport')}
             </button>
             <button className="btn" onClick={() => setExporting({ step: 'idle' })}>
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </div>
       )}
       {exporting.step === 'done' && (
         <div className="notice" role="status">
-          <strong>Archive saved</strong>
+          <strong>{t('diag.archiveSaved')}</strong>
           <div style={{ userSelect: 'text', wordBreak: 'break-all' }}>
             {exporting.outcome.savedTo} ({formatBytes(exporting.outcome.archiveBytes)})
           </div>
           <ul style={{ margin: '6px 0', paddingLeft: 18 }}>
             {exporting.outcome.entries.map((e) => (
               <li key={e.name}>
-                {e.name}: {e.linesKept} lines kept
-                {e.linesDropped > 0 && `, ${e.linesDropped} dropped by the sanitiser`}
+                {t('diag.entryLines', { name: e.name, kept: e.linesKept })}
+                {e.linesDropped > 0 && t('diag.entryDropped', { dropped: e.linesDropped })}
               </li>
             ))}
           </ul>
           <button className="btn" onClick={() => ipc.loggingRevealExport().catch(reportError)}>
-            Show in folder
+            {t('diag.showInFolder')}
           </button>
         </div>
       )}
@@ -215,27 +203,32 @@ export function DiagnosticsPage({ draft, patch, appliedTick }: Props) {
 }
 
 function LoggingStatusView({ status }: { status: LoggingStatus | null }) {
-  if (!status) return <div className="hint">Checking…</div>;
+  const { t } = useTranslation();
+  if (!status) return <div className="hint">{t('settings.security.checking')}</div>;
   const warn = status.enabled && !status.active;
   return (
     <div className={warn ? 'notice notice-warn' : 'notice'} role="status">
       {!status.enabled ? (
-        <div>File logging is off.</div>
+        <div>{t('diag.statusOff')}</div>
       ) : status.active ? (
-        <div>Logging is active at level “{status.level}”.</div>
+        <div>{t('diag.statusActive', { level: status.level })}</div>
       ) : (
-        <div>
-          File logging is unavailable ({describeReason(status.error)}). PeachTerm keeps working
-          without it.
-        </div>
+        <div>{t('diag.statusUnavailable', { reason: describeReason(status.error) })}</div>
       )}
       <div style={{ userSelect: 'text', wordBreak: 'break-all' }}>
-        Folder: {status.effectiveDir} {status.customDir ? '(custom)' : '(default)'}
+        {t('diag.folderLine', {
+          dir: status.effectiveDir,
+          kind: status.customDir ? t('diag.custom') : t('diag.defaultKind'),
+        })}
       </div>
       <div>
-        {status.fileCount} file{status.fileCount === 1 ? '' : 's'}, {formatBytes(status.totalBytes)}{' '}
-        · keeping {status.retentionDays} days, up to {status.maxTotalMb} MB
-        {status.droppedLines > 0 && ` · ${status.droppedLines} lines dropped (queue full)`}
+        {t('diag.statLine', {
+          count: status.fileCount,
+          size: formatBytes(status.totalBytes),
+          days: status.retentionDays,
+          max: status.maxTotalMb,
+        })}
+        {status.droppedLines > 0 && ` · ${t('diag.dropped', { count: status.droppedLines })}`}
       </div>
     </div>
   );

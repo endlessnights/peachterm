@@ -12,11 +12,12 @@
 //  * "Restore theme-recommended" removes custom colours AND re-enables linking.
 // Only validated #rrggbb values are stored; nothing is silently corrected.
 
+import { Trans, useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import type { CustomTerminalColors, Settings } from '../../shared/types';
 import {
   ANSI_KEYS,
-  ANSI_NAMES,
+  ansiName,
   PRESETS,
   PRESET_ORDER,
   effectivePreset,
@@ -50,6 +51,7 @@ export function pickerHex(value: string | undefined): string {
 }
 
 export function TerminalColorsSection({ draft, patch }: PageProps) {
+  const { t } = useTranslation();
   const a = draft.appearance;
   const colors = a.terminalColors;
   const effective = effectivePreset(a);
@@ -73,19 +75,23 @@ export function TerminalColorsSection({ draft, patch }: PageProps) {
   const warning = readabilityWarning(bg, fg);
   const sourceText =
     source === 'linked'
-      ? `linked to the ${a.theme === 'system' ? 'system' : 'application'} theme`
+      ? a.theme === 'system'
+        ? t('colors.sourceLinkedSystem')
+        : t('colors.sourceLinkedApp')
       : source === 'custom'
-        ? `based on ${PRESETS[colors.preset as TerminalPresetId]?.name ?? 'a preset'}, with custom colours`
-        : 'selected manually';
+        ? t('colors.sourceCustom', {
+            name: PRESETS[colors.preset as TerminalPresetId]?.name ?? t('colors.sourcePreset'),
+          })
+        : t('colors.sourceManual');
 
   return (
     <>
-      <h3>Terminal colours</h3>
+      <h3>{t('colors.heading')}</h3>
       <div className="settings-grid">
-        <Field label="Terminal theme">
+        <Field label={t('colors.theme')}>
           <select
             className="select"
-            aria-label="Terminal theme"
+            aria-label={t('colors.theme')}
             value={effective}
             onChange={(e) =>
               // choosing a palette by hand = independent mode (custom colours are replaced)
@@ -94,8 +100,9 @@ export function TerminalColorsSection({ draft, patch }: PageProps) {
           >
             {PRESET_ORDER.map((id) => (
               <option key={id} value={id}>
-                {PRESETS[id].name}
-                {id === recommended ? ' (recommended)' : ''}
+                {id === recommended
+                  ? t('colors.recommended', { name: PRESETS[id].name })
+                  : PRESETS[id].name}
               </option>
             ))}
           </select>
@@ -108,50 +115,49 @@ export function TerminalColorsSection({ draft, patch }: PageProps) {
           disabled={!!colors.custom}
           onChange={(e) => setColors({ linked: e.target.checked })}
         />
-        Link terminal theme to application theme
+        {t('colors.link')}
       </label>
-      {colors.custom && (
-        <p className="hint">
-          Custom colours are active, so the link is off. Restore the recommended colours to link
-          again.
-        </p>
-      )}
+      {colors.custom && <p className="hint">{t('colors.customActive')}</p>}
       <p className="hint" data-testid="effective-palette">
-        Effective palette: <strong>{PRESETS[effective].name}</strong> — {sourceText}.
+        <Trans
+          i18nKey="colors.effective"
+          values={{ name: PRESETS[effective].name, source: sourceText }}
+          components={{ strong: <strong /> }}
+        />
       </p>
       <button
         className="btn"
         type="button"
         onClick={() => setColors({ linked: true, custom: null })}
-        title="Removes custom colours and links the terminal to the application theme again"
+        title={t('colors.restoreHint')}
       >
-        Restore Theme-Recommended Terminal Colors
+        {t('colors.restore')}
       </button>
 
       <TerminalPreview theme={theme} appearance={a} />
 
-      <h3>Custom terminal colours</h3>
+      <h3>{t('colors.customHeading')}</h3>
       <div className="color-grid">
         <ColorRow
-          label="Background"
+          label={t('colors.background')}
           value={pickerHex(bg)}
           custom={colors.custom?.background ?? null}
           onChange={(v) => setCustom({ background: v })}
         />
         <ColorRow
-          label="Foreground"
+          label={t('colors.foreground')}
           value={pickerHex(fg)}
           custom={colors.custom?.foreground ?? null}
           onChange={(v) => setCustom({ foreground: v })}
         />
         <ColorRow
-          label="Cursor"
+          label={t('colors.cursor')}
           value={pickerHex(String(theme.cursor))}
           custom={colors.custom?.cursor ?? null}
           onChange={(v) => setCustom({ cursor: v })}
         />
         <ColorRow
-          label="Selection background"
+          label={t('colors.selection')}
           value={pickerHex(String(theme.selectionBackground))}
           custom={colors.custom?.selectionBackground ?? null}
           onChange={(v) => setCustom({ selectionBackground: v })}
@@ -159,17 +165,16 @@ export function TerminalColorsSection({ draft, patch }: PageProps) {
       </div>
       {warning && (
         <p className="notice" role="status">
-          {warning} Your colours are kept as chosen; pick a lighter or darker value to improve
-          readability.
+          {t('colors.readability')}
         </p>
       )}
       <details className="color-advanced">
-        <summary>ANSI colours (advanced)</summary>
+        <summary>{t('colors.ansiHeading')}</summary>
         <div className="color-grid">
           {ANSI_KEYS.map((key, i) => (
             <ColorRow
               key={key}
-              label={ANSI_NAMES[i]!}
+              label={ansiName(i)}
               value={pickerHex(String(theme[key]))}
               custom={colors.custom?.ansi?.[i] ?? null}
               onChange={(v) => {
@@ -189,7 +194,7 @@ export function TerminalColorsSection({ draft, patch }: PageProps) {
         disabled={!colors.custom}
         onClick={() => setColors({ custom: null })}
       >
-        Reset to selected preset
+        {t('colors.resetPreset')}
       </button>
     </>
   );
@@ -206,6 +211,7 @@ function ColorRow({
   custom: string | null;
   onChange: (hex: string) => void;
 }) {
+  const { t } = useTranslation();
   // The text field is validated before anything is stored.
   const [text, setText] = useState<string | null>(null);
   const shown = text ?? value;
@@ -215,7 +221,7 @@ function ColorRow({
       <span>{label}</span>
       <input
         type="color"
-        aria-label={`${label} colour`}
+        aria-label={t('colors.colourAria', { label })}
         value={value}
         onChange={(e) => {
           setText(null);
@@ -224,7 +230,7 @@ function ColorRow({
       />
       <input
         className="input color-hex"
-        aria-label={`${label} hex value`}
+        aria-label={t('colors.hexAria', { label })}
         aria-invalid={invalid || undefined}
         value={shown}
         spellCheck={false}
@@ -241,7 +247,7 @@ function ColorRow({
       />
       {invalid && (
         <span className="hint" role="alert">
-          Use a colour like #1a2b3c.
+          {t('colors.hexHint')}
         </span>
       )}
     </div>
@@ -256,12 +262,13 @@ export function TerminalPreview({
   theme: ReturnType<typeof terminalTheme>;
   appearance: Appearance;
 }) {
+  const { t } = useTranslation();
   const c = (key: (typeof ANSI_KEYS)[number]) => String(theme[key]);
   return (
     <div
       className="terminal-preview"
       role="img"
-      aria-label="Terminal colour preview"
+      aria-label={t('colors.previewAria')}
       style={{
         background: String(theme.background),
         color: String(theme.foreground),

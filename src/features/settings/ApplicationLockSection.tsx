@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
+import { errorMessage } from '../../i18n/errors';
+import { useTranslation } from 'react-i18next';
 import { Dialog } from '../../components/Dialog';
 import { notify, reportError } from '../../components/Toasts';
 import { ipc, toAppError } from '../../shared/ipc';
@@ -9,13 +11,7 @@ import { lockApplication } from '../../app/commands';
 import { useLock } from '../lock/store';
 import { Field, type PageProps } from './controls';
 
-const INTERVALS: { value: 0 | 1 | 5 | 15 | 30; label: string }[] = [
-  { value: 1, label: '1 minute' },
-  { value: 5, label: '5 minutes' },
-  { value: 15, label: '15 minutes' },
-  { value: 30, label: '30 minutes' },
-  { value: 0, label: 'Never' },
-];
+const INTERVALS: (0 | 1 | 5 | 15 | 30)[] = [1, 5, 15, 30, 0];
 
 type Mode = 'set' | 'change' | 'remove';
 
@@ -25,6 +21,7 @@ type Mode = 'set' | 'change' | 'remove';
  * turning the lock on/off and the inactivity interval follow Apply/OK.
  */
 export function ApplicationLockSection({ draft, patch }: PageProps) {
+  const { t } = useTranslation();
   const view = useLock((s) => s.view);
   const refresh = useLock((s) => s.refresh);
   const [mode, setMode] = useState<Mode | null>(null);
@@ -42,17 +39,13 @@ export function ApplicationLockSection({ draft, patch }: PageProps) {
 
   return (
     <>
-      <h3>Application lock</h3>
-      <div className="hint">
-        Optional. Locking hides all connections and terminals and blocks every action until the
-        password is entered. It does not replace locking your operating system and does not protect
-        against someone who already controls your user account.
-      </div>
+      <h3>{t('lock.section.heading')}</h3>
+      <div className="hint">{t('lock.section.description')}</div>
       <label className="check">
         <input type="checkbox" checked={lock.enabled} onChange={(e) => toggle(e.target.checked)} />
-        Enable application lock
+        {t('lock.section.enable')}
       </label>
-      <Field label="Lock after inactivity">
+      <Field label={t('lock.section.afterInactivity')}>
         <select
           className="select"
           value={lock.inactivityMinutes}
@@ -61,39 +54,34 @@ export function ApplicationLockSection({ draft, patch }: PageProps) {
             setLock({ inactivityMinutes: Number(e.target.value) as 0 | 1 | 5 | 15 | 30 })
           }
         >
-          {INTERVALS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
+          {INTERVALS.map((value) => (
+            <option key={value} value={value}>
+              {value === 0 ? t('lock.section.never') : t('lock.section.minutes', { count: value })}
             </option>
           ))}
         </select>
       </Field>
-      <div className="hint">
-        Unlock method: password (stored only as an Argon2id hash). Windows Hello, Touch ID and
-        locking together with the operating-system session are not available in this version.
-      </div>
+      <div className="hint">{t('lock.section.method')}</div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button className="btn" disabled={!active} onClick={lockApplication}>
-          Lock now
+          {t('lock.section.lockNow')}
         </button>
         {configured ? (
           <>
             <button className="btn" onClick={() => setMode('change')}>
-              Change password…
+              {t('lock.section.change')}
             </button>
             <button className="btn" onClick={() => setMode('remove')}>
-              Remove password…
+              {t('lock.section.remove')}
             </button>
           </>
         ) : (
           <button className="btn" onClick={() => setMode('set')}>
-            Set lock password…
+            {t('lock.section.set')}
           </button>
         )}
       </div>
-      {!active && lock.enabled && (
-        <div className="hint">The lock becomes active when you press Apply or OK.</div>
-      )}
+      {!active && lock.enabled && <div className="hint">{t('lock.section.activeOnApply')}</div>}
       {mode && (
         <PasswordDialog
           mode={mode}
@@ -102,11 +90,7 @@ export function ApplicationLockSection({ draft, patch }: PageProps) {
             await refresh();
             if (mode === 'set') setLock({ enabled: true });
             if (mode === 'remove') setLock({ enabled: false });
-            notify(
-              mode === 'remove'
-                ? 'Lock password removed.'
-                : 'Lock password saved. Press Apply to turn the lock on.',
-            );
+            notify(mode === 'remove' ? t('lock.section.removed') : t('lock.section.saved'));
             setMode(null);
           }}
         />
@@ -124,6 +108,7 @@ function PasswordDialog({
   onClose: () => void;
   onDone: () => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -134,8 +119,8 @@ function PasswordDialog({
 
   const submit = async () => {
     setError(null);
-    if (needsNew && next.length < 8) return setError('Use at least 8 characters.');
-    if (needsNew && next !== confirm) return setError('The two passwords do not match.');
+    if (needsNew && next.length < 8) return setError(t('lock.dialog.minLength'));
+    if (needsNew && next !== confirm) return setError(t('lock.dialog.mismatch'));
     setBusy(true);
     try {
       if (mode === 'remove') await ipc.lockRemovePassword(current);
@@ -144,7 +129,7 @@ function PasswordDialog({
     } catch (e) {
       const err = toAppError(e);
       if (err.code === 'locked') reportError(e);
-      setError(err.message);
+      setError(errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -152,10 +137,10 @@ function PasswordDialog({
 
   const title =
     mode === 'set'
-      ? 'Set lock password'
+      ? t('lock.dialog.setTitle')
       : mode === 'change'
-        ? 'Change lock password'
-        : 'Remove lock password';
+        ? t('lock.dialog.changeTitle')
+        : t('lock.dialog.removeTitle');
   return (
     <Dialog
       title={title}
@@ -163,10 +148,10 @@ function PasswordDialog({
       footer={
         <>
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button className="btn btn-primary" disabled={busy} onClick={() => void submit()}>
-            {mode === 'remove' ? 'Remove' : 'Save password'}
+            {mode === 'remove' ? t('lock.dialog.remove') : t('lock.dialog.save')}
           </button>
         </>
       }
@@ -180,7 +165,7 @@ function PasswordDialog({
       >
         {needsCurrent && (
           <label className="field">
-            <span>Current password</span>
+            <span>{t('lock.dialog.current')}</span>
             <input
               className="input"
               type="password"
@@ -194,7 +179,7 @@ function PasswordDialog({
         {needsNew && (
           <>
             <label className="field">
-              <span>New password (at least 8 characters)</span>
+              <span>{t('lock.dialog.new')}</span>
               <input
                 className="input"
                 type="password"
@@ -205,7 +190,7 @@ function PasswordDialog({
               />
             </label>
             <label className="field">
-              <span>Repeat the new password</span>
+              <span>{t('lock.dialog.repeat')}</span>
               <input
                 className="input"
                 type="password"
@@ -216,9 +201,7 @@ function PasswordDialog({
             </label>
           </>
         )}
-        {mode === 'remove' && (
-          <div className="hint">Removing the password also turns the application lock off.</div>
-        )}
+        {mode === 'remove' && <div className="hint">{t('lock.dialog.removeHint')}</div>}
         {error && (
           <div className="error-text" role="alert">
             {error}

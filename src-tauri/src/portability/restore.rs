@@ -195,34 +195,48 @@ fn roll_back(stores: &Stores, written: &[Written]) -> usize {
     failures
 }
 
-fn failure(message: &str, rollback_failures: usize) -> AppError {
+/// A restore step failed after the previous state was (or was not) put back.
+/// `which` selects the localized sentence (`restore.<which>Clean` / `Rollback`).
+fn failure(which: &'static str, message: &str, rollback_failures: usize) -> AppError {
+    let (clean, rolled) = match which {
+        "connections" => ("restore.connectionsClean", "restore.connectionsRollback"),
+        "settings" => ("restore.settingsClean", "restore.settingsRollback"),
+        _ => ("restore.notesClean", "restore.notesRollback"),
+    };
     if rollback_failures == 0 {
-        AppError::Storage(format!("{message} Nothing was changed."))
+        AppError::storage_key(clean, format!("{message} Nothing was changed."))
     } else {
-        AppError::Storage(format!(
-            "{message} {rollback_failures} saved password(s) could not be put back to their previous value; check your saved passwords."
-        ))
+        AppError::storage_key(
+            rolled,
+            format!(
+                "{message} {rollback_failures} saved password(s) could not be put back to their previous value; check your saved passwords."
+            ),
+        )
+        .with_param("count", rollback_failures)
     }
 }
 
 fn validate_options(set: &IncomingSet, opts: &RestoreOptions) -> AppResult<()> {
     let n = set.connections.len();
     if opts.selected.iter().chain(&opts.update).any(|&i| i >= n) {
-        return Err(AppError::Validation("Unknown profile selected.".into()));
+        return Err(AppError::validation_key(
+            "portability.unknownProfile",
+            "Unknown profile selected.",
+        ));
     }
     if opts.mode == RestoreMode::Replace && !opts.confirm_replace_all {
-        return Err(AppError::Validation(
-            "Replacing the existing configuration needs explicit confirmation. Nothing was changed."
-                .into(),
+        return Err(AppError::validation_key(
+            "restore.confirmReplaceAll",
+            "Replacing the existing configuration needs explicit confirmation. Nothing was changed.",
         ));
     }
     if opts.restore_credentials
         && opts.credential_conflict == CredentialConflict::Replace
         && !opts.confirm_replace_credentials
     {
-        return Err(AppError::Validation(
-            "Replacing existing saved passwords needs explicit confirmation. Nothing was changed."
-                .into(),
+        return Err(AppError::validation_key(
+            "restore.confirmReplaceCredentials",
+            "Replacing existing saved passwords needs explicit confirmation. Nothing was changed.",
         ));
     }
     Ok(())
@@ -431,8 +445,12 @@ pub fn commit(
     {
         let failures = roll_back(stores, &written);
         return Err(match e {
-            AppError::Validation(_) => e,
-            _ => failure("The connections could not be saved.", failures),
+            e if e.is_validation() => e,
+            _ => failure(
+                "connections",
+                "The connections could not be saved.",
+                failures,
+            ),
         });
     }
 
@@ -450,15 +468,15 @@ pub fn commit(
                     .is_ok();
             let failures = roll_back(stores, &written);
             let msg = if tree_reverted {
-                failure("The settings could not be saved.", failures)
+                failure("settings", "The settings could not be saved.", failures)
             } else {
-                AppError::Storage(
-                    "The settings could not be saved and the previous connections could not be fully restored. A copy of your previous connections is kept next to connections.json."
-                        .into(),
+                AppError::storage_key(
+                    "restore.settingsPartial",
+                    "The settings could not be saved and the previous connections could not be fully restored. A copy of your previous connections is kept next to connections.json.",
                 )
             };
             return Err(match e {
-                AppError::Validation(_) => e,
+                e if e.is_validation() => e,
                 _ => msg,
             });
         }
@@ -486,11 +504,13 @@ pub fn commit(
                         .is_ok();
                 let failures = roll_back(stores, &written);
                 return Err(match e {
-                    AppError::Validation(_) => e,
-                    _ if tree_reverted => failure("The notes could not be restored.", failures),
-                    _ => AppError::Storage(
-                        "The notes could not be restored and the previous connections could not be fully put back. A copy of your previous connections is kept next to connections.json."
-                            .into(),
+                    e if e.is_validation() => e,
+                    _ if tree_reverted => {
+                        failure("notes", "The notes could not be restored.", failures)
+                    }
+                    _ => AppError::storage_key(
+                        "restore.notesPartial",
+                        "The notes could not be restored and the previous connections could not be fully put back. A copy of your previous connections is kept next to connections.json.",
                     ),
                 });
             }
@@ -571,13 +591,14 @@ pub fn commit_import(
                         .replace_if_unchanged(&new_tree, old)
                         .is_ok();
                 return Err(match e {
-                    AppError::Validation(_) => e,
-                    _ if reverted => AppError::Storage(
-                        "The notes could not be imported. Nothing was changed.".into(),
+                    e if e.is_validation() => e,
+                    _ if reverted => AppError::storage_key(
+                        "restore.notesImportClean",
+                        "The notes could not be imported. Nothing was changed.",
                     ),
-                    _ => AppError::Storage(
-                        "The notes could not be imported and the previous connections could not be fully put back."
-                            .into(),
+                    _ => AppError::storage_key(
+                        "restore.notesImportPartial",
+                        "The notes could not be imported and the previous connections could not be fully put back.",
                     ),
                 });
             }

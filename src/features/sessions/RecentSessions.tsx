@@ -5,6 +5,7 @@ import { connect } from '../../app/actions';
 import { Icon } from '../../components/Icon';
 import { useConnections } from '../connections/store';
 import { useRecent } from './recentStore';
+import { useTranslation } from 'react-i18next';
 
 /**
  * The most recently used saved connections, as compact rows on the home
@@ -12,6 +13,7 @@ import { useRecent } from './recentStore';
  * same connection is never reused or focused).
  */
 export function RecentSessions() {
+  const { t } = useTranslation();
   const ids = useRecent((s) => s.ids);
   const connections = useConnections((s) => s.tree.connections);
   const rows = ids
@@ -20,7 +22,7 @@ export function RecentSessions() {
   if (rows.length === 0) return null;
   return (
     <section className="recent" aria-labelledby="recent-title">
-      <h3 id="recent-title">Recent Sessions</h3>
+      <h3 id="recent-title">{t('conn.recent')}</h3>
       <ul>
         {rows.map((c) => (
           <li key={c.id}>

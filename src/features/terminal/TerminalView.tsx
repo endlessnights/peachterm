@@ -9,6 +9,9 @@
 // callback acknowledges the bytes so Rust can throttle the SSH channel when
 // the renderer falls behind (flow control, see docs/ssh.md).
 
+import { errorMessage } from '../../i18n/errors';
+import { useTranslation } from 'react-i18next';
+import { t as tr } from '../../i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -16,7 +19,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import '@xterm/xterm/css/xterm.css';
 import { Icon } from '../../components/Icon';
 import { reportError } from '../../components/Toasts';
-import { ipc, toAppError } from '../../shared/ipc';
+import { ipc } from '../../shared/ipc';
 import { effectiveFontSize } from '../../shared/scale';
 import type { SessionState, TerminalEvent } from '../../shared/types';
 import { useSettings } from '../settings/store';
@@ -31,16 +34,21 @@ const ACK_BATCH_BYTES = 32 * 1024;
 const ACK_DELAY_MS = 16;
 
 /** Short, fixed explanations for the backend's failure tokens (never raw errors). */
-const REASONS: Record<string, string> = {
-  connect_failed: 'Could not connect to the server.',
-  timeout: 'The connection timed out.',
-  host_key_rejected: 'The server host key was not trusted.',
-  auth_failed: 'Authentication failed.',
-  cancelled: 'Connection cancelled.',
-  key_unreadable: 'The private key could not be read.',
-  agent_unavailable: 'No SSH agent is available.',
-  protocol_error: 'The SSH connection failed (protocol error).',
-};
+const REASON_TOKENS = [
+  'connect_failed',
+  'timeout',
+  'host_key_rejected',
+  'auth_failed',
+  'cancelled',
+  'key_unreadable',
+  'agent_unavailable',
+  'protocol_error',
+] as const;
+
+const reasonText = (token: string): string =>
+  (REASON_TOKENS as readonly string[]).includes(token)
+    ? tr(`terminal.reason.${token as (typeof REASON_TOKENS)[number]}`)
+    : tr('terminal.connectionFailed');
 
 const STATUS: Record<SessionState, TabStatus> = {
   connecting: 'connecting',
@@ -124,6 +132,7 @@ interface Props {
 }
 
 export function TerminalView({ tab, active }: Props) {
+  const { t } = useTranslation();
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -196,9 +205,9 @@ export function TerminalView({ tab, active }: Props) {
         useTabs.getState().setStatus(tabId, STATUS[event.state]);
         if (event.state === 'connected' && isSsh) void useRecent.getState().refresh();
       } else {
-        const text = event.reason ? (REASONS[event.reason] ?? 'The connection failed.') : null;
+        const text = event.reason ? reasonText(event.reason) : null;
         setReason(text);
-        term.write(`\r\n\x1b[2m[${text ?? 'Connection closed'}]\x1b[0m\r\n`);
+        term.write(`\r\n\x1b[2m[${text ?? tr('terminal.connectionClosed')}]\x1b[0m\r\n`);
         endSession(false);
         useTabs.getState().setSftp(tabId, 'idle');
         useTabs.getState().setStatus(tabId, event.reason ? 'failed' : 'disconnected');
@@ -210,7 +219,7 @@ export function TerminalView({ tab, active }: Props) {
       ? ipc.sshOpen(connectionId, term.cols, term.rows, onEvent, tries)
       : profileId
         ? ipc.localOpen(profileId, term.cols, term.rows, onEvent)
-        : Promise.reject(new Error('This tab has no shell profile.'));
+        : Promise.reject(new Error(tr('terminal.noProfile')));
     opening
       .then(({ sessionId }) => {
         if (generation.current !== mine) {
@@ -223,7 +232,7 @@ export function TerminalView({ tab, active }: Props) {
       })
       .catch((error: unknown) => {
         if (generation.current !== mine) return;
-        const message = toAppError(error).message;
+        const message = errorMessage(error);
         setReason(message);
         term.write(`\r\n\x1b[31m[${message}]\x1b[0m\r\n`);
         useTabs.getState().setStatus(tabId, 'failed');
@@ -426,8 +435,8 @@ export function TerminalView({ tab, active }: Props) {
           <input
             ref={searchInput}
             className="input"
-            placeholder="Find in terminal"
-            aria-label="Find in terminal"
+            placeholder={t('terminal.findPlaceholder')}
+            aria-label={t('terminal.findPlaceholder')}
             value={needle}
             onChange={(e) => {
               setNeedle(e.target.value);
@@ -445,22 +454,28 @@ export function TerminalView({ tab, active }: Props) {
             }}
             data-autofocus
           />
-          <button className="icon-btn" onClick={() => find(true)} aria-label="Previous match">
+          <button
+            className="icon-btn"
+            onClick={() => find(true)}
+            aria-label={t('terminal.prevMatch')}
+          >
             <Icon name="chevronUp" />
           </button>
-          <button className="icon-btn" onClick={() => find(false)} aria-label="Next match">
+          <button
+            className="icon-btn"
+            onClick={() => find(false)}
+            aria-label={t('terminal.nextMatch')}
+          >
             <Icon name="chevronDown" />
           </button>
-          <button className="icon-btn" onClick={closeSearch} aria-label="Close search">
+          <button className="icon-btn" onClick={closeSearch} aria-label={t('terminal.closeSearch')}>
             <Icon name="close" />
           </button>
         </div>
       )}
       {waiting && (
         <div className="terminal-ended" role="status">
-          <span>
-            {isSsh ? 'Restored tab — not connected yet.' : 'Restored tab — shell not started yet.'}
-          </span>
+          <span>{isSsh ? t('terminal.restoredSsh') : t('terminal.restoredLocal')}</span>
           <button
             className="btn btn-primary"
             onClick={() => {
@@ -469,7 +484,8 @@ export function TerminalView({ tab, active }: Props) {
             }}
             data-autofocus
           >
-            <Icon name={isSsh ? 'plug' : 'terminal'} /> {isSsh ? 'Connect' : 'Start shell'}
+            <Icon name={isSsh ? 'plug' : 'terminal'} />{' '}
+            {isSsh ? t('terminal.connect') : t('terminal.startShell')}
           </button>
         </div>
       )}
@@ -477,13 +493,13 @@ export function TerminalView({ tab, active }: Props) {
         <div className="terminal-ended" role="status">
           <span>
             {tab.status === 'failed'
-              ? (reason ?? (isSsh ? 'The connection failed.' : 'The shell could not be started.'))
+              ? (reason ?? (isSsh ? t('terminal.connectionFailed') : t('terminal.shellFailed')))
               : isSsh
-                ? 'Disconnected.'
-                : 'The shell has ended.'}
+                ? t('terminal.disconnected')
+                : t('terminal.shellEnded')}
           </span>
           <button className="btn btn-primary" onClick={connect} data-autofocus>
-            <Icon name="refresh" /> {isSsh ? 'Reconnect' : 'Restart shell'}
+            <Icon name="refresh" /> {isSsh ? t('terminal.reconnect') : t('terminal.restartShell')}
           </button>
         </div>
       )}

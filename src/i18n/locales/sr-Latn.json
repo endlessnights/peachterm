@@ -388,7 +388,13 @@
     "webDocument_other": "{{count}} veb dokumenata",
     "offlineCopy_one": "{{count}} oflajn kopija",
     "offlineCopy_few": "{{count}} oflajn kopije",
-    "offlineCopy_other": "{{count}} oflajn kopija"
+    "offlineCopy_other": "{{count}} oflajn kopija",
+    "file_one": "{{count}} datoteka",
+    "file_few": "{{count}} datoteke",
+    "file_other": "{{count}} datoteka",
+    "directory_one": "{{count}} direktorijum",
+    "directory_few": "{{count}} direktorijuma",
+    "directory_other": "{{count}} direktorijuma"
   },
   "conn": {
     "sidebarAria": "Sačuvane veze",
@@ -496,8 +502,9 @@
   },
   "folder": {
     "newTitle": "Nova fascikla",
-    "name": "Naziv fascikle",
-    "create": "Napravi"
+    "create": "Napravi",
+    "nameOrPath": "Naziv fascikle ili putanja (npr. ops/docker)",
+    "nameOrPathHint": "Koristite / da napravite potfascikle u jednom koraku. Postojeće fascikle se koriste ponovo."
   },
   "editor": {
     "editTitle": "Izmena: {{name}}",
@@ -610,7 +617,7 @@
       "copyPath": "Kopiraj putanju"
     },
     "newFile": "Nova datoteka",
-    "fileName": "Naziv datoteke",
+    "fileNameOrPath": "Naziv datoteke ili putanja (npr. logs/app/1.txt)",
     "createdIn": "Biće napravljeno u {{dir}}",
     "renameTitle": "Preimenovanje",
     "newName": "Novi naziv",
@@ -659,6 +666,17 @@
       "collapseAria": "Skupi SFTP panel",
       "filesOf": "Datoteke: {{title}}",
       "show": "Prikaži SFTP panel"
+    },
+    "drop": {
+      "title": "Pustite datoteke da biste ih otpremili",
+      "destination": "Odredište",
+      "nothing": "U onome što ste pustili nema šta da se otpremi.",
+      "skipped_one": "{{count}} stavka je preskočena (veza ili posebna datoteka; veze se ne prate).",
+      "skipped_few": "{{count}} stavke su preskočene (veze ili posebne datoteke; veze se ne prate).",
+      "skipped_other": "{{count}} stavki je preskočeno (veze ili posebne datoteke; veze se ne prate).",
+      "conflicts_one": "U {{dest}} već postoji {{count}} datoteka: {{names}}. Otpremanje će je zameniti.",
+      "conflicts_few": "U {{dest}} već postoje {{count}} datoteke: {{names}}. Otpremanje će ih zameniti.",
+      "conflicts_other": "U {{dest}} već postoji {{count}} datoteka: {{names}}. Otpremanje će ih zameniti."
     }
   },
   "tunnels": {
@@ -1283,7 +1301,8 @@
       "splitHorizontal": "Podeli jedno ispod drugog",
       "toggleSplitOrientation": "Promeni orijentaciju podele",
       "focusNextPane": "Fokusiraj sledeće okno terminala",
-      "unsplit": "Zatvori podeljeni prikaz (sesije se čuvaju)"
+      "unsplit": "Zatvori podeljeni prikaz (sesije se čuvaju)",
+      "explainSelection": "Objasni izabranu komandu"
     },
     "reason": {
       "zoom": "menja uvećanje veb prikaza",
@@ -1432,7 +1451,8 @@
       "signature": "Preuzeto ažuriranje nije prošlo proveru potpisa i odbačeno je.",
       "network": "Nije moguće doći do GitHub-a. Proverite internet vezu i pokušajte ponovo.",
       "no_package": "Najnovije izdanje nema paket za ažuriranje za ovaj sistem.",
-      "install_failed": "Ažuriranje nije moglo da se instalira. Vaša trenutna verzija je nepromenjena."
+      "install_failed": "Ažuriranje nije moglo da se instalira. Vaša trenutna verzija je nepromenjena.",
+      "limit_reached": "Previše stavki (ili preduboko ugnežđenih fascikli) za jedno otpremanje."
     },
     "lock": {
       "notSetUp": "Zaključavanje aplikacije nije podešeno. Prvo postavite lozinku za zaključavanje.",
@@ -1495,6 +1515,351 @@
       "needTitle": "Dajte belešci naslov.",
       "saveFailed": "Beleške nisu mogle da se sačuvaju.",
       "readFailed": "Beleška nije mogla da se pročita."
+    },
+    "folders": {
+      "pathEmpty": "Unesite naziv fascikle ili putanju.",
+      "pathInvalid": "Putanja fascikle nije ispravna. Koristite nazive razdvojene sa /, bez praznih delova, „.“ ili „..“.",
+      "tooDeep": "Fascikle mogu biti ugnežđene najviše {{max}} nivoa duboko."
+    }
+  },
+  "copy": {
+    "heading": "Ponašanje kopiranja",
+    "label": "Kopiranje teksta terminala",
+    "selection": "Pri izboru teksta",
+    "rightClick": "Desnim klikom",
+    "hint": "„Pri izboru teksta“ kopira tekst u clipboard čim završite izbor; desni klik tada nalepljuje. „Desnim klikom“ kopira izabrani tekst (ili nalepljuje ako ništa nije izabrano). Ctrl+Shift+C uvek kopira. Primenjuje se odmah."
+  },
+  "help": {
+    "cmd": {
+      "pwd": {
+        "summary": "Prikazuje trenutni radni direktorijum.",
+        "flag": {
+          "s_P": "Prikazuje fizičku putanju, razrešavajući simboličke veze."
+        }
+      },
+      "ls": {
+        "summary": "Prikazuje datoteke i fascikle direktorijuma.",
+        "flag": {
+          "s_l": "Dugi format: prava, vlasnik, veličina i datum.",
+          "s_a": "Uključuje skrivene stavke (nazivi koji počinju tačkom).",
+          "s_h": "Čitljive veličine (uz -l), npr. 4.0K ili 2.1M.",
+          "s_t": "Sortira po vremenu izmene, najnovije prvo.",
+          "s_r": "Obrće redosled sortiranja."
+        }
+      },
+      "whoami": {
+        "summary": "Prikazuje ime korisnika pod kojim ste prijavljeni."
+      },
+      "id": {
+        "summary": "Prikazuje UID, GID i članstva u grupama trenutnog korisnika.",
+        "flag": {
+          "s_u": "Samo numerički ID korisnika.",
+          "s_g": "Samo ID primarne grupe.",
+          "s_G": "ID-jevi svih grupa.",
+          "s_n": "Prikazuje imena umesto brojeva (uz -u, -g ili -G)."
+        }
+      },
+      "groups": {
+        "summary": "Navodi grupe kojima pripada trenutni korisnik."
+      },
+      "hostname": {
+        "summary": "Prikazuje ime ovog računara.",
+        "flag": {
+          "s_f": "Potpuno kvalifikovano ime domena (može zahtevati DNS)."
+        }
+      },
+      "uname": {
+        "summary": "Prikazuje informacije o sistemu: ime jezgra, izdanje i arhitekturu.",
+        "flag": {
+          "s_a": "Sve: jezgro, ime hosta, izdanje, verzija i hardver.",
+          "s_r": "Samo izdanje jezgra.",
+          "s_m": "Samo ime hardvera (npr. x86_64).",
+          "s_s": "Samo ime jezgra."
+        }
+      },
+      "uptime": {
+        "summary": "Prikazuje koliko dugo sistem radi i prosečno opterećenje.",
+        "flag": {
+          "s_p": "Čitljiv format (dani, sati, minuti).",
+          "s_s": "Vreme pokretanja sistema."
+        }
+      },
+      "date": {
+        "summary": "Prikazuje trenutni datum i vreme.",
+        "flag": {
+          "s_u": "Prikazuje UTC umesto lokalnog vremena.",
+          "s_I": "ISO 8601 format."
+        }
+      },
+      "df": {
+        "summary": "Prikazuje zauzeće prostora na fajl-sistemima.",
+        "flag": {
+          "s_h": "Čitljive jedinice (K, M, G).",
+          "s_T": "Dodaje tip fajl-sistema.",
+          "s_i": "Prikazuje korišćenje inode-ova umesto blokova."
+        }
+      },
+      "du": {
+        "summary": "Prikazuje koliko prostora na disku zauzimaju datoteke i fascikle.",
+        "flag": {
+          "s_s": "Jedan zbir po argumentu umesto svake potfascikle.",
+          "s_h": "Čitljive veličine.",
+          "s_d": "Ograničava dubinu prikaza (iza ide broj)."
+        },
+        "caveat": "Pretraga velikog stabla direktorijuma može dugo trajati i opteretiti disk."
+      },
+      "free": {
+        "summary": "Prikazuje korišćenje memorije i swap-a.",
+        "flag": {
+          "s_h": "Čitljive jedinice.",
+          "s_m": "Vrednosti u mebibajtima."
+        }
+      },
+      "cat": {
+        "summary": "Ispisuje sadržaj datoteka.",
+        "flag": {
+          "s_n": "Numeriše izlazne redove."
+        },
+        "caveat": "Može prikazati osetljiv sadržaj (ključeve, lozinke, tokene) i zatrpati terminal velikim datotekama."
+      },
+      "head": {
+        "summary": "Prikazuje prve redove datoteke.",
+        "flag": {
+          "s_n": "Koliko redova prikazati (iza ide broj)."
+        }
+      },
+      "tail": {
+        "summary": "Prikazuje poslednje redove datoteke.",
+        "flag": {
+          "s_n": "Koliko redova prikazati (iza ide broj).",
+          "s_f": "Nastavlja da radi i ispisuje nove redove; zaustavlja se sa Ctrl+C."
+        }
+      },
+      "wc": {
+        "summary": "Broji redove, reči i bajtove.",
+        "flag": {
+          "s_l": "Samo broj redova.",
+          "s_w": "Samo broj reči.",
+          "s_c": "Samo broj bajtova."
+        }
+      },
+      "grep": {
+        "summary": "Traži u tekstu redove koji odgovaraju obrascu.",
+        "flag": {
+          "s_i": "Ignoriše velika i mala slova.",
+          "s_n": "Prikazuje brojeve redova.",
+          "s_r": "Rekurzivno pretražuje fascikle.",
+          "s_v": "Prikazuje redove koji ne odgovaraju.",
+          "s_c": "Samo broji redove koji odgovaraju."
+        },
+        "caveat": "Rekurzivne pretrage velikih stabala mogu biti spore."
+      },
+      "find": {
+        "summary": "Traži datoteke i fascikle po imenu, tipu ili vremenu.",
+        "flag": {
+          "s_name": "Poklapa se sa imenom datoteke (iza ide obrazac).",
+          "s_type": "Poklapa se sa tipom: f = datoteka, d = direktorijum (iza ide slovo).",
+          "s_maxdepth": "Ograničava dubinu pretrage (iza ide broj).",
+          "s_mtime": "Poklapa se po starosti izmene u danima (iza ide broj)."
+        },
+        "caveat": "Može biti sporo na velikim stablima. Radnje poput -exec ili -delete menjaju stvari i ovde se ne objašnjavaju."
+      },
+      "stat": {
+        "summary": "Prikazuje detaljne informacije o datoteci: veličinu, prava, vlasnika i vremena."
+      },
+      "file": {
+        "summary": "Pogađa tip datoteke na osnovu sadržaja.",
+        "flag": {
+          "s_b": "Kratko: tip bez imena datoteke."
+        }
+      },
+      "readlink": {
+        "summary": "Prikazuje na šta pokazuje simbolička veza.",
+        "flag": {
+          "s_f": "Prati sve veze i ispisuje konačnu apsolutnu putanju."
+        }
+      },
+      "realpath": {
+        "summary": "Ispisuje apsolutnu putanju sa razrešenim vezama i „..“."
+      },
+      "namei": {
+        "summary": "Prati putanju komponentu po komponentu i prikazuje prava i vlasnika svake; korisno kod problema sa pravima.",
+        "flag": {
+          "s_l": "Dugi format: prava, vlasnici i grupe."
+        }
+      },
+      "ps": {
+        "summary": "Prikazuje pokrenute procese.",
+        "flag": {
+          "s_e": "Svi procesi, ne samo vaši.",
+          "s_f": "Pun format sa roditeljskim procesom i komandnom linijom.",
+          "p_aux": "BSD stil: svi procesi sa korisnikom, CPU-om i memorijom."
+        },
+        "caveat": "Komandne linije drugih procesa mogu sadržati osetljive argumente."
+      },
+      "ip_addr": {
+        "summary": "Prikazuje mrežne interfejse i njihove IP adrese.",
+        "flag": {
+          "s_br": "Kratko, jedan red po interfejsu.",
+          "s_4": "Samo IPv4.",
+          "s_6": "Samo IPv6."
+        }
+      },
+      "ip_route": {
+        "summary": "Prikazuje tabelu rutiranja.",
+        "flag": {
+          "s_4": "Samo IPv4.",
+          "s_6": "Samo IPv6."
+        }
+      },
+      "ss": {
+        "summary": "Prikazuje mrežne sokete, na primer koji portovi osluškuju.",
+        "flag": {
+          "s_t": "TCP soketi.",
+          "s_u": "UDP soketi.",
+          "s_l": "Samo soketi koji osluškuju.",
+          "s_n": "Brojevi umesto imena za portove i adrese.",
+          "s_p": "Prikazuje proces svakog soketa (za tuđe procese potrebne su dodatne privilegije)."
+        }
+      },
+      "systemctl_status": {
+        "summary": "Prikazuje stanje servisa i njegove poslednje redove evidencije.",
+        "flag": {
+          "l_no-pager": "Ispisuje sve odjednom bez otvaranja pregledača po stranicama.",
+          "s_l": "Ne skraćuje duge redove."
+        },
+        "caveat": "Redovi evidencije mogu sadržati osetljive informacije. Ovo samo gleda: start, stop i restart su druge komande."
+      },
+      "journalctl": {
+        "summary": "Prikazuje sistemske evidencije i evidencije servisa iz systemd žurnala.",
+        "flag": {
+          "s_u": "Samo jedan servis/jedinica (iza ide njeno ime).",
+          "s_n": "Koliko poslednjih redova prikazati (iza ide broj).",
+          "l_no-pager": "Ispisuje sve odjednom bez otvaranja pregledača po stranicama.",
+          "s_f": "Nastavlja da radi i ispisuje nove unose; zaustavlja se sa Ctrl+C.",
+          "s_e": "Skače na kraj evidencije."
+        },
+        "caveat": "Evidencije mogu sadržati poverljive informacije: korisnička imena, adrese, tokene."
+      },
+      "docker_ps": {
+        "summary": "Prikazuje pokrenute kontejnere.",
+        "flag": {
+          "s_a": "Uključuje zaustavljene kontejnere.",
+          "s_q": "Samo ID-jevi kontejnera.",
+          "l_no-trunc": "Ne skraćuje ID-jeve i komande."
+        }
+      },
+      "docker_images": {
+        "summary": "Prikazuje lokalne slike.",
+        "flag": {
+          "s_a": "Uključuje međuslike.",
+          "s_q": "Samo ID-jevi slika."
+        }
+      },
+      "docker_logs": {
+        "summary": "Prikazuje izlaz koji je kontejner zapisao.",
+        "flag": {
+          "l_tail": "Koliko poslednjih redova prikazati (iza ide broj).",
+          "s_f": "Nastavlja da radi i ispisuje nov izlaz; zaustavlja se sa Ctrl+C.",
+          "s_t": "Dodaje vremenske oznake."
+        },
+        "caveat": "Evidencije kontejnera mogu sadržati poverljive informacije."
+      },
+      "docker_inspect": {
+        "summary": "Prikazuje detaljne niskonivoske informacije o kontejneru ili slici u JSON formatu.",
+        "caveat": "Izlaz može otkriti promenljive okruženja, lozinke i druge tajne."
+      }
+    },
+    "settings": {
+      "heading": "Pomoć za Linux komande",
+      "enable": "Pomoć za Linux komande",
+      "hint": "Prikaži objašnjenja uobičajenih Linux komandi i korisnu dijagnostiku za podržane greške.",
+      "explain": "Objašnjenja komandi",
+      "permissions": "Pomoć kod grešaka prava pristupa",
+      "note": "Radi van mreže i ugrađeno: ništa se nigde ne šalje i nijedna komanda se nikada ne izvršava umesto vas. Objašnjenja se prikazuju samo na vaš zahtev: izaberite tekst u terminalu i odaberite Objasni komandu (desni klik uz Shift ili prečica)."
+    },
+    "menu": {
+      "copy": "Kopiraj",
+      "paste": "Nalepi",
+      "explain": "Objasni komandu",
+      "reference": "Referenca Linux komandi…"
+    },
+    "dialog": {
+      "title": "Pomoć za Linux komande",
+      "reference": "Referenca komandi"
+    },
+    "explain": {
+      "selected": "Izabrani tekst",
+      "none": "Za ovu komandu nema ugrađenog objašnjenja.",
+      "noSelection": "Prvo izaberite komandu u terminalu, pa odaberite Objasni komandu.",
+      "disclaimer": "Izabrani tekst se objašnjava kao komanda. PeachTerm ne može znati da li je izvršena ni ko ju je izvršio. Ništa se ne izvršava.",
+      "options": "Opcije",
+      "unknownOptions": "Opcije bez ugrađenog objašnjenja: {{list}}",
+      "arguments": "Ostali argumenti (nazivi, putanje, vrednosti) se ne tumače.",
+      "caveat": "Dobro je znati",
+      "examples": "Provereni primeri (samo čitanje)",
+      "exampleNote": "Kopiranje stavlja tekst samo u clipboard. Proverite svaku komandu pre nego što je pokrenete.",
+      "copy": "Kopiraj",
+      "copied": "Kopirano. Ništa nije izvršeno.",
+      "copyAria": "Kopiraj primer: {{command}}",
+      "search": "Pretraga komandi",
+      "back": "Nazad na referencu",
+      "reviewNote": "Ugrađena referenca komandi samo za čitanje. To što je komanda ovde ne čini svaku opciju bezbednom: uvek pročitajte šta komanda radi."
+    },
+    "perm": {
+      "titleCreateFolder": "Nije moguće napraviti direktorijum",
+      "titleCreateFile": "Nije moguće napraviti datoteku",
+      "titleRename": "Nije moguće preimenovati",
+      "titleDelete": "Nije moguće obrisati",
+      "titleUpload": "Nije moguće otpremiti",
+      "deniedCreateFolder": "SSH server je odbio dozvolu za pravljenje „{{name}}“ u:",
+      "deniedCreateFile": "SSH server je odbio dozvolu za pravljenje datoteke „{{name}}“ u:",
+      "deniedRename": "SSH server je odbio dozvolu za preimenovanje „{{name}}“ u:",
+      "deniedDelete": "SSH server je odbio dozvolu za brisanje „{{name}}“ u:",
+      "deniedUpload_one": "SSH server je odbio dozvolu za otpremanje {{count}} stavke u:",
+      "deniedUpload_few": "SSH server je odbio dozvolu za otpremanje {{count}} stavke u:",
+      "deniedUpload_other": "SSH server je odbio dozvolu za otpremanje {{count}} stavki u:",
+      "connectedAs": "Povezani ste kao:",
+      "cautious": "Moguće je da ovaj nalog ne može da piše u direktorijum. Server je samo rekao „pristup odbijen“; uzrok mogu biti i ACL, fajl-sistem samo za čitanje, vlasništvo, SFTP ograničenja ili politika servera.",
+      "why": "Zašto se ovo desilo?",
+      "strip": "Server je odbio pristup.",
+      "stripUpload": "Server je odbio deo otpremanja.",
+      "showDetails": "Prikaži detalje",
+      "hideDetails": "Sakrij detalje",
+      "diagnose": "Dijagnostika prava pristupa",
+      "diagnosing": "Provera (samo čitanje)…",
+      "detailCreate": "Za pravljenje datoteke ili direktorijuma potrebna su prava pisanja i pretrage (x) u nadređenom direktorijumu.",
+      "detailRename": "Preimenovanje i brisanje zavise uglavnom od prava pisanja i pretrage u nadređenom direktorijumu, a ne od prava same datoteke.",
+      "detailDirs": "Prava direktorijuma razlikuju se od prava datoteka: r navodi stavke, w dodaje ili uklanja stavke, x dozvoljava ulazak u direktorijum.",
+      "detailOther": "Drugi mogući uzroci: ACL, montiranje samo za čitanje, SFTP chroot ili politika servera, SELinux ili AppArmor.",
+      "detailAdvice": "Možete pitati administratora servera ili izabrati direktorijum u koji vaš nalog već može da piše. PeachTerm nikada ne menja vlasnike ni prava umesto vas.",
+      "report": "Rezultat dijagnostike",
+      "account": "Nalog",
+      "groups": "Grupe",
+      "directory": "Direktorijum",
+      "owner": "Vlasnik",
+      "mode": "Prava",
+      "accessCheck": "Sopstvena provera pristupa servera",
+      "writable": "upis je dozvoljen",
+      "notWritable": "upis nije dozvoljen",
+      "chain": "Putanja, komponentu po komponentu",
+      "vNoWrite": "Izgleda da vaš nalog nema pravo pisanja ovde: direktorijum pripada {{owner}}:{{group}} sa pravima {{mode}}.",
+      "vNoSearch": "Izgleda da vaš nalog ne sme da uđe u ovaj direktorijum (nema pravo pretrage/izvršavanja).",
+      "vBitsAllow": "Bitovi prava i provera pristupa izgleda dozvoljavaju pisanje, ali je server ipak odbio. Mogu biti uključeni ACL, opcije montiranja, SFTP ograničenja ili druga politika servera.",
+      "vReadOnly": "Provera pristupa kaže da ovde nije moguće pisati iako bi sami bitovi prava to dozvoljavali. To je tipično za fajl-sistem samo za čitanje ili ACL.",
+      "vAcl": "Za ovaj direktorijum je vezan ACL (znak „+“ posle prava), pa sami bitovi prava ne govore sve.",
+      "vRoot": "Ovaj nalog je root, pa odbijanje obično ukazuje na fajl-sistem samo za čitanje, nepromenljivu oznaku ili politiku servera, a ne na uobičajena prava.",
+      "vUnknown": "Rezultat nije uverljiv. Ovo je utemeljena procena, a ne garancija.",
+      "guess": "Ovo je utemeljena procena iz provera samo za čitanje, a ne garancija.",
+      "noExec": "Ovaj server ne dozvoljava PeachTerm-u da izvršava dijagnostiku (nema komandnog kanala za ovaj nalog). Opšte objašnjenje iznad i dalje važi.",
+      "notLinux": "Server ne liči na Linux, pa su provere preskočene. Opšte objašnjenje iznad i dalje važi.",
+      "timedOut": "Dijagnostika nije završena na vreme.",
+      "failedDiag": "Dijagnostika nije mogla da se završi.",
+      "pathRefused": "Putanja sadrži znakove koji se ne mogu bezbedno proveriti, pa je provereno samo vaš nalog.",
+      "suggest": "Komande samo za čitanje koje možete sami da pokrenete u terminalu",
+      "close": "Zatvori",
+      "dismiss": "Odbaci",
+      "userUnknown": "nepoznato"
     }
   }
 }

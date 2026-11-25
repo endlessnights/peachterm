@@ -7,6 +7,7 @@
 import { Channel, invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type {
+  PermissionReport,
   LocalProfileList,
   AppError,
   AppInfo,
@@ -62,6 +63,8 @@ import type {
   MonitorEvent,
   Uuid,
   WorkspaceLayout,
+  FileDragEvent,
+  UploadPlan,
 } from './types';
 
 type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>;
@@ -124,6 +127,8 @@ export const ipc = {
   connectionsMove: (id: Uuid, folderId: Uuid | null) =>
     call<void>('connections_move', { id, folderId }),
   foldersSave: (folder: FolderInput) => call<Folder>('folders_save', { folder }),
+  foldersCreatePath: (parentId: Uuid | null, path: string) =>
+    call<{ folders: Folder[]; created: number }>('folders_create_path', { parentId, path }),
   foldersDelete: (id: Uuid) => call<void>('folders_delete', { id }),
   connectionsRename: (id: Uuid, name: string) =>
     call<Connection>('connections_rename', { id, name }),
@@ -351,6 +356,13 @@ export const ipc = {
       overwrite,
       onEvent: makeChannel(onEvent),
     }),
+  /** What uploading a picked/dropped selection into `remoteDir` would do (reads only). */
+  sftpPlanUpload: (sessionId: Uuid, pickId: Uuid, remoteDir: string) =>
+    call<UploadPlan>('sftp_plan_upload', { sessionId, pickId, remoteDir }),
+  /** Forget a dropped selection that will not be uploaded. */
+  sftpDiagnosePermissions: (sessionId: Uuid, path: string) =>
+    call<PermissionReport>('sftp_diagnose_permissions', { sessionId, path }),
+  sftpDiscardPick: (pickId: Uuid) => call<void>('sftp_discard_pick', { pickId }),
   sftpCancel: (transferId: Uuid) => call<void>('sftp_cancel', { transferId }),
 
   /** Download to a private copy, start the external editor, watch for saves. */
@@ -421,4 +433,25 @@ export function __emitSshPromptForTests(prompt: SshPrompt): void {
 /** Test hook: replace the backend with a custom implementation. */
 export function __setBackendForTests(impl: Invoke | null): void {
   backend = impl;
+}
+
+type FileDragListener = (event: FileDragEvent) => void;
+const fileDragTestListeners = new Set<FileDragListener>();
+
+/**
+ * Files dragged from the operating system onto the window (native events: a
+ * WebView does not deliver them as DOM drops). Returns an unsubscribe.
+ */
+export function onFileDrag(listener: FileDragListener): () => void {
+  if (!isTauri()) {
+    fileDragTestListeners.add(listener);
+    return () => fileDragTestListeners.delete(listener);
+  }
+  const pending = listen<FileDragEvent>('peachterm://file-drag', (e) => listener(e.payload));
+  return () => void pending.then((unlisten) => unlisten());
+}
+
+/** Test/dev hook: deliver a native file-drag event as the backend would. */
+export function __emitFileDragForTests(event: FileDragEvent): void {
+  fileDragTestListeners.forEach((l) => l(event));
 }

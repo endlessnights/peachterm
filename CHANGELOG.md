@@ -5,6 +5,26 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-25
+
+### Added
+
+- **Drag and drop from the file manager into the SFTP panel**: files and whole folders (recursively, relative paths
+  preserved, symbolic links never followed). A drop on a remote folder row uploads into that folder, on empty space
+  into the current directory; a subtle overlay shows the real destination and counts. Existing overwrite
+  confirmation, progress, cancel and queue behaviour apply. See `docs/sftp.md`.
+- **Nested connection folders**: _New Folder_ accepts a path such as `ops/docker`; missing levels are created
+  atomically, existing ones reused. Invalid paths are rejected before anything is written.
+  The SFTP panel's _New Folder_ accepts the same kind of path and creates the levels one by one.
+- **Terminal → Copy Behavior**: _Copy on selection_ (default, also for existing installs) or _Copy on right-click_.
+- **Linux Command Help** (optional, off by default, offline): explanations for selected common read-only commands
+  and cautious, user-started read-only permission diagnostics after an SFTP "permission denied". Nothing is sent
+  anywhere, nothing is run for you. See `docs/linux-help.md`.
+
+### Changed
+
+- Recent Sessions are laid out in two columns when there is room (one column when narrow).
+
 ## [0.6.0] - 2026-11-25
 
 ### Added

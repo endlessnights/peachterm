@@ -132,7 +132,11 @@ export interface CustomShell {
   args: string[];
 }
 
+export type CopyMode = 'selection' | 'rightClick';
+
 export interface TerminalSettings {
+  /** Copy when a selection is completed (default) or on a right click. */
+  copyMode: CopyMode;
   /** Profile id a plain click on "+" starts; null = the platform default. */
   defaultProfile: string | null;
   /** Preferred WSL distribution. */
@@ -194,6 +198,8 @@ export interface Settings {
     tempDir: string | null;
   };
   terminal: TerminalSettings;
+  /** Offline Linux command help; off by default. Nothing is sent or executed by it. */
+  linuxHelp: { enabled: boolean; explain: boolean; permissions: boolean };
   diagnostics: {
     fileLogging: boolean;
     level: LogLevel;
@@ -414,7 +420,14 @@ export const DEFAULT_SETTINGS: Settings = {
   monitoring: { enabled: false, intervalSecs: 10, cpu: true, ram: true, disk: true, uptime: true },
   sftp: { defaultPosition: 'right', defaultVisible: true, confirmDelete: true, showHidden: false },
   editor: { program: null, args: ['{file}'], tempDir: null },
-  terminal: { defaultProfile: null, wslDistro: null, startDir: null, customProfiles: [] },
+  terminal: {
+    copyMode: 'selection',
+    defaultProfile: null,
+    wslDistro: null,
+    startDir: null,
+    customProfiles: [],
+  },
+  linuxHelp: { enabled: false, explain: true, permissions: true },
   diagnostics: {
     fileLogging: true,
     level: 'info',
@@ -829,4 +842,47 @@ export interface RestoreResult {
   safetyCopy: boolean;
   warnings: string[];
   notes?: NotesMergeResult | null;
+}
+
+/** A file drag from the operating system, as reported by the backend (never contains a path). */
+export type FileDragEvent =
+  | { phase: 'enter'; x: number; y: number; files: number; dirs: number; other: number }
+  | { phase: 'over'; x: number; y: number }
+  | {
+      phase: 'drop';
+      x: number;
+      y: number;
+      pickId: string;
+      files: number;
+      dirs: number;
+      other: number;
+    }
+  | { phase: 'leave' };
+
+export interface UploadPlan {
+  files: number;
+  dirs: number;
+  bytes: number;
+  skipped: number;
+  conflicts: { count: number; samples: string[] };
+}
+
+/** Read-only findings about a remote directory (see the diagnostics security model). */
+export interface PermissionEntry {
+  mode: string;
+  owner: string;
+  group: string;
+  name: string;
+}
+
+export interface PermissionReport {
+  platform: 'linux' | 'other' | 'unknown';
+  exec: 'ok' | 'unavailable' | 'timeout' | 'failed';
+  user: { uid: number; gid: number; name: string; groups: { gid: number; name: string }[] } | null;
+  path: string | null;
+  pathRefused: boolean;
+  target: PermissionEntry | null;
+  chain: PermissionEntry[];
+  access: { write: boolean; search: boolean } | null;
+  unsupported: string[];
 }

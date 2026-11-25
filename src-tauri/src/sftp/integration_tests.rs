@@ -5,7 +5,8 @@
 //! protocol, a temporary directory as the remote file system).
 
 use super::put::{Expectation, PutOptions, Stamp, put_file, remote_sha256, stamp};
-use super::transfer::{Hub, TransferEvent, run_download, run_upload};
+use super::transfer::{Hub, TransferEvent, run_download, run_upload, run_upload_tree};
+use super::tree;
 use super::{Client, SftpError, SftpState, ops};
 use crate::ssh::integration::{Started, env, start_session, target, trust_and_password};
 use crate::ssh::testserver::{Opts, TestServer};
@@ -767,4 +768,283 @@ async fn permission_errors_are_reported_without_changing_anything() {
         SftpError::PermissionDenied.message(),
         "Permission denied on the server"
     );
+}
+
+// ---- uploading folders (drag and drop) -------------------------------------
+
+fn sample_tree(base: &std::path::Path) -> std::path::PathBuf {
+    let root = base.join("myservice");
+    std::fs::create_dir_all(root.join("config")).unwrap();
+    std::fs::write(root.join("compose.yaml"), b"services: {}").unwrap();
+    std::fs::write(root.join(".env.example"), b"A=1").unwrap();
+    std::fs::write(root.join("config").join("app.yml"), b"k: v").unwrap();
+    root
+}
+
+fn counts(events: &Events) -> (usize, Vec<String>) {
+    let events = events.lock().unwrap();
+    let completed = events
+        .iter()
+        .filter(|e| matches!(e, TransferEvent::Completed { .. }))
+        .count();
+    let failed = events
+        .iter()
+        .filter_map(|e| match e {
+            TransferEvent::Failed { reason, .. } => Some(reason.clone()),
+            _ => None,
+        })
+        .collect();
+    (completed, failed)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_dropped_folder_is_uploaded_with_its_hierarchy() {
+    let f = fixture(SftpOpts {
+        posix_rename: true,
+        ..Default::default()
+    })
+    .await;
+    std::fs::create_dir(f.root.path().join("services")).unwrap();
+    let local = tempfile::tempdir().unwrap();
+    let src = sample_tree(local.path());
+    let hub = Hub::default();
+    let (events, emit) = recorder();
+    run_upload_tree(
+        &f.client,
+        &hub,
+        Uuid::new_v4(),
+        &[src],
+        "/services",
+        false,
+        &emit,
+    )
+    .await;
+    let base = f.root.path().join("services").join("myservice");
+    assert_eq!(
+        std::fs::read(base.join("compose.yaml")).unwrap(),
+        b"services: {}"
+    );
+    assert_eq!(std::fs::read(base.join(".env.example")).unwrap(), b"A=1");
+    assert_eq!(
+        std::fs::read(base.join("config").join("app.yml")).unwrap(),
+        b"k: v"
+    );
+    assert_eq!(counts(&events), (3, vec![]));
+    assert!(matches!(
+        events.lock().unwrap().last(),
+        Some(TransferEvent::Finished)
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn existing_remote_folders_are_reused_and_files_are_never_silently_replaced() {
+    let f = fixture(SftpOpts {
+        posix_rename: true,
+        ..Default::default()
+    })
+    .await;
+    let remote = f.root.path().join("myservice");
+    std::fs::create_dir_all(remote.join("config")).unwrap();
+    std::fs::write(remote.join("compose.yaml"), b"OLD").unwrap();
+    std::fs::write(remote.join("keep.txt"), b"untouched").unwrap();
+    let local = tempfile::tempdir().unwrap();
+    let src = sample_tree(local.path());
+
+    // 1. the plan reports the one existing file; nothing is written yet
+    let plan = tree::plan_local(std::slice::from_ref(&src)).unwrap();
+    let conflicts = tree::find_conflicts(&f.client, "/", &plan).await.unwrap();
+    assert_eq!(conflicts.count, 1);
+    assert_eq!(conflicts.samples, ["myservice/compose.yaml"]);
+    assert_eq!(std::fs::read(remote.join("compose.yaml")).unwrap(), b"OLD");
+
+    // 2. without confirmation the existing file stays; everything else arrives
+    let hub = Hub::default();
+    let (events, emit) = recorder();
+    run_upload_tree(
+        &f.client,
+        &hub,
+        Uuid::new_v4(),
+        std::slice::from_ref(&src),
+        "/",
+        false,
+        &emit,
+    )
+    .await;
+    assert_eq!(counts(&events), (2, vec!["already_exists".to_string()]));
+    assert_eq!(std::fs::read(remote.join("compose.yaml")).unwrap(), b"OLD");
+    assert_eq!(
+        std::fs::read(remote.join("config").join("app.yml")).unwrap(),
+        b"k: v"
+    );
+    assert_eq!(
+        std::fs::read(remote.join("keep.txt")).unwrap(),
+        b"untouched"
+    );
+
+    // 3. after the user confirmed, only that file is replaced
+    let (events, emit) = recorder();
+    run_upload_tree(&f.client, &hub, Uuid::new_v4(), &[src], "/", true, &emit).await;
+    assert_eq!(counts(&events), (3, vec![]));
+    assert_eq!(
+        std::fs::read(remote.join("compose.yaml")).unwrap(),
+        b"services: {}"
+    );
+    assert_eq!(
+        std::fs::read(remote.join("keep.txt")).unwrap(),
+        b"untouched"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_file_where_a_folder_is_needed_is_an_error_not_an_overwrite() {
+    let f = fixture(SftpOpts::default()).await;
+    std::fs::write(f.root.path().join("myservice"), b"i am a file").unwrap();
+    let local = tempfile::tempdir().unwrap();
+    let src = sample_tree(local.path());
+    let plan = tree::plan_local(std::slice::from_ref(&src)).unwrap();
+    assert_eq!(
+        tree::find_conflicts(&f.client, "/", &plan)
+            .await
+            .unwrap_err(),
+        SftpError::AlreadyExists
+    );
+    let (events, emit) = recorder();
+    run_upload_tree(
+        &f.client,
+        &Hub::default(),
+        Uuid::new_v4(),
+        &[src],
+        "/",
+        true,
+        &emit,
+    )
+    .await;
+    let (completed, failed) = counts(&events);
+    assert_eq!(completed, 0, "nothing is sent into a path that is a file");
+    assert_eq!(failed, ["already_exists"]);
+    assert_eq!(
+        std::fs::read(f.root.path().join("myservice")).unwrap(),
+        b"i am a file"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn permission_denied_is_reported_once_per_folder_and_nothing_is_created() {
+    let f = fixture(SftpOpts {
+        readonly: true,
+        ..Default::default()
+    })
+    .await;
+    let local = tempfile::tempdir().unwrap();
+    let src = sample_tree(local.path());
+    let (events, emit) = recorder();
+    run_upload_tree(
+        &f.client,
+        &Hub::default(),
+        Uuid::new_v4(),
+        &[src],
+        "/",
+        false,
+        &emit,
+    )
+    .await;
+    let (completed, failed) = counts(&events);
+    assert_eq!(completed, 0);
+    // one report for the folder that could not be created; its files are not attempted
+    assert_eq!(failed, ["permission_denied"]);
+    assert_eq!(std::fs::read_dir(f.root.path()).unwrap().count(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_missing_local_source_and_unicode_names_are_handled() {
+    let f = fixture(SftpOpts {
+        posix_rename: true,
+        ..Default::default()
+    })
+    .await;
+    let local = tempfile::tempdir().unwrap();
+    let uni = local.path().join("Проект ü");
+    std::fs::create_dir(&uni).unwrap();
+    std::fs::write(uni.join("файл 日本.txt"), b"u").unwrap();
+    let (events, emit) = recorder();
+    run_upload_tree(
+        &f.client,
+        &Hub::default(),
+        Uuid::new_v4(),
+        &[uni],
+        "/",
+        false,
+        &emit,
+    )
+    .await;
+    assert_eq!(counts(&events), (1, vec![]));
+    assert_eq!(
+        std::fs::read(f.root.path().join("Проект ü").join("файл 日本.txt")).unwrap(),
+        b"u"
+    );
+    // a source that vanished before the upload: reported, nothing started
+    let (events, emit) = recorder();
+    run_upload_tree(
+        &f.client,
+        &Hub::default(),
+        Uuid::new_v4(),
+        &[local.path().join("vanished")],
+        "/",
+        false,
+        &emit,
+    )
+    .await;
+    assert_eq!(counts(&events), (0, vec!["local_io".to_string()]));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cancelling_stops_the_rest_of_the_folder() {
+    let f = fixture(SftpOpts {
+        posix_rename: true,
+        ..Default::default()
+    })
+    .await;
+    let local = tempfile::tempdir().unwrap();
+    let root = local.path().join("many");
+    std::fs::create_dir(&root).unwrap();
+    for i in 0..5 {
+        std::fs::write(root.join(format!("f{i}.bin")), vec![1u8; 300_000]).unwrap();
+    }
+    let hub = Arc::new(Hub::default());
+    let (events, emit) = recorder();
+    let cancelling = hub.clone();
+    let emit_and_cancel = move |e: TransferEvent| {
+        if let TransferEvent::Started {
+            transfer_id,
+            index: 2,
+            ..
+        } = &e
+        {
+            cancelling.cancel(*transfer_id);
+        }
+        emit(e);
+    };
+    run_upload_tree(
+        &f.client,
+        &hub,
+        Uuid::new_v4(),
+        &[root],
+        "/",
+        false,
+        &emit_and_cancel,
+    )
+    .await;
+    let log = events.lock().unwrap().clone();
+    assert!(
+        log.iter()
+            .any(|e| matches!(e, TransferEvent::Cancelled { .. }))
+    );
+    let started = log
+        .iter()
+        .filter(|e| matches!(e, TransferEvent::Started { .. }))
+        .count();
+    assert_eq!(started, 2, "files after the cancelled one are not started");
+    assert!(matches!(log.last(), Some(TransferEvent::Finished)));
+    // the cancelled file left no partial file behind
+    assert!(!f.root.path().join("many").join("f1.bin").exists());
 }

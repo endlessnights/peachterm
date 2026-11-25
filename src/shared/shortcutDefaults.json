@@ -17,7 +17,8 @@
     { "id": "splitHorizontal", "default": "Mod+Shift+O" },
     { "id": "toggleSplitOrientation", "default": "Mod+Shift+U" },
     { "id": "focusNextPane", "default": "Mod+Shift+P" },
-    { "id": "unsplit", "default": "Mod+Shift+X" }
+    { "id": "unsplit", "default": "Mod+Shift+X" },
+    { "id": "explainSelection", "default": "Mod+Shift+H" }
   ],
   "reserved": [
     { "accel": "F5", "reason": "reloads the web view and would discard the open tabs" },

@@ -31,7 +31,8 @@ export type ActionId =
   | 'splitHorizontal'
   | 'toggleSplitOrientation'
   | 'focusNextPane'
-  | 'unsplit';
+  | 'unsplit'
+  | 'explainSelection';
 
 export const ACTION_IDS = definitions.actions.map((a) => a.id) as ActionId[];
 

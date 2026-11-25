@@ -8,7 +8,7 @@ import { notify } from '../components/Toasts';
 import { useConnections } from '../features/connections/store';
 import { useTabs } from '../features/sessions/store';
 import { splitFocused } from '../features/sessions/splitActions';
-import { requestTerminalSearch } from '../features/terminal/events';
+import { requestExplainSelection, requestTerminalSearch } from '../features/terminal/events';
 import { useSettings } from '../features/settings/store';
 import type { ActionId } from '../shared/shortcuts';
 import { useLock } from '../features/lock/store';
@@ -93,6 +93,8 @@ export function runAction(id: ActionId) {
       return toggleSidebar();
     case 'searchConnections':
       return focusSearch();
+    case 'explainSelection':
+      return requestExplainSelection();
     case 'terminalSearch':
       return requestTerminalSearch();
     case 'duplicateTab': {

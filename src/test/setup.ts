@@ -21,6 +21,9 @@ export interface FakeTerminal {
   options: Record<string, unknown>;
   pasted: string[];
   selection: string;
+  /** Simulate xterm.js selecting text (fires onSelectionChange, like a drag does). */
+  select: (text: string) => void;
+  clearSelection: () => void;
   /** Simulate the user typing / the terminal reporting a resize. */
   type: (text: string) => void;
   resize: (cols: number, rows: number) => void;
@@ -36,6 +39,7 @@ vi.mock('@xterm/xterm', () => {
     options: Record<string, unknown> = {};
     private dataHandlers: ((text: string) => void)[] = [];
     private resizeHandlers: ((size: { cols: number; rows: number }) => void)[] = [];
+    private selectionHandlers: (() => void)[] = [];
     handle: FakeTerminal;
     constructor(options: Record<string, unknown> = {}) {
       this.options = { ...options };
@@ -46,6 +50,14 @@ vi.mock('@xterm/xterm', () => {
         options: this.options,
         pasted: [],
         selection: '',
+        select: (text) => {
+          this.handle.selection = text;
+          this.selectionHandlers.forEach((h) => h());
+        },
+        clearSelection: () => {
+          this.handle.selection = '';
+          this.selectionHandlers.forEach((h) => h());
+        },
         type: (text) => this.dataHandlers.forEach((h) => h(text)),
         resize: (cols, rows) => {
           this.cols = cols;
@@ -73,6 +85,13 @@ vi.mock('@xterm/xterm', () => {
     }
     getSelection() {
       return this.handle.selection;
+    }
+    hasSelection() {
+      return this.handle.selection.length > 0;
+    }
+    onSelectionChange(handler: () => void) {
+      this.selectionHandlers.push(handler);
+      return { dispose: () => undefined };
     }
     attachCustomKeyEventHandler() {}
     onData(handler: (text: string) => void) {

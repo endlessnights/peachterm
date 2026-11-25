@@ -399,9 +399,44 @@ pub struct CustomShell {
     pub args: Vec<String>,
 }
 
+/// Optional offline help for common Linux commands and permission errors.
+/// Off by default; nothing is ever executed, sent or collected by it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LinuxHelpSettings {
+    pub enabled: bool,
+    /// Explain selected command text.
+    pub explain: bool,
+    /// Offer "why did this happen?" and the read-only diagnostics after a permission error.
+    pub permissions: bool,
+}
+
+impl Default for LinuxHelpSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            explain: true,
+            permissions: true,
+        }
+    }
+}
+
+/// How terminal text reaches the clipboard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum CopyMode {
+    /// Copy when a selection is completed (the default); a right click pastes.
+    #[default]
+    Selection,
+    /// Copy the selection on a right click (PuTTY style); otherwise paste.
+    RightClick,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TerminalSettings {
+    /// Where selected terminal text is copied.
+    pub copy_mode: CopyMode,
     /// Profile id of the shell a plain click on `+` starts (None = platform default).
     pub default_profile: Option<String>,
     /// Preferred WSL distribution.
@@ -458,6 +493,7 @@ pub struct Settings {
     pub monitoring: MonitorSettings,
     pub sftp: SftpSettings,
     pub terminal: TerminalSettings,
+    pub linux_help: LinuxHelpSettings,
     pub editor: EditorSettings,
     pub diagnostics: DiagnosticsSettings,
     pub security: SecuritySettings,
@@ -706,6 +742,30 @@ mod tests {
         let mut s = Settings::default();
         s.appearance.interface_scale = 133;
         assert_eq!(s.normalized().appearance.interface_scale, 130);
+    }
+
+    #[test]
+    fn linux_help_is_off_by_default_and_old_files_still_load() {
+        let s = Settings::default();
+        assert!(!s.linux_help.enabled);
+        assert!(s.linux_help.explain && s.linux_help.permissions);
+        let old: Settings = serde_json::from_str(r#"{"terminal":{"startDir":"/x"}}"#).unwrap();
+        assert!(!old.linux_help.enabled);
+        assert_eq!(old.terminal.copy_mode, CopyMode::Selection);
+        assert_eq!(old.terminal.start_dir.as_deref(), Some("/x"));
+    }
+
+    #[test]
+    fn copy_mode_round_trips_and_defaults_to_selection_for_existing_installs() {
+        let none: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(none.terminal.copy_mode, CopyMode::Selection);
+        let right: Settings =
+            serde_json::from_str(r#"{"terminal":{"copyMode":"rightClick"}}"#).unwrap();
+        assert_eq!(right.terminal.copy_mode, CopyMode::RightClick);
+        let json = serde_json::to_value(&right).unwrap();
+        assert_eq!(json["terminal"]["copyMode"], "rightClick");
+        // an unknown value is not accepted silently as something else
+        assert!(serde_json::from_str::<Settings>(r#"{"terminal":{"copyMode":"x"}}"#).is_err());
     }
 
     #[test]

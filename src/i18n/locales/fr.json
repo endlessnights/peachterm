@@ -388,7 +388,13 @@
     "webDocument_other": "{{count}} documents web",
     "offlineCopy_one": "{{count}} copie hors ligne",
     "offlineCopy_many": "{{count}} copies hors ligne",
-    "offlineCopy_other": "{{count}} copies hors ligne"
+    "offlineCopy_other": "{{count}} copies hors ligne",
+    "file_one": "{{count}} fichier",
+    "file_many": "{{count}} fichiers",
+    "file_other": "{{count}} fichiers",
+    "directory_one": "{{count}} dossier",
+    "directory_many": "{{count}} dossiers",
+    "directory_other": "{{count}} dossiers"
   },
   "conn": {
     "sidebarAria": "Connexions enregistrées",
@@ -496,8 +502,9 @@
   },
   "folder": {
     "newTitle": "Nouveau dossier",
-    "name": "Nom du dossier",
-    "create": "Créer"
+    "create": "Créer",
+    "nameOrPath": "Nom du dossier ou chemin (p. ex. ops/docker)",
+    "nameOrPathHint": "Utilisez / pour créer des sous-dossiers en une seule fois. Les dossiers existants sont réutilisés."
   },
   "editor": {
     "editTitle": "Modifier {{name}}",
@@ -610,7 +617,7 @@
       "copyPath": "Copier le chemin"
     },
     "newFile": "Nouveau fichier",
-    "fileName": "Nom du fichier",
+    "fileNameOrPath": "Nom du fichier ou chemin (p. ex. logs/app/1.txt)",
     "createdIn": "Sera créé dans {{dir}}",
     "renameTitle": "Renommer",
     "newName": "Nouveau nom",
@@ -659,6 +666,17 @@
       "collapseAria": "Réduire le panneau SFTP",
       "filesOf": "Fichiers de {{title}}",
       "show": "Afficher le panneau SFTP"
+    },
+    "drop": {
+      "title": "Déposez les fichiers pour les envoyer",
+      "destination": "Destination",
+      "nothing": "Il n’y a rien à envoyer dans ce que vous avez déposé.",
+      "skipped_one": "{{count}} élément a été ignoré (un lien ou un fichier spécial ; les liens ne sont pas suivis).",
+      "skipped_many": "{{count}} éléments ont été ignorés (liens ou fichiers spéciaux ; les liens ne sont pas suivis).",
+      "skipped_other": "{{count}} éléments ont été ignorés (liens ou fichiers spéciaux ; les liens ne sont pas suivis).",
+      "conflicts_one": "{{count}} fichier existe déjà dans {{dest}} : {{names}}. L’envoi le remplacera.",
+      "conflicts_many": "{{count}} fichiers existent déjà dans {{dest}} : {{names}}. L’envoi les remplacera.",
+      "conflicts_other": "{{count}} fichiers existent déjà dans {{dest}} : {{names}}. L’envoi les remplacera."
     }
   },
   "tunnels": {
@@ -1283,7 +1301,8 @@
       "splitHorizontal": "Diviser l’un sur l’autre",
       "toggleSplitOrientation": "Basculer l’orientation de la division",
       "focusNextPane": "Passer au volet de terminal suivant",
-      "unsplit": "Fermer la vue divisée (conserver les sessions)"
+      "unsplit": "Fermer la vue divisée (conserver les sessions)",
+      "explainSelection": "Expliquer la commande sélectionnée"
     },
     "reason": {
       "zoom": "modifie le zoom de la vue web",
@@ -1432,7 +1451,8 @@
       "signature": "La mise à jour téléchargée n’a pas passé la vérification de signature et a été supprimée.",
       "network": "Impossible de joindre GitHub. Vérifiez votre connexion Internet et réessayez.",
       "no_package": "La dernière version n’a pas de paquet de mise à jour pour ce système.",
-      "install_failed": "La mise à jour n’a pas pu être installée. Votre version actuelle est inchangée."
+      "install_failed": "La mise à jour n’a pas pu être installée. Votre version actuelle est inchangée.",
+      "limit_reached": "Trop d’éléments (ou dossiers trop imbriqués) pour un seul envoi."
     },
     "lock": {
       "notSetUp": "Le verrouillage de l’application n’est pas configuré. Définissez d’abord un mot de passe de verrouillage.",
@@ -1495,6 +1515,351 @@
       "needTitle": "Donnez un titre à la note.",
       "saveFailed": "Les notes n’ont pas pu être enregistrées.",
       "readFailed": "La note n’a pas pu être lue."
+    },
+    "folders": {
+      "pathEmpty": "Saisissez un nom de dossier ou un chemin.",
+      "pathInvalid": "Le chemin du dossier n’est pas valide. Utilisez des noms séparés par /, sans parties vides, « . » ni « .. ».",
+      "tooDeep": "Les dossiers peuvent être imbriqués sur {{max}} niveaux au maximum."
+    }
+  },
+  "copy": {
+    "heading": "Comportement de copie",
+    "label": "Copier le texte du terminal",
+    "selection": "À la sélection",
+    "rightClick": "Au clic droit",
+    "hint": "« À la sélection » copie le texte dans le presse-papiers dès que la sélection est terminée ; un clic droit colle alors. « Au clic droit » copie la sélection (ou colle s’il n’y a rien de sélectionné). Ctrl+Maj+C copie toujours. S’applique immédiatement."
+  },
+  "help": {
+    "cmd": {
+      "pwd": {
+        "summary": "Affiche le répertoire de travail courant.",
+        "flag": {
+          "s_P": "Affiche le chemin physique, en résolvant les liens symboliques."
+        }
+      },
+      "ls": {
+        "summary": "Liste les fichiers et dossiers d’un répertoire.",
+        "flag": {
+          "s_l": "Format long : droits, propriétaire, taille et date.",
+          "s_a": "Inclut les entrées cachées (noms commençant par un point).",
+          "s_h": "Tailles lisibles (avec -l), p. ex. 4.0K ou 2.1M.",
+          "s_t": "Trie par date de modification, les plus récents d’abord.",
+          "s_r": "Inverse l’ordre de tri."
+        }
+      },
+      "whoami": {
+        "summary": "Affiche le nom de l’utilisateur connecté."
+      },
+      "id": {
+        "summary": "Affiche l’UID, le GID et les groupes de l’utilisateur courant.",
+        "flag": {
+          "s_u": "Seulement l’identifiant numérique de l’utilisateur.",
+          "s_g": "Seulement l’identifiant du groupe principal.",
+          "s_G": "Tous les identifiants de groupes.",
+          "s_n": "Affiche les noms au lieu des nombres (avec -u, -g ou -G)."
+        }
+      },
+      "groups": {
+        "summary": "Liste les groupes auxquels appartient l’utilisateur courant."
+      },
+      "hostname": {
+        "summary": "Affiche le nom de cette machine.",
+        "flag": {
+          "s_f": "Le nom de domaine complet (peut nécessiter le DNS)."
+        }
+      },
+      "uname": {
+        "summary": "Affiche les informations système : nom du noyau, version et architecture.",
+        "flag": {
+          "s_a": "Tout : noyau, nom d’hôte, version, build et matériel.",
+          "s_r": "Seulement la version du noyau.",
+          "s_m": "Seulement le nom du matériel (p. ex. x86_64).",
+          "s_s": "Seulement le nom du noyau."
+        }
+      },
+      "uptime": {
+        "summary": "Affiche la durée de fonctionnement du système et la charge moyenne.",
+        "flag": {
+          "s_p": "Format lisible (jours, heures, minutes).",
+          "s_s": "L’heure de démarrage du système."
+        }
+      },
+      "date": {
+        "summary": "Affiche la date et l’heure actuelles.",
+        "flag": {
+          "s_u": "Affiche l’heure UTC au lieu de l’heure locale.",
+          "s_I": "Format ISO 8601."
+        }
+      },
+      "df": {
+        "summary": "Affiche l’espace utilisé sur les systèmes de fichiers.",
+        "flag": {
+          "s_h": "Unités lisibles (K, M, G).",
+          "s_T": "Ajoute le type de système de fichiers.",
+          "s_i": "Affiche l’usage des inodes au lieu des blocs."
+        }
+      },
+      "du": {
+        "summary": "Affiche l’espace disque utilisé par les fichiers et dossiers.",
+        "flag": {
+          "s_s": "Un total par argument au lieu de chaque sous-dossier.",
+          "s_h": "Tailles lisibles.",
+          "s_d": "Limite la profondeur de l’affichage (suivi d’un nombre)."
+        },
+        "caveat": "Parcourir une grande arborescence peut prendre du temps et charger le disque."
+      },
+      "free": {
+        "summary": "Affiche l’utilisation de la mémoire et du swap.",
+        "flag": {
+          "s_h": "Unités lisibles.",
+          "s_m": "Valeurs en mébioctets."
+        }
+      },
+      "cat": {
+        "summary": "Affiche le contenu de fichiers.",
+        "flag": {
+          "s_n": "Numérote les lignes de sortie."
+        },
+        "caveat": "Il peut afficher des contenus sensibles (clés, mots de passe, jetons) et inonder le terminal avec de gros fichiers."
+      },
+      "head": {
+        "summary": "Affiche les premières lignes d’un fichier.",
+        "flag": {
+          "s_n": "Combien de lignes afficher (suivi d’un nombre)."
+        }
+      },
+      "tail": {
+        "summary": "Affiche les dernières lignes d’un fichier.",
+        "flag": {
+          "s_n": "Combien de lignes afficher (suivi d’un nombre).",
+          "s_f": "Continue à s’exécuter et affiche les nouvelles lignes ; arrêt avec Ctrl+C."
+        }
+      },
+      "wc": {
+        "summary": "Compte les lignes, mots et octets.",
+        "flag": {
+          "s_l": "Seulement le nombre de lignes.",
+          "s_w": "Seulement le nombre de mots.",
+          "s_c": "Seulement le nombre d’octets."
+        }
+      },
+      "grep": {
+        "summary": "Recherche dans un texte les lignes correspondant à un motif.",
+        "flag": {
+          "s_i": "Ignore la casse.",
+          "s_n": "Affiche les numéros de ligne.",
+          "s_r": "Recherche récursivement dans les dossiers.",
+          "s_v": "Affiche les lignes qui ne correspondent pas.",
+          "s_c": "Compte seulement les lignes correspondantes."
+        },
+        "caveat": "Les recherches récursives dans de grandes arborescences peuvent être lentes."
+      },
+      "find": {
+        "summary": "Recherche des fichiers et dossiers par nom, type ou date.",
+        "flag": {
+          "s_name": "Correspond au nom du fichier (suivi d’un motif).",
+          "s_type": "Correspond au type : f = fichier, d = répertoire (suivi d’une lettre).",
+          "s_maxdepth": "Limite la profondeur de la recherche (suivi d’un nombre).",
+          "s_mtime": "Correspond à l’ancienneté de modification en jours (suivi d’un nombre)."
+        },
+        "caveat": "Peut être lent sur de grandes arborescences. Les actions comme -exec ou -delete modifient des choses et ne sont pas expliquées ici."
+      },
+      "stat": {
+        "summary": "Affiche des informations détaillées : taille, droits, propriétaire et dates."
+      },
+      "file": {
+        "summary": "Devine le type d’un fichier d’après son contenu.",
+        "flag": {
+          "s_b": "Bref : le type sans le nom du fichier."
+        }
+      },
+      "readlink": {
+        "summary": "Affiche la cible d’un lien symbolique.",
+        "flag": {
+          "s_f": "Suit tous les liens et affiche le chemin absolu final."
+        }
+      },
+      "realpath": {
+        "summary": "Affiche le chemin absolu avec liens et « .. » résolus."
+      },
+      "namei": {
+        "summary": "Suit un chemin composant par composant et affiche droits et propriétaire de chacun ; utile pour les problèmes de permissions.",
+        "flag": {
+          "s_l": "Format long : droits, propriétaires et groupes."
+        }
+      },
+      "ps": {
+        "summary": "Affiche les processus en cours.",
+        "flag": {
+          "s_e": "Tous les processus, pas seulement les vôtres.",
+          "s_f": "Format complet avec processus parent et ligne de commande.",
+          "p_aux": "Style BSD : tous les processus avec utilisateur, CPU et mémoire."
+        },
+        "caveat": "Les lignes de commande d’autres processus peuvent contenir des arguments sensibles."
+      },
+      "ip_addr": {
+        "summary": "Affiche les interfaces réseau et leurs adresses IP.",
+        "flag": {
+          "s_br": "Bref, une ligne par interface.",
+          "s_4": "Seulement IPv4.",
+          "s_6": "Seulement IPv6."
+        }
+      },
+      "ip_route": {
+        "summary": "Affiche la table de routage.",
+        "flag": {
+          "s_4": "Seulement IPv4.",
+          "s_6": "Seulement IPv6."
+        }
+      },
+      "ss": {
+        "summary": "Affiche les sockets réseau, par exemple les ports à l’écoute.",
+        "flag": {
+          "s_t": "Sockets TCP.",
+          "s_u": "Sockets UDP.",
+          "s_l": "Seulement les sockets à l’écoute.",
+          "s_n": "Des nombres plutôt que des noms pour ports et adresses.",
+          "s_p": "Affiche le processus de chaque socket (les processus d’autres utilisateurs demandent des privilèges)."
+        }
+      },
+      "systemctl_status": {
+        "summary": "Affiche l’état d’un service et ses dernières lignes de journal.",
+        "flag": {
+          "l_no-pager": "Affiche tout d’un coup sans ouvrir de pagineur.",
+          "s_l": "Ne tronque pas les lignes longues."
+        },
+        "caveat": "Les lignes de journal peuvent contenir des informations sensibles. Cette commande ne fait que regarder : start, stop et restart sont d’autres commandes."
+      },
+      "journalctl": {
+        "summary": "Affiche les journaux du système et des services depuis le journal systemd.",
+        "flag": {
+          "s_u": "Seulement une unité/un service (suivi de son nom).",
+          "s_n": "Combien de dernières lignes afficher (suivi d’un nombre).",
+          "l_no-pager": "Affiche tout d’un coup sans ouvrir de pagineur.",
+          "s_f": "Continue à s’exécuter et affiche les nouvelles entrées ; arrêt avec Ctrl+C.",
+          "s_e": "Va à la fin du journal."
+        },
+        "caveat": "Les journaux peuvent contenir des informations confidentielles : noms d’utilisateur, adresses, jetons."
+      },
+      "docker_ps": {
+        "summary": "Liste les conteneurs en cours d’exécution.",
+        "flag": {
+          "s_a": "Inclut les conteneurs arrêtés.",
+          "s_q": "Seulement les identifiants des conteneurs.",
+          "l_no-trunc": "Ne tronque pas les identifiants ni les commandes."
+        }
+      },
+      "docker_images": {
+        "summary": "Liste les images locales.",
+        "flag": {
+          "s_a": "Inclut les images intermédiaires.",
+          "s_q": "Seulement les identifiants des images."
+        }
+      },
+      "docker_logs": {
+        "summary": "Affiche la sortie écrite par un conteneur.",
+        "flag": {
+          "l_tail": "Combien de dernières lignes afficher (suivi d’un nombre).",
+          "s_f": "Continue à s’exécuter et affiche la nouvelle sortie ; arrêt avec Ctrl+C.",
+          "s_t": "Ajoute des horodatages."
+        },
+        "caveat": "Les journaux de conteneurs peuvent contenir des informations confidentielles."
+      },
+      "docker_inspect": {
+        "summary": "Affiche des informations détaillées de bas niveau sur un conteneur ou une image, en JSON.",
+        "caveat": "La sortie peut révéler des variables d’environnement, des mots de passe et d’autres secrets."
+      }
+    },
+    "settings": {
+      "heading": "Aide sur les commandes Linux",
+      "enable": "Aide sur les commandes Linux",
+      "hint": "Afficher des explications sur les commandes Linux courantes et des diagnostics utiles pour les erreurs prises en charge.",
+      "explain": "Explications des commandes",
+      "permissions": "Aide pour les erreurs de permissions",
+      "note": "Hors ligne et intégré : rien n’est envoyé nulle part et aucune commande n’est jamais exécutée à votre place. Les explications n’apparaissent que sur demande : sélectionnez du texte dans le terminal et choisissez Expliquer la commande (clic droit avec Maj, ou raccourci)."
+    },
+    "menu": {
+      "copy": "Copier",
+      "paste": "Coller",
+      "explain": "Expliquer la commande",
+      "reference": "Référence des commandes Linux…"
+    },
+    "dialog": {
+      "title": "Aide sur les commandes Linux",
+      "reference": "Référence des commandes"
+    },
+    "explain": {
+      "selected": "Texte sélectionné",
+      "none": "Aucune explication intégrée n’est disponible pour cette commande.",
+      "noSelection": "Sélectionnez d’abord une commande dans le terminal, puis choisissez Expliquer la commande.",
+      "disclaimer": "Le texte sélectionné est expliqué comme une commande. PeachTerm ne peut pas savoir si elle a été exécutée, ni par qui. Rien n’est exécuté.",
+      "options": "Options",
+      "unknownOptions": "Options sans explication intégrée : {{list}}",
+      "arguments": "Les autres arguments (noms, chemins, valeurs) ne sont pas interprétés.",
+      "caveat": "Bon à savoir",
+      "examples": "Exemples vérifiés (lecture seule)",
+      "exampleNote": "Copier place le texte uniquement dans le presse-papiers. Vérifiez toute commande avant de l’exécuter.",
+      "copy": "Copier",
+      "copied": "Copié. Rien n’a été exécuté.",
+      "copyAria": "Copier l’exemple : {{command}}",
+      "search": "Rechercher des commandes",
+      "back": "Retour à la référence",
+      "reviewNote": "Référence intégrée de commandes en lecture seule. Figurer ici ne rend pas toutes les options sûres : lisez toujours ce que fait une commande."
+    },
+    "perm": {
+      "titleCreateFolder": "Impossible de créer le répertoire",
+      "titleCreateFile": "Impossible de créer le fichier",
+      "titleRename": "Impossible de renommer",
+      "titleDelete": "Impossible de supprimer",
+      "titleUpload": "Impossible d’envoyer",
+      "deniedCreateFolder": "Le serveur SSH a refusé la permission de créer « {{name}} » dans :",
+      "deniedCreateFile": "Le serveur SSH a refusé la permission de créer le fichier « {{name}} » dans :",
+      "deniedRename": "Le serveur SSH a refusé la permission de renommer « {{name}} » dans :",
+      "deniedDelete": "Le serveur SSH a refusé la permission de supprimer « {{name}} » dans :",
+      "deniedUpload_one": "Le serveur SSH a refusé la permission d’envoyer {{count}} élément vers :",
+      "deniedUpload_many": "Le serveur SSH a refusé la permission d’envoyer {{count}} éléments vers :",
+      "deniedUpload_other": "Le serveur SSH a refusé la permission d’envoyer {{count}} éléments vers :",
+      "connectedAs": "Connecté en tant que :",
+      "cautious": "Ce compte n’a peut-être pas le droit d’écrire dans ce répertoire. Le serveur a seulement répondu « permission refusée » ; la cause peut aussi être des ACL, un système de fichiers en lecture seule, la propriété, des restrictions SFTP ou une politique du serveur.",
+      "why": "Pourquoi cela s’est-il produit ?",
+      "strip": "Permission refusée par le serveur.",
+      "stripUpload": "Le serveur a refusé certains envois.",
+      "showDetails": "Afficher les détails",
+      "hideDetails": "Masquer les détails",
+      "diagnose": "Diagnostiquer les permissions",
+      "diagnosing": "Vérification (lecture seule)…",
+      "detailCreate": "Créer un fichier ou un répertoire demande les droits d’écriture et de recherche (x) sur son répertoire parent.",
+      "detailRename": "Renommer ou supprimer dépend surtout des droits d’écriture et de recherche sur le répertoire parent, pas des droits du fichier lui-même.",
+      "detailDirs": "Les droits d’un répertoire diffèrent de ceux d’un fichier : r liste les entrées, w ajoute ou retire des entrées, x permet d’entrer dans le répertoire.",
+      "detailOther": "Autres causes possibles : ACL, un montage en lecture seule, un chroot SFTP ou une politique du serveur, SELinux ou AppArmor.",
+      "detailAdvice": "Vous pouvez demander à l’administrateur du serveur ou choisir un répertoire dans lequel votre compte peut déjà écrire. PeachTerm ne change jamais propriétaires ni permissions à votre place.",
+      "report": "Résultat du diagnostic",
+      "account": "Compte",
+      "groups": "Groupes",
+      "directory": "Répertoire",
+      "owner": "Propriétaire",
+      "mode": "Permissions",
+      "accessCheck": "Le contrôle d’accès du serveur lui-même",
+      "writable": "accessible en écriture",
+      "notWritable": "non accessible en écriture",
+      "chain": "Chemin, composant par composant",
+      "vNoWrite": "Votre compte ne semble pas avoir le droit d’écrire ici : le répertoire appartient à {{owner}}:{{group}} avec les permissions {{mode}}.",
+      "vNoSearch": "Votre compte ne semble pas autorisé à entrer dans ce répertoire (pas de droit de recherche/exécution).",
+      "vBitsAllow": "Les bits de permission et le contrôle d’accès semblent autoriser l’écriture, mais le serveur a quand même refusé. Des ACL, des options de montage, des restrictions SFTP ou une autre politique du serveur peuvent être en cause.",
+      "vReadOnly": "Le contrôle d’accès indique que cet emplacement n’est pas accessible en écriture alors que les bits de permission seuls l’autoriseraient. C’est typique d’un système de fichiers en lecture seule ou d’une ACL.",
+      "vAcl": "Une ACL est attachée à ce répertoire (le « + » après les permissions) ; les bits de permission seuls ne disent donc pas tout.",
+      "vRoot": "Ce compte est root ; un refus pointe donc plutôt vers un système de fichiers en lecture seule, un attribut immuable ou une politique du serveur que vers de simples permissions.",
+      "vUnknown": "Le résultat n’est pas concluant. C’est une estimation informée, pas une garantie.",
+      "guess": "C’est une estimation informée issue de contrôles en lecture seule, pas une garantie.",
+      "noExec": "Ce serveur ne permet pas à PeachTerm d’exécuter des diagnostics (pas de canal de commande pour ce compte). L’explication générale ci-dessus reste valable.",
+      "notLinux": "Le serveur ne ressemble pas à Linux ; les vérifications ont donc été ignorées. L’explication générale ci-dessus reste valable.",
+      "timedOut": "Le diagnostic ne s’est pas terminé à temps.",
+      "failedDiag": "Le diagnostic n’a pas pu être terminé.",
+      "pathRefused": "Le chemin contient des caractères qui ne peuvent pas être vérifiés en toute sécurité ; seul votre compte a été vérifié.",
+      "suggest": "Commandes en lecture seule que vous pouvez exécuter vous-même dans le terminal",
+      "close": "Fermer",
+      "dismiss": "Ignorer",
+      "userUnknown": "inconnu"
     }
   }
 }

@@ -5,7 +5,8 @@ use crate::AppState;
 use crate::error::{AppError, AppResult};
 use crate::sessions::SessionId;
 use crate::sftp::ops::{self, Listing};
-use crate::sftp::transfer::{PickedFile, TransferEvent, run_download, run_upload};
+use crate::sftp::transfer::{PickedFile, TransferEvent, run_download, run_upload, run_upload_tree};
+use crate::sftp::tree::{self, Conflicts};
 use crate::sftp::{Client, SftpError, SftpState};
 use crate::ssh::session::SshSession;
 use serde::Serialize;
@@ -207,6 +208,51 @@ pub async fn sftp_pick_upload(
     Ok(Some(Picked { pick_id, files }))
 }
 
+/// What an upload would do, before anything is sent: counts, what is skipped
+/// and which remote files already exist. Reads only; nothing is created.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadPlan {
+    files: usize,
+    dirs: usize,
+    bytes: u64,
+    skipped: usize,
+    conflicts: Conflicts,
+}
+
+#[tauri::command]
+pub async fn sftp_plan_upload(
+    state: AppStateRef<'_>,
+    session_id: String,
+    pick_id: Uuid,
+    remote_dir: String,
+) -> AppResult<UploadPlan> {
+    state.lock.guard()?;
+    let (_session, client) = client_of(&state, &session_id)?;
+    ops::validate_path(&remote_dir)?;
+    let paths = state
+        .sftp
+        .peek_pick(pick_id)
+        .ok_or_else(|| AppError::NotFound("selection".into()))?;
+    let plan = super::blocking(move || Ok(tree::plan_local(&paths))).await??;
+    let conflicts = tree::find_conflicts(&client, &remote_dir, &plan).await?;
+    Ok(UploadPlan {
+        files: plan.files,
+        dirs: plan.dirs,
+        bytes: plan.bytes,
+        skipped: plan.skipped.symlinks + plan.skipped.special + plan.skipped.unreadable,
+        conflicts,
+    })
+}
+
+/// Forget a dropped selection (the drop was declined or cancelled).
+#[tauri::command]
+pub async fn sftp_discard_pick(state: AppStateRef<'_>, pick_id: Uuid) -> AppResult<()> {
+    state.lock.guard()?;
+    state.sftp.discard_pick(pick_id);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn sftp_upload(
     state: AppStateRef<'_>,
@@ -225,22 +271,70 @@ pub async fn sftp_upload(
         .ok_or_else(|| AppError::NotFound("selection".into()))?;
     let app_state = Arc::clone(&state);
     let id = session.id.uuid();
+    // Folders (or anything that is not a plain file) go through the tree walk;
+    // plain files use exactly the same engine as the Upload button.
+    let has_folder = files.iter().any(|p| {
+        std::fs::symlink_metadata(p)
+            .map(|m| !m.file_type().is_file())
+            .unwrap_or(false)
+    });
     tauri::async_runtime::spawn(async move {
         let emit = move |event: TransferEvent| {
             let _ = on_event.send(event);
         };
-        run_upload(
-            &client,
-            &app_state.sftp,
-            id,
-            &files,
-            &remote_dir,
-            overwrite,
-            &emit,
-        )
-        .await;
+        if has_folder {
+            run_upload_tree(
+                &client,
+                &app_state.sftp,
+                id,
+                &files,
+                &remote_dir,
+                overwrite,
+                &emit,
+            )
+            .await;
+        } else {
+            run_upload(
+                &client,
+                &app_state.sftp,
+                id,
+                &files,
+                &remote_dir,
+                overwrite,
+                &emit,
+            )
+            .await;
+        }
     });
     Ok(())
+}
+
+/// Explicit, read-only "why was I refused?" probe for one remote directory.
+/// Runs a fixed script on a separate exec channel of the session (never in the
+/// terminal), only when the user asked, and only while the application is
+/// unlocked. Nothing is stored or logged.
+#[tauri::command]
+pub async fn sftp_diagnose_permissions(
+    state: AppStateRef<'_>,
+    session_id: String,
+    path: Option<String>,
+) -> AppResult<crate::diag::PermissionReport> {
+    state.lock.guard()?;
+    let session = session_of(&state, &session_id)?;
+    let Some(handle) = session.transport.get().cloned() else {
+        return Err(SftpError::Unavailable.into());
+    };
+    let report = crate::diag::diagnose(&handle, path.as_deref(), crate::diag::TIMEOUT).await;
+    // Counts and outcome only: never paths, names or any output.
+    tracing::info!(
+        event = "sftp.permissions_diagnosed",
+        session_id = %session.id,
+        exec = ?report.exec,
+        platform = ?report.platform,
+    );
+    // The lock may have engaged while the probe ran: do not hand anything out.
+    state.lock.guard()?;
+    Ok(report)
 }
 
 #[tauri::command]

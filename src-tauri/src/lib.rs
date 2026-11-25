@@ -7,8 +7,10 @@
 //! editor launching and every remote write. See docs/architecture.md.
 
 mod commands;
+mod diag;
 mod editor;
 mod error;
+mod filedrop;
 mod local;
 mod lock;
 mod logging;
@@ -290,6 +292,17 @@ fn apply_startup_title_bar(app: &tauri::App, state: &AppState) {
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // Files dragged in from the operating system arrive as native events.
+        .on_webview_event(|webview, event| {
+            if let tauri::WebviewEvent::DragDrop(drag) = event {
+                filedrop::handle(webview, drag);
+            }
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::DragDrop(drag) = event {
+                filedrop::handle(window, drag);
+            }
+        })
         .setup(|app| {
             let (paths, notes) = prepare_paths();
             let state = AppState::initialize(
@@ -317,6 +330,7 @@ pub fn run() {
                 if locked {
                     // Decrypted backups and staged imports do not survive a lock.
                     shared.portability.clear();
+                    shared.sftp.clear_picks();
                     let _ = shared.sessions.reset_write_policies();
                     tracing::info!(event = "editor.policy_reset");
                 }
@@ -345,6 +359,7 @@ pub fn run() {
             commands::connections::connections_duplicate,
             commands::connections::connections_move,
             commands::connections::folders_save,
+            commands::connections::folders_create_path,
             commands::connections::folders_delete,
             commands::connections::connections_rename,
             commands::connections::folders_rename,
@@ -419,6 +434,9 @@ pub fn run() {
             commands::sftp::sftp_download,
             commands::sftp::sftp_pick_upload,
             commands::sftp::sftp_upload,
+            commands::sftp::sftp_plan_upload,
+            commands::sftp::sftp_diagnose_permissions,
+            commands::sftp::sftp_discard_pick,
             commands::sftp::sftp_cancel,
             commands::editor::editor_open_remote,
             commands::editor::editor_answer,

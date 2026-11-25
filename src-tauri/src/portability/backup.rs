@@ -15,8 +15,8 @@ use crate::error::{AppError, AppResult};
 use crate::security::credentials::connection_account;
 use crate::security::secret::SecretString;
 use crate::storage::settings::{
-    AppearanceSettings, DiagnosticsSettings, GeneralSettings, LogLevel, Settings, SftpSettings,
-    SshSettings, UiState,
+    AppearanceSettings, CopyMode, DiagnosticsSettings, GeneralSettings, LinuxHelpSettings,
+    LogLevel, Settings, SftpSettings, SshSettings, UiState,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -53,6 +53,10 @@ pub struct PortableSettings {
     pub diagnostics: PortableDiagnostics,
     pub shortcuts: BTreeMap<String, String>,
     pub ui: UiState,
+    /// The only part of `terminal` that is safe to carry: it cannot start a program.
+    pub copy_mode: CopyMode,
+    /// Offline help preferences: they cannot run or reach anything.
+    pub linux_help: LinuxHelpSettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -91,6 +95,8 @@ impl PortableSettings {
             },
             shortcuts: s.shortcuts.clone(),
             ui: s.ui.clone(),
+            copy_mode: s.terminal.copy_mode,
+            linux_help: s.linux_help.clone(),
         }
     }
 
@@ -106,6 +112,8 @@ impl PortableSettings {
         current.diagnostics.max_total_mb = self.diagnostics.max_total_mb;
         current.shortcuts = self.shortcuts.clone();
         current.ui = self.ui.clone();
+        current.terminal.copy_mode = self.copy_mode;
+        current.linux_help = self.linux_help.clone();
         current
     }
 }

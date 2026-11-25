@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sftp-diagnose-permissions"
+description = "Enables the sftp_diagnose_permissions command without any pre-configured scope."
+commands.allow = ["sftp_diagnose_permissions"]
+
+[[permission]]
+identifier = "deny-sftp-diagnose-permissions"
+description = "Denies the sftp_diagnose_permissions command without any pre-configured scope."
+commands.deny = ["sftp_diagnose_permissions"]

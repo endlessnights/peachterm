@@ -5,3 +5,9 @@
 export const TERMINAL_SEARCH_EVENT = 'peachterm:terminal-search';
 
 export const requestTerminalSearch = () => window.dispatchEvent(new Event(TERMINAL_SEARCH_EVENT));
+
+/** Window event asking the active terminal to explain its selected text (Linux Command Help). */
+export const EXPLAIN_SELECTION_EVENT = 'peachterm:explain-selection';
+
+export const requestExplainSelection = () =>
+  window.dispatchEvent(new Event(EXPLAIN_SELECTION_EVENT));

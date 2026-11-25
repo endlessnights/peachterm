@@ -371,7 +371,11 @@
     "webDocument_one": "{{count}} Webdokument",
     "webDocument_other": "{{count}} Webdokumente",
     "offlineCopy_one": "{{count}} Offline-Kopie",
-    "offlineCopy_other": "{{count}} Offline-Kopien"
+    "offlineCopy_other": "{{count}} Offline-Kopien",
+    "file_one": "{{count}} Datei",
+    "file_other": "{{count}} Dateien",
+    "directory_one": "{{count}} Verzeichnis",
+    "directory_other": "{{count}} Verzeichnisse"
   },
   "conn": {
     "sidebarAria": "Gespeicherte Verbindungen",
@@ -466,8 +470,9 @@
   },
   "folder": {
     "newTitle": "Neuer Ordner",
-    "name": "Ordnername",
-    "create": "Erstellen"
+    "create": "Erstellen",
+    "nameOrPath": "Ordnername oder Pfad (z. B. ops/docker)",
+    "nameOrPathHint": "Mit / legen Sie Unterordner in einem Schritt an. Vorhandene Ordner werden wiederverwendet."
   },
   "editor": {
     "editTitle": "{{name}} bearbeiten",
@@ -580,7 +585,7 @@
       "copyPath": "Pfad kopieren"
     },
     "newFile": "Neue Datei",
-    "fileName": "Dateiname",
+    "fileNameOrPath": "Dateiname oder Pfad (z. B. logs/app/1.txt)",
     "createdIn": "Wird erstellt in {{dir}}",
     "renameTitle": "Umbenennen",
     "newName": "Neuer Name",
@@ -628,6 +633,15 @@
       "collapseAria": "SFTP-Bereich einklappen",
       "filesOf": "Dateien von {{title}}",
       "show": "SFTP-Bereich anzeigen"
+    },
+    "drop": {
+      "title": "Zum Hochladen Dateien hier ablegen",
+      "destination": "Ziel",
+      "nothing": "In dem Abgelegten gibt es nichts hochzuladen.",
+      "skipped_one": "{{count}} Element wurde übersprungen (ein Link oder eine Spezialdatei; Links werden nicht verfolgt).",
+      "skipped_other": "{{count}} Elemente wurden übersprungen (Links oder Spezialdateien; Links werden nicht verfolgt).",
+      "conflicts_one": "In {{dest}} existiert bereits {{count}} Datei: {{names}}. Das Hochladen ersetzt sie.",
+      "conflicts_other": "In {{dest}} existieren bereits {{count}} Dateien: {{names}}. Das Hochladen ersetzt sie."
     }
   },
   "tunnels": {
@@ -1221,7 +1235,8 @@
       "splitHorizontal": "Übereinander teilen",
       "toggleSplitOrientation": "Teilungsrichtung umschalten",
       "focusNextPane": "Nächsten Terminalbereich fokussieren",
-      "unsplit": "Geteilte Ansicht schließen (Sitzungen bleiben)"
+      "unsplit": "Geteilte Ansicht schließen (Sitzungen bleiben)",
+      "explainSelection": "Markierten Befehl erklären"
     },
     "reason": {
       "zoom": "ändert den Zoom der Webansicht",
@@ -1366,7 +1381,8 @@
       "signature": "Das heruntergeladene Update hat die Signaturprüfung nicht bestanden und wurde verworfen.",
       "network": "GitHub ist nicht erreichbar. Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
       "no_package": "Das neueste Release hat kein Update-Paket für dieses System.",
-      "install_failed": "Das Update konnte nicht installiert werden. Ihre aktuelle Version bleibt unverändert."
+      "install_failed": "Das Update konnte nicht installiert werden. Ihre aktuelle Version bleibt unverändert.",
+      "limit_reached": "Zu viele Elemente (oder zu tief verschachtelte Ordner) für einen einzigen Upload."
     },
     "lock": {
       "notSetUp": "Die App-Sperre ist nicht eingerichtet. Legen Sie zuerst ein Sperrpasswort fest.",
@@ -1429,6 +1445,350 @@
       "needTitle": "Geben Sie der Notiz einen Titel.",
       "saveFailed": "Die Notizen konnten nicht gespeichert werden.",
       "readFailed": "Die Notiz konnte nicht gelesen werden."
+    },
+    "folders": {
+      "pathEmpty": "Geben Sie einen Ordnernamen oder Pfad ein.",
+      "pathInvalid": "Der Ordnerpfad ist ungültig. Verwenden Sie durch / getrennte Namen ohne leere Teile, „.“ oder „..“.",
+      "tooDeep": "Ordner können höchstens {{max}} Ebenen tief verschachtelt werden."
+    }
+  },
+  "copy": {
+    "heading": "Kopierverhalten",
+    "label": "Terminaltext kopieren",
+    "selection": "Beim Markieren",
+    "rightClick": "Per Rechtsklick",
+    "hint": "„Beim Markieren“ kopiert Text in die Zwischenablage, sobald die Auswahl abgeschlossen ist; ein Rechtsklick fügt dann ein. „Per Rechtsklick“ kopiert die Auswahl (oder fügt ein, wenn nichts markiert ist). Strg+Umschalt+C kopiert immer. Wirkt sofort."
+  },
+  "help": {
+    "cmd": {
+      "pwd": {
+        "summary": "Zeigt das aktuelle Arbeitsverzeichnis.",
+        "flag": {
+          "s_P": "Zeigt den physischen Pfad, symbolische Links werden aufgelöst."
+        }
+      },
+      "ls": {
+        "summary": "Listet die Dateien und Ordner eines Verzeichnisses auf.",
+        "flag": {
+          "s_l": "Langes Format: Rechte, Besitzer, Größe und Datum.",
+          "s_a": "Schließt versteckte Einträge ein (Namen mit führendem Punkt).",
+          "s_h": "Lesbare Größen (mit -l), z. B. 4.0K oder 2.1M.",
+          "s_t": "Sortiert nach Änderungszeit, neueste zuerst.",
+          "s_r": "Kehrt die Sortierreihenfolge um."
+        }
+      },
+      "whoami": {
+        "summary": "Zeigt den Namen des angemeldeten Benutzers."
+      },
+      "id": {
+        "summary": "Zeigt UID, GID und Gruppenmitgliedschaften des aktuellen Benutzers.",
+        "flag": {
+          "s_u": "Nur die numerische Benutzer-ID.",
+          "s_g": "Nur die ID der primären Gruppe.",
+          "s_G": "Alle Gruppen-IDs.",
+          "s_n": "Zeigt Namen statt Zahlen (mit -u, -g oder -G)."
+        }
+      },
+      "groups": {
+        "summary": "Listet die Gruppen auf, denen der aktuelle Benutzer angehört."
+      },
+      "hostname": {
+        "summary": "Zeigt den Namen dieses Rechners.",
+        "flag": {
+          "s_f": "Der vollqualifizierte Domainname (benötigt ggf. DNS)."
+        }
+      },
+      "uname": {
+        "summary": "Zeigt Systeminformationen: Kernelname, Version und Architektur.",
+        "flag": {
+          "s_a": "Alles: Kernel, Hostname, Release, Version und Hardware.",
+          "s_r": "Nur das Kernel-Release.",
+          "s_m": "Nur der Hardwarename (z. B. x86_64).",
+          "s_s": "Nur der Kernelname."
+        }
+      },
+      "uptime": {
+        "summary": "Zeigt, wie lange das System läuft, und die durchschnittliche Last.",
+        "flag": {
+          "s_p": "Lesbares Format (Tage, Stunden, Minuten).",
+          "s_s": "Der Startzeitpunkt des Systems."
+        }
+      },
+      "date": {
+        "summary": "Zeigt das aktuelle Datum und die Uhrzeit.",
+        "flag": {
+          "s_u": "Zeigt UTC statt der Ortszeit.",
+          "s_I": "ISO-8601-Format."
+        }
+      },
+      "df": {
+        "summary": "Zeigt die Speichernutzung der Dateisysteme.",
+        "flag": {
+          "s_h": "Lesbare Einheiten (K, M, G).",
+          "s_T": "Fügt den Dateisystemtyp hinzu.",
+          "s_i": "Zeigt die Inode-Nutzung statt Blöcken."
+        }
+      },
+      "du": {
+        "summary": "Zeigt, wie viel Speicherplatz Dateien und Ordner belegen.",
+        "flag": {
+          "s_s": "Eine Summe pro Argument statt jedes Unterordners.",
+          "s_h": "Lesbare Größen.",
+          "s_d": "Begrenzt die Tiefe der Ausgabe (gefolgt von einer Zahl)."
+        },
+        "caveat": "Das Durchsuchen eines großen Verzeichnisbaums kann lange dauern und den Datenträger belasten."
+      },
+      "free": {
+        "summary": "Zeigt die Nutzung von Arbeitsspeicher und Swap.",
+        "flag": {
+          "s_h": "Lesbare Einheiten.",
+          "s_m": "Werte in Mebibyte."
+        }
+      },
+      "cat": {
+        "summary": "Gibt den Inhalt von Dateien aus.",
+        "flag": {
+          "s_n": "Nummeriert die Ausgabezeilen."
+        },
+        "caveat": "Es kann vertrauliche Inhalte (Schlüssel, Passwörter, Tokens) zeigen und das Terminal mit großen Dateien fluten."
+      },
+      "head": {
+        "summary": "Zeigt die ersten Zeilen einer Datei.",
+        "flag": {
+          "s_n": "Wie viele Zeilen angezeigt werden (gefolgt von einer Zahl)."
+        }
+      },
+      "tail": {
+        "summary": "Zeigt die letzten Zeilen einer Datei.",
+        "flag": {
+          "s_n": "Wie viele Zeilen angezeigt werden (gefolgt von einer Zahl).",
+          "s_f": "Läuft weiter und zeigt neue Zeilen an; Beenden mit Strg+C."
+        }
+      },
+      "wc": {
+        "summary": "Zählt Zeilen, Wörter und Bytes.",
+        "flag": {
+          "s_l": "Nur die Zeilenzahl.",
+          "s_w": "Nur die Wortzahl.",
+          "s_c": "Nur die Byte-Zahl."
+        }
+      },
+      "grep": {
+        "summary": "Sucht in Text nach Zeilen, die zu einem Muster passen.",
+        "flag": {
+          "s_i": "Ignoriert Groß-/Kleinschreibung.",
+          "s_n": "Zeigt Zeilennummern.",
+          "s_r": "Durchsucht Ordner rekursiv.",
+          "s_v": "Zeigt die Zeilen, die nicht passen.",
+          "s_c": "Zählt nur die passenden Zeilen."
+        },
+        "caveat": "Rekursive Suchen in großen Verzeichnisbäumen können langsam sein."
+      },
+      "find": {
+        "summary": "Sucht Dateien und Ordner nach Name, Typ oder Zeit.",
+        "flag": {
+          "s_name": "Passt auf den Dateinamen (gefolgt von einem Muster).",
+          "s_type": "Passt auf die Art des Eintrags: f = Datei, d = Verzeichnis (gefolgt von einem Buchstaben).",
+          "s_maxdepth": "Begrenzt, wie tief gesucht wird (gefolgt von einer Zahl).",
+          "s_mtime": "Passt nach Änderungsalter in Tagen (gefolgt von einer Zahl)."
+        },
+        "caveat": "Bei großen Verzeichnisbäumen kann es langsam sein. Aktionen wie -exec oder -delete verändern etwas und werden hier nicht erklärt."
+      },
+      "stat": {
+        "summary": "Zeigt detaillierte Dateiinformationen: Größe, Rechte, Besitzer und Zeiten."
+      },
+      "file": {
+        "summary": "Ermittelt den Typ einer Datei anhand ihres Inhalts.",
+        "flag": {
+          "s_b": "Kurz: der Typ ohne Dateinamen."
+        }
+      },
+      "readlink": {
+        "summary": "Zeigt, worauf ein symbolischer Link zeigt.",
+        "flag": {
+          "s_f": "Folgt allen Links und gibt den endgültigen absoluten Pfad aus."
+        }
+      },
+      "realpath": {
+        "summary": "Gibt den absoluten Pfad mit aufgelösten Links und „..“ aus."
+      },
+      "namei": {
+        "summary": "Folgt einem Pfad Komponente für Komponente und zeigt Rechte und Besitzer jeder; nützlich bei Rechteproblemen.",
+        "flag": {
+          "s_l": "Langes Format: Rechte, Besitzer und Gruppen."
+        }
+      },
+      "ps": {
+        "summary": "Zeigt laufende Prozesse.",
+        "flag": {
+          "s_e": "Alle Prozesse, nicht nur Ihre.",
+          "s_f": "Vollständiges Format mit Elternprozess und Befehlszeile.",
+          "p_aux": "BSD-Stil: alle Prozesse mit Benutzer, CPU und Speicher."
+        },
+        "caveat": "Befehlszeilen anderer Prozesse können vertrauliche Argumente enthalten."
+      },
+      "ip_addr": {
+        "summary": "Zeigt Netzwerkschnittstellen und ihre IP-Adressen.",
+        "flag": {
+          "s_br": "Kurz, eine Zeile pro Schnittstelle.",
+          "s_4": "Nur IPv4.",
+          "s_6": "Nur IPv6."
+        }
+      },
+      "ip_route": {
+        "summary": "Zeigt die Routing-Tabelle.",
+        "flag": {
+          "s_4": "Nur IPv4.",
+          "s_6": "Nur IPv6."
+        }
+      },
+      "ss": {
+        "summary": "Zeigt Netzwerk-Sockets, z. B. welche Ports lauschen.",
+        "flag": {
+          "s_t": "TCP-Sockets.",
+          "s_u": "UDP-Sockets.",
+          "s_l": "Nur lauschende Sockets.",
+          "s_n": "Zahlen statt Namen für Ports und Adressen.",
+          "s_p": "Zeigt den Prozess je Socket (für fremde Prozesse sind höhere Rechte nötig)."
+        }
+      },
+      "systemctl_status": {
+        "summary": "Zeigt den Zustand eines Dienstes und seine letzten Logzeilen.",
+        "flag": {
+          "l_no-pager": "Gibt alles auf einmal aus, ohne einen Pager zu öffnen.",
+          "s_l": "Kürzt lange Zeilen nicht."
+        },
+        "caveat": "Logzeilen in der Ausgabe können vertrauliche Informationen enthalten. Das hier schaut nur nach: start, stop und restart sind andere Befehle."
+      },
+      "journalctl": {
+        "summary": "Zeigt System- und Dienstprotokolle aus dem systemd-Journal.",
+        "flag": {
+          "s_u": "Nur eine Einheit/ein Dienst (gefolgt vom Namen).",
+          "s_n": "Wie viele der letzten Zeilen angezeigt werden (gefolgt von einer Zahl).",
+          "l_no-pager": "Gibt alles auf einmal aus, ohne einen Pager zu öffnen.",
+          "s_f": "Läuft weiter und zeigt neue Einträge; Beenden mit Strg+C.",
+          "s_e": "Springt ans Ende des Protokolls."
+        },
+        "caveat": "Protokolle können vertrauliche Informationen wie Benutzernamen, Adressen und Tokens enthalten."
+      },
+      "docker_ps": {
+        "summary": "Listet laufende Container auf.",
+        "flag": {
+          "s_a": "Schließt gestoppte Container ein.",
+          "s_q": "Nur die Container-IDs.",
+          "l_no-trunc": "Kürzt IDs und Befehle nicht."
+        }
+      },
+      "docker_images": {
+        "summary": "Listet lokale Images auf.",
+        "flag": {
+          "s_a": "Schließt Zwischen-Images ein.",
+          "s_q": "Nur die Image-IDs."
+        }
+      },
+      "docker_logs": {
+        "summary": "Zeigt die Ausgabe, die ein Container geschrieben hat.",
+        "flag": {
+          "l_tail": "Wie viele der letzten Zeilen angezeigt werden (gefolgt von einer Zahl).",
+          "s_f": "Läuft weiter und zeigt neue Ausgabe; Beenden mit Strg+C.",
+          "s_t": "Fügt Zeitstempel hinzu."
+        },
+        "caveat": "Container-Protokolle können vertrauliche Informationen enthalten."
+      },
+      "docker_inspect": {
+        "summary": "Zeigt detaillierte Low-Level-Informationen zu einem Container oder Image als JSON.",
+        "caveat": "Die Ausgabe kann Umgebungsvariablen, Passwörter und andere Geheimnisse offenlegen."
+      }
+    },
+    "settings": {
+      "heading": "Linux-Befehlshilfe",
+      "enable": "Linux-Befehlshilfe",
+      "hint": "Erklärungen zu gängigen Linux-Befehlen und hilfreiche Diagnosen für unterstützte Fehler anzeigen.",
+      "explain": "Befehlserklärungen",
+      "permissions": "Hilfe bei Berechtigungsfehlern",
+      "note": "Offline und eingebaut: Nichts wird irgendwohin gesendet, und es wird nie ein Befehl für Sie ausgeführt. Erklärungen erscheinen nur auf Anfrage: Text im Terminal markieren und „Befehl erklären“ wählen (Rechtsklick mit Umschalt oder Tastenkürzel)."
+    },
+    "menu": {
+      "copy": "Kopieren",
+      "paste": "Einfügen",
+      "explain": "Befehl erklären",
+      "reference": "Linux-Befehlsreferenz …"
+    },
+    "dialog": {
+      "title": "Linux-Befehlshilfe",
+      "reference": "Befehlsreferenz"
+    },
+    "explain": {
+      "selected": "Markierter Text",
+      "none": "Für diesen Befehl ist keine eingebaute Erklärung verfügbar.",
+      "noSelection": "Markieren Sie zuerst einen Befehl im Terminal und wählen Sie dann „Befehl erklären“.",
+      "disclaimer": "Der markierte Text wird als Befehl erklärt. PeachTerm kann nicht wissen, ob er ausgeführt wurde oder von wem. Es wird nichts ausgeführt.",
+      "options": "Optionen",
+      "unknownOptions": "Optionen ohne eingebaute Erklärung: {{list}}",
+      "arguments": "Die übrigen Argumente (Namen, Pfade, Werte) werden nicht interpretiert.",
+      "caveat": "Gut zu wissen",
+      "examples": "Geprüfte Beispiele (nur lesend)",
+      "exampleNote": "Kopieren legt den Text nur in die Zwischenablage. Prüfen Sie jeden Befehl, bevor Sie ihn ausführen.",
+      "copy": "Kopieren",
+      "copied": "Kopiert. Es wurde nichts ausgeführt.",
+      "copyAria": "Beispiel kopieren: {{command}}",
+      "search": "Befehle suchen",
+      "back": "Zurück zur Referenz",
+      "reviewNote": "Eingebaute Referenz lesender Befehle. Dass ein Befehl hier steht, macht nicht jede Option sicher: Lesen Sie immer, was ein Befehl tut."
+    },
+    "perm": {
+      "titleCreateFolder": "Verzeichnis kann nicht erstellt werden",
+      "titleCreateFile": "Datei kann nicht erstellt werden",
+      "titleRename": "Umbenennen nicht möglich",
+      "titleDelete": "Löschen nicht möglich",
+      "titleUpload": "Hochladen nicht möglich",
+      "deniedCreateFolder": "Der SSH-Server hat die Berechtigung verweigert, „{{name}}“ zu erstellen in:",
+      "deniedCreateFile": "Der SSH-Server hat die Berechtigung verweigert, die Datei „{{name}}“ zu erstellen in:",
+      "deniedRename": "Der SSH-Server hat die Berechtigung verweigert, „{{name}}“ umzubenennen in:",
+      "deniedDelete": "Der SSH-Server hat die Berechtigung verweigert, „{{name}}“ zu löschen in:",
+      "deniedUpload_one": "Der SSH-Server hat die Berechtigung verweigert, {{count}} Element hochzuladen nach:",
+      "deniedUpload_other": "Der SSH-Server hat die Berechtigung verweigert, {{count}} Elemente hochzuladen nach:",
+      "connectedAs": "Verbunden als:",
+      "cautious": "Möglicherweise darf dieses Konto in das Verzeichnis nicht schreiben. Der Server meldete nur „Zugriff verweigert“; die Ursache können auch ACLs, ein schreibgeschütztes Dateisystem, Besitzverhältnisse, SFTP-Einschränkungen oder Serverrichtlinien sein.",
+      "why": "Warum ist das passiert?",
+      "strip": "Zugriff vom Server verweigert.",
+      "stripUpload": "Der Server hat einige Uploads verweigert.",
+      "showDetails": "Details anzeigen",
+      "hideDetails": "Details ausblenden",
+      "diagnose": "Berechtigungen prüfen",
+      "diagnosing": "Prüfung (nur lesend) …",
+      "detailCreate": "Zum Erstellen einer Datei oder eines Verzeichnisses sind Schreib- und Such-Rechte (x) im übergeordneten Verzeichnis nötig.",
+      "detailRename": "Umbenennen und Löschen hängen vor allem von den Schreib- und Such-Rechten im übergeordneten Verzeichnis ab, nicht von den Rechten der Datei selbst.",
+      "detailDirs": "Verzeichnisrechte unterscheiden sich von Dateirechten: r listet die Einträge auf, w fügt Einträge hinzu oder entfernt sie, x erlaubt das Betreten des Verzeichnisses.",
+      "detailOther": "Weitere mögliche Ursachen: ACLs, ein schreibgeschützter Mount, ein SFTP-Chroot oder eine Serverrichtlinie, SELinux oder AppArmor.",
+      "detailAdvice": "Sie können den Server-Administrator fragen oder ein Verzeichnis wählen, in das Ihr Konto bereits schreiben darf. PeachTerm ändert nie Besitzer oder Rechte für Sie.",
+      "report": "Diagnoseergebnis",
+      "account": "Konto",
+      "groups": "Gruppen",
+      "directory": "Verzeichnis",
+      "owner": "Besitzer",
+      "mode": "Rechte",
+      "accessCheck": "Die eigene Zugriffsprüfung des Servers",
+      "writable": "beschreibbar",
+      "notWritable": "nicht beschreibbar",
+      "chain": "Pfad, Komponente für Komponente",
+      "vNoWrite": "Ihr Konto scheint hier keine Schreibberechtigung zu haben: Das Verzeichnis gehört {{owner}}:{{group}} mit den Rechten {{mode}}.",
+      "vNoSearch": "Ihr Konto scheint dieses Verzeichnis nicht betreten zu dürfen (kein Such-/Ausführungsrecht).",
+      "vBitsAllow": "Die Rechtebits und die Zugriffsprüfung scheinen Schreiben zu erlauben, der Server hat es aber trotzdem verweigert. ACLs, Mount-Optionen, SFTP-Einschränkungen oder andere Serverrichtlinien könnten eine Rolle spielen.",
+      "vReadOnly": "Die Zugriffsprüfung meldet, dass hier nicht geschrieben werden kann, obwohl die Rechtebits allein es erlauben würden. Das ist typisch für ein schreibgeschütztes Dateisystem oder eine ACL.",
+      "vAcl": "An diesem Verzeichnis hängt eine ACL (das „+“ hinter den Rechten), die Rechtebits allein erzählen also nicht die ganze Geschichte.",
+      "vRoot": "Dieses Konto ist root; eine Ablehnung deutet daher meist auf ein schreibgeschütztes Dateisystem, ein Immutable-Flag oder eine Serverrichtlinie statt auf gewöhnliche Rechte hin.",
+      "vUnknown": "Das Ergebnis ist nicht eindeutig. Dies ist eine fundierte Vermutung, keine Garantie.",
+      "guess": "Dies ist eine fundierte Vermutung aus lesenden Prüfungen, keine Garantie.",
+      "noExec": "Dieser Server erlaubt PeachTerm keine Diagnose (kein Befehlskanal für dieses Konto). Die allgemeine Erklärung oben gilt weiterhin.",
+      "notLinux": "Der Server sieht nicht nach Linux aus, daher wurden die Prüfungen übersprungen. Die allgemeine Erklärung oben gilt weiterhin.",
+      "timedOut": "Die Diagnose wurde nicht rechtzeitig abgeschlossen.",
+      "failedDiag": "Die Diagnose konnte nicht abgeschlossen werden.",
+      "pathRefused": "Der Pfad enthält Zeichen, die sich nicht sicher prüfen lassen, daher wurde nur Ihr Konto geprüft.",
+      "suggest": "Lesende Befehle, die Sie selbst im Terminal ausführen können",
+      "close": "Schließen",
+      "dismiss": "Ausblenden",
+      "userUnknown": "unbekannt"
     }
   }
 }

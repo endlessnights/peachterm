@@ -388,7 +388,13 @@
     "webDocument_other": "{{count}} documentos web",
     "offlineCopy_one": "{{count}} copia sin conexión",
     "offlineCopy_many": "{{count}} copias sin conexión",
-    "offlineCopy_other": "{{count}} copias sin conexión"
+    "offlineCopy_other": "{{count}} copias sin conexión",
+    "file_one": "{{count}} archivo",
+    "file_many": "{{count}} archivos",
+    "file_other": "{{count}} archivos",
+    "directory_one": "{{count}} directorio",
+    "directory_many": "{{count}} directorios",
+    "directory_other": "{{count}} directorios"
   },
   "conn": {
     "sidebarAria": "Conexiones guardadas",
@@ -496,8 +502,9 @@
   },
   "folder": {
     "newTitle": "Nueva carpeta",
-    "name": "Nombre de la carpeta",
-    "create": "Crear"
+    "create": "Crear",
+    "nameOrPath": "Nombre de carpeta o ruta (p. ej. ops/docker)",
+    "nameOrPathHint": "Use / para crear subcarpetas en un solo paso. Las carpetas existentes se reutilizan."
   },
   "editor": {
     "editTitle": "Editar {{name}}",
@@ -610,7 +617,7 @@
       "copyPath": "Copiar ruta"
     },
     "newFile": "Nuevo archivo",
-    "fileName": "Nombre del archivo",
+    "fileNameOrPath": "Nombre del archivo o ruta (p. ej., logs/app/1.txt)",
     "createdIn": "Se creará en {{dir}}",
     "renameTitle": "Renombrar",
     "newName": "Nuevo nombre",
@@ -659,6 +666,17 @@
       "collapseAria": "Contraer el panel SFTP",
       "filesOf": "Archivos de {{title}}",
       "show": "Mostrar el panel SFTP"
+    },
+    "drop": {
+      "title": "Suelte los archivos para subirlos",
+      "destination": "Destino",
+      "nothing": "No hay nada que subir en lo que soltó.",
+      "skipped_one": "Se omitió {{count}} elemento (un enlace o un archivo especial; los enlaces no se siguen).",
+      "skipped_many": "Se omitieron {{count}} elementos (enlaces o archivos especiales; los enlaces no se siguen).",
+      "skipped_other": "Se omitieron {{count}} elementos (enlaces o archivos especiales; los enlaces no se siguen).",
+      "conflicts_one": "Ya existe {{count}} archivo en {{dest}}: {{names}}. Al subir se reemplazará.",
+      "conflicts_many": "Ya existen {{count}} archivos en {{dest}}: {{names}}. Al subir se reemplazarán.",
+      "conflicts_other": "Ya existen {{count}} archivos en {{dest}}: {{names}}. Al subir se reemplazarán."
     }
   },
   "tunnels": {
@@ -1283,7 +1301,8 @@
       "splitHorizontal": "Dividir apilado",
       "toggleSplitOrientation": "Alternar la orientación de la división",
       "focusNextPane": "Enfocar el siguiente panel de terminal",
-      "unsplit": "Cerrar la vista dividida (conservar sesiones)"
+      "unsplit": "Cerrar la vista dividida (conservar sesiones)",
+      "explainSelection": "Explicar el comando seleccionado"
     },
     "reason": {
       "zoom": "cambia el zoom de la vista web",
@@ -1432,7 +1451,8 @@
       "signature": "La actualización descargada no superó la verificación de firma y se descartó.",
       "network": "No se pudo conectar con GitHub. Compruebe su conexión a Internet e inténtelo de nuevo.",
       "no_package": "La última versión no tiene paquete de actualización para este sistema.",
-      "install_failed": "No se pudo instalar la actualización. Su versión actual no ha cambiado."
+      "install_failed": "No se pudo instalar la actualización. Su versión actual no ha cambiado.",
+      "limit_reached": "Demasiados elementos (o carpetas demasiado anidadas) para subirlos de una vez."
     },
     "lock": {
       "notSetUp": "El bloqueo de la aplicación no está configurado. Establezca primero una contraseña de bloqueo.",
@@ -1495,6 +1515,351 @@
       "needTitle": "Dé un título a la nota.",
       "saveFailed": "No se pudieron guardar las notas.",
       "readFailed": "No se pudo leer la nota."
+    },
+    "folders": {
+      "pathEmpty": "Introduzca un nombre de carpeta o una ruta.",
+      "pathInvalid": "La ruta de la carpeta no es válida. Use nombres separados por /, sin partes vacías, «.» ni «..».",
+      "tooDeep": "Las carpetas pueden anidarse como máximo a {{max}} niveles."
+    }
+  },
+  "copy": {
+    "heading": "Comportamiento de copia",
+    "label": "Copiar el texto del terminal",
+    "selection": "Al seleccionar",
+    "rightClick": "Con clic derecho",
+    "hint": "«Al seleccionar» copia el texto al portapapeles en cuanto termina de seleccionarlo; el clic derecho pega. «Con clic derecho» copia la selección (o pega si no hay nada seleccionado). Ctrl+Mayús+C siempre copia. Se aplica de inmediato."
+  },
+  "help": {
+    "cmd": {
+      "pwd": {
+        "summary": "Muestra el directorio de trabajo actual.",
+        "flag": {
+          "s_P": "Muestra la ruta física, resolviendo los enlaces simbólicos."
+        }
+      },
+      "ls": {
+        "summary": "Lista los archivos y carpetas de un directorio.",
+        "flag": {
+          "s_l": "Formato largo: permisos, propietario, tamaño y fecha.",
+          "s_a": "Incluye las entradas ocultas (nombres que empiezan por punto).",
+          "s_h": "Tamaños legibles (con -l), como 4.0K o 2.1M.",
+          "s_t": "Ordena por fecha de modificación, lo más reciente primero.",
+          "s_r": "Invierte el orden."
+        }
+      },
+      "whoami": {
+        "summary": "Muestra el nombre del usuario con el que ha iniciado sesión."
+      },
+      "id": {
+        "summary": "Muestra el UID, el GID y los grupos del usuario actual.",
+        "flag": {
+          "s_u": "Solo el ID numérico de usuario.",
+          "s_g": "Solo el ID del grupo principal.",
+          "s_G": "Todos los ID de grupo.",
+          "s_n": "Muestra nombres en lugar de números (con -u, -g o -G)."
+        }
+      },
+      "groups": {
+        "summary": "Lista los grupos a los que pertenece el usuario actual."
+      },
+      "hostname": {
+        "summary": "Muestra el nombre de esta máquina.",
+        "flag": {
+          "s_f": "El nombre de dominio completo (puede requerir DNS)."
+        }
+      },
+      "uname": {
+        "summary": "Muestra información del sistema: nombre del kernel, versión y arquitectura.",
+        "flag": {
+          "s_a": "Todo: kernel, nombre del host, versión, compilación y hardware.",
+          "s_r": "Solo la versión del kernel.",
+          "s_m": "Solo el nombre del hardware (por ejemplo x86_64).",
+          "s_s": "Solo el nombre del kernel."
+        }
+      },
+      "uptime": {
+        "summary": "Muestra cuánto tiempo lleva el sistema en marcha y la carga media.",
+        "flag": {
+          "s_p": "Formato legible (días, horas, minutos).",
+          "s_s": "La hora de arranque del sistema."
+        }
+      },
+      "date": {
+        "summary": "Muestra la fecha y la hora actuales.",
+        "flag": {
+          "s_u": "Muestra UTC en lugar de la hora local.",
+          "s_I": "Formato ISO 8601."
+        }
+      },
+      "df": {
+        "summary": "Muestra el uso de espacio de los sistemas de archivos.",
+        "flag": {
+          "s_h": "Unidades legibles (K, M, G).",
+          "s_T": "Añade el tipo de sistema de archivos.",
+          "s_i": "Muestra el uso de inodos en lugar de bloques."
+        }
+      },
+      "du": {
+        "summary": "Muestra cuánto espacio en disco usan los archivos y carpetas.",
+        "flag": {
+          "s_s": "Un total por argumento en lugar de cada subcarpeta.",
+          "s_h": "Tamaños legibles.",
+          "s_d": "Limita la profundidad del listado (seguido de un número)."
+        },
+        "caveat": "Recorrer un árbol de directorios grande puede tardar mucho y cargar el disco."
+      },
+      "free": {
+        "summary": "Muestra el uso de memoria y de swap.",
+        "flag": {
+          "s_h": "Unidades legibles.",
+          "s_m": "Valores en mebibytes."
+        }
+      },
+      "cat": {
+        "summary": "Imprime el contenido de archivos.",
+        "flag": {
+          "s_n": "Numera las líneas de salida."
+        },
+        "caveat": "Puede mostrar contenido sensible (claves, contraseñas, tokens) e inundar el terminal con archivos grandes."
+      },
+      "head": {
+        "summary": "Muestra las primeras líneas de un archivo.",
+        "flag": {
+          "s_n": "Cuántas líneas mostrar (seguido de un número)."
+        }
+      },
+      "tail": {
+        "summary": "Muestra las últimas líneas de un archivo.",
+        "flag": {
+          "s_n": "Cuántas líneas mostrar (seguido de un número).",
+          "s_f": "Sigue en ejecución y muestra las líneas nuevas; se detiene con Ctrl+C."
+        }
+      },
+      "wc": {
+        "summary": "Cuenta líneas, palabras y bytes.",
+        "flag": {
+          "s_l": "Solo el número de líneas.",
+          "s_w": "Solo el número de palabras.",
+          "s_c": "Solo el número de bytes."
+        }
+      },
+      "grep": {
+        "summary": "Busca en un texto las líneas que coinciden con un patrón.",
+        "flag": {
+          "s_i": "Ignora mayúsculas y minúsculas.",
+          "s_n": "Muestra los números de línea.",
+          "s_r": "Busca en carpetas de forma recursiva.",
+          "s_v": "Muestra las líneas que no coinciden.",
+          "s_c": "Solo cuenta las líneas coincidentes."
+        },
+        "caveat": "Las búsquedas recursivas en árboles grandes pueden ser lentas."
+      },
+      "find": {
+        "summary": "Busca archivos y carpetas por nombre, tipo o fecha.",
+        "flag": {
+          "s_name": "Coincide con el nombre del archivo (seguido de un patrón).",
+          "s_type": "Coincide con el tipo: f = archivo, d = directorio (seguido de una letra).",
+          "s_maxdepth": "Limita la profundidad de la búsqueda (seguido de un número).",
+          "s_mtime": "Coincide por antigüedad de modificación en días (seguido de un número)."
+        },
+        "caveat": "Puede ser lento en árboles grandes. Acciones como -exec o -delete cambian cosas y aquí no se explican."
+      },
+      "stat": {
+        "summary": "Muestra información detallada del archivo: tamaño, permisos, propietario y fechas."
+      },
+      "file": {
+        "summary": "Adivina el tipo de un archivo a partir de su contenido.",
+        "flag": {
+          "s_b": "Breve: el tipo sin el nombre del archivo."
+        }
+      },
+      "readlink": {
+        "summary": "Muestra a dónde apunta un enlace simbólico.",
+        "flag": {
+          "s_f": "Sigue todos los enlaces e imprime la ruta absoluta final."
+        }
+      },
+      "realpath": {
+        "summary": "Imprime la ruta absoluta con enlaces y «..» resueltos."
+      },
+      "namei": {
+        "summary": "Recorre una ruta componente a componente y muestra los permisos y el propietario de cada uno; útil para problemas de permisos.",
+        "flag": {
+          "s_l": "Formato largo: permisos, propietarios y grupos."
+        }
+      },
+      "ps": {
+        "summary": "Muestra los procesos en ejecución.",
+        "flag": {
+          "s_e": "Todos los procesos, no solo los suyos.",
+          "s_f": "Formato completo con proceso padre y línea de comandos.",
+          "p_aux": "Estilo BSD: todos los procesos con usuario, CPU y memoria."
+        },
+        "caveat": "Las líneas de comandos de otros procesos pueden contener argumentos sensibles."
+      },
+      "ip_addr": {
+        "summary": "Muestra las interfaces de red y sus direcciones IP.",
+        "flag": {
+          "s_br": "Breve, una línea por interfaz.",
+          "s_4": "Solo IPv4.",
+          "s_6": "Solo IPv6."
+        }
+      },
+      "ip_route": {
+        "summary": "Muestra la tabla de enrutamiento.",
+        "flag": {
+          "s_4": "Solo IPv4.",
+          "s_6": "Solo IPv6."
+        }
+      },
+      "ss": {
+        "summary": "Muestra los sockets de red, por ejemplo qué puertos están escuchando.",
+        "flag": {
+          "s_t": "Sockets TCP.",
+          "s_u": "Sockets UDP.",
+          "s_l": "Solo sockets en escucha.",
+          "s_n": "Números en lugar de nombres para puertos y direcciones.",
+          "s_p": "Muestra el proceso de cada socket (los de otros usuarios requieren privilegios)."
+        }
+      },
+      "systemctl_status": {
+        "summary": "Muestra el estado de un servicio y sus últimas líneas de registro.",
+        "flag": {
+          "l_no-pager": "Imprime todo de una vez sin abrir un paginador.",
+          "s_l": "No acorta las líneas largas."
+        },
+        "caveat": "Las líneas de registro pueden contener información sensible. Esto solo consulta: start, stop y restart son otros comandos."
+      },
+      "journalctl": {
+        "summary": "Muestra los registros del sistema y de los servicios del journal de systemd.",
+        "flag": {
+          "s_u": "Solo una unidad/servicio (seguido de su nombre).",
+          "s_n": "Cuántas de las últimas líneas mostrar (seguido de un número).",
+          "l_no-pager": "Imprime todo de una vez sin abrir un paginador.",
+          "s_f": "Sigue en ejecución y muestra las entradas nuevas; se detiene con Ctrl+C.",
+          "s_e": "Salta al final del registro."
+        },
+        "caveat": "Los registros pueden contener información confidencial: nombres de usuario, direcciones, tokens."
+      },
+      "docker_ps": {
+        "summary": "Lista los contenedores en ejecución.",
+        "flag": {
+          "s_a": "Incluye los contenedores detenidos.",
+          "s_q": "Solo los ID de los contenedores.",
+          "l_no-trunc": "No acorta los ID ni los comandos."
+        }
+      },
+      "docker_images": {
+        "summary": "Lista las imágenes locales.",
+        "flag": {
+          "s_a": "Incluye las imágenes intermedias.",
+          "s_q": "Solo los ID de las imágenes."
+        }
+      },
+      "docker_logs": {
+        "summary": "Muestra la salida que ha escrito un contenedor.",
+        "flag": {
+          "l_tail": "Cuántas de las últimas líneas mostrar (seguido de un número).",
+          "s_f": "Sigue en ejecución y muestra la salida nueva; se detiene con Ctrl+C.",
+          "s_t": "Añade marcas de tiempo."
+        },
+        "caveat": "Los registros de contenedores pueden contener información confidencial."
+      },
+      "docker_inspect": {
+        "summary": "Muestra información detallada de bajo nivel de un contenedor o imagen en JSON.",
+        "caveat": "La salida puede revelar variables de entorno, contraseñas y otros secretos."
+      }
+    },
+    "settings": {
+      "heading": "Ayuda de comandos de Linux",
+      "enable": "Ayuda de comandos de Linux",
+      "hint": "Mostrar explicaciones de comandos habituales de Linux y diagnósticos útiles para errores compatibles.",
+      "explain": "Explicaciones de comandos",
+      "permissions": "Ayuda con errores de permisos",
+      "note": "Sin conexión e integrado: no se envía nada a ningún sitio y nunca se ejecuta un comando por usted. Las explicaciones aparecen solo cuando las pide: seleccione texto en el terminal y elija Explicar comando (clic derecho con Mayús, o el atajo)."
+    },
+    "menu": {
+      "copy": "Copiar",
+      "paste": "Pegar",
+      "explain": "Explicar comando",
+      "reference": "Referencia de comandos de Linux…"
+    },
+    "dialog": {
+      "title": "Ayuda de comandos de Linux",
+      "reference": "Referencia de comandos"
+    },
+    "explain": {
+      "selected": "Texto seleccionado",
+      "none": "No hay ninguna explicación integrada para este comando.",
+      "noSelection": "Seleccione primero un comando en el terminal y luego elija Explicar comando.",
+      "disclaimer": "El texto seleccionado se explica como un comando. PeachTerm no puede saber si se ejecutó ni quién lo hizo. No se ejecuta nada.",
+      "options": "Opciones",
+      "unknownOptions": "Opciones sin explicación integrada: {{list}}",
+      "arguments": "Los demás argumentos (nombres, rutas, valores) no se interpretan.",
+      "caveat": "Conviene saber",
+      "examples": "Ejemplos revisados (solo lectura)",
+      "exampleNote": "Copiar solo coloca el texto en el portapapeles. Revise cualquier comando antes de ejecutarlo.",
+      "copy": "Copiar",
+      "copied": "Copiado. No se ejecutó nada.",
+      "copyAria": "Copiar ejemplo: {{command}}",
+      "search": "Buscar comandos",
+      "back": "Volver a la referencia",
+      "reviewNote": "Referencia integrada de comandos de solo lectura. Estar aquí no hace seguras todas las opciones: lea siempre lo que hace un comando."
+    },
+    "perm": {
+      "titleCreateFolder": "No se puede crear el directorio",
+      "titleCreateFile": "No se puede crear el archivo",
+      "titleRename": "No se puede renombrar",
+      "titleDelete": "No se puede eliminar",
+      "titleUpload": "No se puede subir",
+      "deniedCreateFolder": "El servidor SSH denegó el permiso para crear «{{name}}» en:",
+      "deniedCreateFile": "El servidor SSH denegó el permiso para crear el archivo «{{name}}» en:",
+      "deniedRename": "El servidor SSH denegó el permiso para renombrar «{{name}}» en:",
+      "deniedDelete": "El servidor SSH denegó el permiso para eliminar «{{name}}» en:",
+      "deniedUpload_one": "El servidor SSH denegó el permiso para subir {{count}} elemento a:",
+      "deniedUpload_many": "El servidor SSH denegó el permiso para subir {{count}} elementos a:",
+      "deniedUpload_other": "El servidor SSH denegó el permiso para subir {{count}} elementos a:",
+      "connectedAs": "Conectado como:",
+      "cautious": "Puede que esta cuenta no pueda escribir en el directorio. El servidor solo dijo «permiso denegado»; la causa también pueden ser ACL, un sistema de archivos de solo lectura, la propiedad, restricciones de SFTP o la política del servidor.",
+      "why": "¿Por qué ha ocurrido?",
+      "strip": "Permiso denegado por el servidor.",
+      "stripUpload": "El servidor denegó algunas subidas.",
+      "showDetails": "Mostrar detalles",
+      "hideDetails": "Ocultar detalles",
+      "diagnose": "Diagnosticar permisos",
+      "diagnosing": "Comprobando (solo lectura)…",
+      "detailCreate": "Crear un archivo o directorio requiere permiso de escritura y de búsqueda (x) en su directorio padre.",
+      "detailRename": "Renombrar o eliminar depende sobre todo de los permisos de escritura y búsqueda en el directorio padre, no de los del propio archivo.",
+      "detailDirs": "Los permisos de un directorio difieren de los de un archivo: r lista las entradas, w añade o quita entradas, x permite entrar en el directorio.",
+      "detailOther": "Otras causas posibles: ACL, un montaje de solo lectura, un chroot de SFTP o la política del servidor, SELinux o AppArmor.",
+      "detailAdvice": "Puede pedírselo al administrador del servidor o elegir un directorio en el que su cuenta ya pueda escribir. PeachTerm nunca cambia propietarios ni permisos por usted.",
+      "report": "Resultado del diagnóstico",
+      "account": "Cuenta",
+      "groups": "Grupos",
+      "directory": "Directorio",
+      "owner": "Propietario",
+      "mode": "Permisos",
+      "accessCheck": "La comprobación de acceso del propio servidor",
+      "writable": "escribible",
+      "notWritable": "no escribible",
+      "chain": "Ruta, componente a componente",
+      "vNoWrite": "Su cuenta no parece tener permiso de escritura aquí: el directorio pertenece a {{owner}}:{{group}} con permisos {{mode}}.",
+      "vNoSearch": "Su cuenta no parece poder entrar en este directorio (sin permiso de búsqueda/ejecución).",
+      "vBitsAllow": "Los bits de permiso y la comprobación de acceso parecen permitir escribir, pero el servidor lo rechazó igualmente. Pueden intervenir ACL, opciones de montaje, restricciones de SFTP u otra política del servidor.",
+      "vReadOnly": "La comprobación de acceso indica que esta ubicación no es escribible aunque los bits de permiso por sí solos lo permitirían. Es típico de un sistema de archivos de solo lectura o de una ACL.",
+      "vAcl": "Este directorio tiene una ACL (el «+» tras los permisos), así que los bits de permiso por sí solos no cuentan toda la historia.",
+      "vRoot": "Esta cuenta es root, así que un rechazo suele apuntar a un sistema de archivos de solo lectura, un atributo inmutable o una política del servidor y no a permisos ordinarios.",
+      "vUnknown": "El resultado no es concluyente. Es una suposición informada, no una garantía.",
+      "guess": "Es una suposición informada a partir de comprobaciones de solo lectura, no una garantía.",
+      "noExec": "Este servidor no permite a PeachTerm ejecutar diagnósticos (sin canal de comandos para esta cuenta). La explicación general anterior sigue siendo válida.",
+      "notLinux": "El servidor no parece Linux, así que se omitieron las comprobaciones. La explicación general anterior sigue siendo válida.",
+      "timedOut": "El diagnóstico no terminó a tiempo.",
+      "failedDiag": "No se pudo completar el diagnóstico.",
+      "pathRefused": "La ruta contiene caracteres que no se pueden comprobar de forma segura, así que solo se comprobó su cuenta.",
+      "suggest": "Comandos de solo lectura que puede ejecutar usted mismo en el terminal",
+      "close": "Cerrar",
+      "dismiss": "Descartar",
+      "userUnknown": "desconocido"
     }
   }
 }

@@ -90,3 +90,17 @@ temporary directory: browsing, validation, mkdir/rename/delete, uploads
 interrupted and cancelled writes, remote-change detection, downloads, batch
 uploads, a server without SFTP, and operations after the session ended.
 Frontend behaviour is covered by `features/sftp/*.test.ts(x)`.
+
+## Dropping files from the file manager
+
+Files and folders dropped on the panel use Tauri's native drag-and-drop events, not HTML drop handlers. The
+renderer never sees local paths: Rust keeps them under a single-use opaque id (10 minutes, cleared when the app
+locks) and sends only counts. Physical coordinates are converted with `devicePixelRatio`, so UI zoom, DPI and
+docking side are handled. A row that is a folder is the destination; anywhere else in the list means the current
+directory. A drop outside the list, or while locked or without an SFTP session, does nothing.
+
+Folders are walked without following symbolic links, with a visited-set against loops, and limits (20 000 entries,
+depth 24). Names that would escape the destination are rejected. Existing remote items are never overwritten
+without the usual confirmation. Uploads use SFTP only, never remote shell commands.
+
+Native Explorer/Finder drops cannot be automated; they are covered by the manual acceptance list.

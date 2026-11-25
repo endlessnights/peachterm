@@ -371,7 +371,11 @@
     "webDocument_one": "{{count}} web document",
     "webDocument_other": "{{count}} web documents",
     "offlineCopy_one": "{{count}} offline copy",
-    "offlineCopy_other": "{{count}} offline copies"
+    "offlineCopy_other": "{{count}} offline copies",
+    "file_one": "{{count}} file",
+    "file_other": "{{count}} files",
+    "directory_one": "{{count}} directory",
+    "directory_other": "{{count}} directories"
   },
   "conn": {
     "sidebarAria": "Saved connections",
@@ -466,8 +470,9 @@
   },
   "folder": {
     "newTitle": "New folder",
-    "name": "Folder name",
-    "create": "Create"
+    "create": "Create",
+    "nameOrPath": "Folder name or path (e.g. ops/docker)",
+    "nameOrPathHint": "Use / to create sub-folders in one step. Existing folders are reused."
   },
   "editor": {
     "editTitle": "Edit {{name}}",
@@ -580,7 +585,7 @@
       "copyPath": "Copy path"
     },
     "newFile": "New file",
-    "fileName": "File name",
+    "fileNameOrPath": "File name or path (e.g. logs/app/1.txt)",
     "createdIn": "Will be created in {{dir}}",
     "renameTitle": "Rename",
     "newName": "New name",
@@ -628,6 +633,15 @@
       "collapseAria": "Collapse SFTP panel",
       "filesOf": "Files of {{title}}",
       "show": "Show SFTP panel"
+    },
+    "drop": {
+      "title": "Drop files to upload",
+      "destination": "Destination",
+      "nothing": "There is nothing to upload in what you dropped.",
+      "skipped_one": "{{count}} item was skipped (a link or a special file; links are not followed).",
+      "skipped_other": "{{count}} items were skipped (links or special files; links are not followed).",
+      "conflicts_one": "{{count}} file already exists in {{dest}}: {{names}}. Uploading replaces it.",
+      "conflicts_other": "{{count}} files already exist in {{dest}}: {{names}}. Uploading replaces them."
     }
   },
   "tunnels": {
@@ -1221,7 +1235,8 @@
       "splitHorizontal": "Split stacked",
       "toggleSplitOrientation": "Toggle split orientation",
       "focusNextPane": "Focus next terminal pane",
-      "unsplit": "Close split view (keep sessions)"
+      "unsplit": "Close split view (keep sessions)",
+      "explainSelection": "Explain selected command"
     },
     "reason": {
       "zoom": "changes the web view zoom",
@@ -1366,7 +1381,8 @@
       "signature": "The downloaded update did not pass the signature check and was discarded.",
       "network": "Could not reach GitHub. Check your internet connection and try again.",
       "no_package": "The latest release has no update package for this system.",
-      "install_failed": "The update could not be installed. Your current version is unchanged."
+      "install_failed": "The update could not be installed. Your current version is unchanged.",
+      "limit_reached": "Too many items (or folders nested too deeply) to upload at once."
     },
     "lock": {
       "notSetUp": "Application lock is not set up. Set a lock password first.",
@@ -1429,6 +1445,350 @@
       "needTitle": "Give the note a title.",
       "saveFailed": "The notes could not be saved.",
       "readFailed": "The note could not be read."
+    },
+    "folders": {
+      "pathEmpty": "Enter a folder name or path.",
+      "pathInvalid": "The folder path is invalid. Use names separated by /, without empty parts, “.” or “..”.",
+      "tooDeep": "Folders can be nested at most {{max}} levels deep."
+    }
+  },
+  "copy": {
+    "heading": "Copy Behavior",
+    "label": "Copy terminal text",
+    "selection": "Copy on selection",
+    "rightClick": "Copy on right-click",
+    "hint": "Copy on selection copies text to the clipboard as soon as you finish selecting it; a right click then pastes. Copy on right-click copies the selection (or pastes when nothing is selected). Ctrl+Shift+C always copies. Applies immediately."
+  },
+  "help": {
+    "cmd": {
+      "pwd": {
+        "summary": "Shows the current working directory.",
+        "flag": {
+          "s_P": "Shows the physical path, resolving symbolic links."
+        }
+      },
+      "ls": {
+        "summary": "Lists the files and folders of a directory.",
+        "flag": {
+          "s_l": "Long format: permissions, owner, size and date.",
+          "s_a": "Includes hidden entries (names starting with a dot).",
+          "s_h": "Human-readable sizes (with -l), such as 4.0K or 2.1M.",
+          "s_t": "Sorts by modification time, newest first.",
+          "s_r": "Reverses the sort order."
+        }
+      },
+      "whoami": {
+        "summary": "Shows the name of the user you are logged in as."
+      },
+      "id": {
+        "summary": "Shows the current user’s UID, GID and group memberships.",
+        "flag": {
+          "s_u": "Only the numeric user ID.",
+          "s_g": "Only the primary group ID.",
+          "s_G": "All group IDs.",
+          "s_n": "Shows names instead of numbers (with -u, -g or -G)."
+        }
+      },
+      "groups": {
+        "summary": "Lists the groups the current user belongs to."
+      },
+      "hostname": {
+        "summary": "Shows the name of this machine.",
+        "flag": {
+          "s_f": "The fully qualified domain name (may need DNS)."
+        }
+      },
+      "uname": {
+        "summary": "Shows system information: kernel name, release and architecture.",
+        "flag": {
+          "s_a": "Everything: kernel, host name, release, version and hardware.",
+          "s_r": "Only the kernel release.",
+          "s_m": "Only the machine hardware name (for example x86_64).",
+          "s_s": "Only the kernel name."
+        }
+      },
+      "uptime": {
+        "summary": "Shows how long the system has been running and the load average.",
+        "flag": {
+          "s_p": "Pretty format (days, hours, minutes).",
+          "s_s": "The time the system started."
+        }
+      },
+      "date": {
+        "summary": "Shows the current date and time.",
+        "flag": {
+          "s_u": "Shows UTC instead of local time.",
+          "s_I": "ISO 8601 format."
+        }
+      },
+      "df": {
+        "summary": "Shows filesystem space usage.",
+        "flag": {
+          "s_h": "Human-readable units (K, M, G).",
+          "s_T": "Adds the filesystem type.",
+          "s_i": "Shows inode usage instead of blocks."
+        }
+      },
+      "du": {
+        "summary": "Shows how much disk space files and folders use.",
+        "flag": {
+          "s_s": "One total per argument instead of every subfolder.",
+          "s_h": "Human-readable sizes.",
+          "s_d": "Limits the depth of the listing (followed by a number)."
+        },
+        "caveat": "Scanning a large directory tree can take a long time and load the disk."
+      },
+      "free": {
+        "summary": "Shows memory and swap usage.",
+        "flag": {
+          "s_h": "Human-readable units.",
+          "s_m": "Values in mebibytes."
+        }
+      },
+      "cat": {
+        "summary": "Prints the contents of files.",
+        "flag": {
+          "s_n": "Numbers the output lines."
+        },
+        "caveat": "It can show sensitive contents (keys, passwords, tokens) and flood the terminal with large files."
+      },
+      "head": {
+        "summary": "Shows the first lines of a file.",
+        "flag": {
+          "s_n": "How many lines to show (followed by a number)."
+        }
+      },
+      "tail": {
+        "summary": "Shows the last lines of a file.",
+        "flag": {
+          "s_n": "How many lines to show (followed by a number).",
+          "s_f": "Keeps running and prints new lines as they are added; stop with Ctrl+C."
+        }
+      },
+      "wc": {
+        "summary": "Counts lines, words and bytes.",
+        "flag": {
+          "s_l": "Only the number of lines.",
+          "s_w": "Only the number of words.",
+          "s_c": "Only the number of bytes."
+        }
+      },
+      "grep": {
+        "summary": "Searches text for lines that match a pattern.",
+        "flag": {
+          "s_i": "Ignores upper/lower case.",
+          "s_n": "Shows line numbers.",
+          "s_r": "Searches folders recursively.",
+          "s_v": "Shows the lines that do not match.",
+          "s_c": "Only counts the matching lines."
+        },
+        "caveat": "Recursive searches in big trees can be slow."
+      },
+      "find": {
+        "summary": "Searches for files and folders by name, type or time.",
+        "flag": {
+          "s_name": "Matches the file name (followed by a pattern).",
+          "s_type": "Matches the kind of entry: f = file, d = directory (followed by a letter).",
+          "s_maxdepth": "Limits how many levels deep it looks (followed by a number).",
+          "s_mtime": "Matches by modification age in days (followed by a number)."
+        },
+        "caveat": "It can be slow on big trees. Actions such as -exec or -delete change things and are not explained here."
+      },
+      "stat": {
+        "summary": "Shows detailed file information: size, permissions, owner and times."
+      },
+      "file": {
+        "summary": "Guesses the type of a file from its contents.",
+        "flag": {
+          "s_b": "Brief: the type without the file name."
+        }
+      },
+      "readlink": {
+        "summary": "Shows where a symbolic link points.",
+        "flag": {
+          "s_f": "Follows every link and prints the final absolute path."
+        }
+      },
+      "realpath": {
+        "summary": "Prints the absolute path with links and “..” resolved."
+      },
+      "namei": {
+        "summary": "Follows a path one component at a time and shows the permissions and owner of each; useful for permission problems.",
+        "flag": {
+          "s_l": "Long format: modes, owners and groups."
+        }
+      },
+      "ps": {
+        "summary": "Shows running processes.",
+        "flag": {
+          "s_e": "Every process, not only yours.",
+          "s_f": "Full format with the parent process and command line.",
+          "p_aux": "BSD style: all processes with user, CPU and memory."
+        },
+        "caveat": "Command lines of other processes may contain sensitive arguments."
+      },
+      "ip_addr": {
+        "summary": "Shows network interfaces and their IP addresses.",
+        "flag": {
+          "s_br": "Brief, one line per interface.",
+          "s_4": "Only IPv4.",
+          "s_6": "Only IPv6."
+        }
+      },
+      "ip_route": {
+        "summary": "Shows the routing table.",
+        "flag": {
+          "s_4": "Only IPv4.",
+          "s_6": "Only IPv6."
+        }
+      },
+      "ss": {
+        "summary": "Shows network sockets, for example which ports are listening.",
+        "flag": {
+          "s_t": "TCP sockets.",
+          "s_u": "UDP sockets.",
+          "s_l": "Only listening sockets.",
+          "s_n": "Numbers instead of names for ports and addresses.",
+          "s_p": "Shows the process using each socket (other users’ processes need extra privileges)."
+        }
+      },
+      "systemctl_status": {
+        "summary": "Shows the state of a service and its latest log lines.",
+        "flag": {
+          "l_no-pager": "Prints everything at once instead of opening a pager.",
+          "s_l": "Does not shorten long lines."
+        },
+        "caveat": "Log lines in the output may contain sensitive information. This only looks: start, stop and restart are different commands."
+      },
+      "journalctl": {
+        "summary": "Shows system and service logs from the systemd journal.",
+        "flag": {
+          "s_u": "Only one service/unit (followed by its name).",
+          "s_n": "How many of the latest lines to show (followed by a number).",
+          "l_no-pager": "Prints everything at once instead of opening a pager.",
+          "s_f": "Keeps running and prints new entries; stop with Ctrl+C.",
+          "s_e": "Jumps to the end of the log."
+        },
+        "caveat": "Logs can contain confidential information such as user names, addresses and tokens."
+      },
+      "docker_ps": {
+        "summary": "Lists running containers.",
+        "flag": {
+          "s_a": "Includes stopped containers.",
+          "s_q": "Only the container IDs.",
+          "l_no-trunc": "Does not shorten IDs and commands."
+        }
+      },
+      "docker_images": {
+        "summary": "Lists local images.",
+        "flag": {
+          "s_a": "Includes intermediate images.",
+          "s_q": "Only the image IDs."
+        }
+      },
+      "docker_logs": {
+        "summary": "Shows the output a container has written.",
+        "flag": {
+          "l_tail": "How many of the latest lines to show (followed by a number).",
+          "s_f": "Keeps running and prints new output; stop with Ctrl+C.",
+          "s_t": "Adds timestamps."
+        },
+        "caveat": "Container logs can contain confidential information."
+      },
+      "docker_inspect": {
+        "summary": "Shows detailed low-level information about a container or image as JSON.",
+        "caveat": "The output can reveal environment variables, passwords and other secrets."
+      }
+    },
+    "settings": {
+      "heading": "Linux Command Help",
+      "enable": "Linux Command Help",
+      "hint": "Show explanations for common Linux commands and helpful diagnostics for supported errors.",
+      "explain": "Command explanations",
+      "permissions": "Permission error assistance",
+      "note": "Offline and built in: nothing is sent anywhere and no command is ever run for you. Explanations appear only when you ask: select text in the terminal and choose Explain Command (right-click with Shift, or the shortcut)."
+    },
+    "menu": {
+      "copy": "Copy",
+      "paste": "Paste",
+      "explain": "Explain Command",
+      "reference": "Linux Command Reference…"
+    },
+    "dialog": {
+      "title": "Linux Command Help",
+      "reference": "Command reference"
+    },
+    "explain": {
+      "selected": "Selected text",
+      "none": "No built-in explanation is available for this command.",
+      "noSelection": "Select a command in the terminal first, then choose Explain Command.",
+      "disclaimer": "The selected text is explained as a command. PeachTerm cannot know whether it was run, or by whom. Nothing is executed.",
+      "options": "Options",
+      "unknownOptions": "Options without a built-in explanation: {{list}}",
+      "arguments": "The remaining arguments (names, paths, values) are not interpreted.",
+      "caveat": "Good to know",
+      "examples": "Reviewed read-only examples",
+      "exampleNote": "Copy puts the text on the clipboard only. Check any command before you run it.",
+      "copy": "Copy",
+      "copied": "Copied. Nothing was run.",
+      "copyAria": "Copy example: {{command}}",
+      "search": "Search commands",
+      "back": "Back to the reference",
+      "reviewNote": "Built-in reference of read-only commands. Being listed here does not make every option safe: always read what a command does."
+    },
+    "perm": {
+      "titleCreateFolder": "Cannot create directory",
+      "titleCreateFile": "Cannot create file",
+      "titleRename": "Cannot rename",
+      "titleDelete": "Cannot delete",
+      "titleUpload": "Cannot upload",
+      "deniedCreateFolder": "The SSH server denied permission to create “{{name}}” in:",
+      "deniedCreateFile": "The SSH server denied permission to create the file “{{name}}” in:",
+      "deniedRename": "The SSH server denied permission to rename “{{name}}” in:",
+      "deniedDelete": "The SSH server denied permission to delete “{{name}}” in:",
+      "deniedUpload_one": "The SSH server denied permission to upload {{count}} item into:",
+      "deniedUpload_other": "The SSH server denied permission to upload {{count}} items into:",
+      "connectedAs": "Connected as:",
+      "cautious": "The directory may not be writable by this account. The server only said “permission denied”; the cause can also be ACLs, a read-only filesystem, ownership, SFTP restrictions or server policy.",
+      "why": "Why did this happen?",
+      "strip": "Permission denied by the server.",
+      "stripUpload": "Some uploads were denied by the server.",
+      "showDetails": "Show Details",
+      "hideDetails": "Hide Details",
+      "diagnose": "Diagnose Permissions",
+      "diagnosing": "Checking (read-only)…",
+      "detailCreate": "Creating a file or directory needs write and search (x) permission on its parent directory.",
+      "detailRename": "Renaming or deleting an entry is governed mainly by write and search permission on its parent directory, not by the permissions of the file itself.",
+      "detailDirs": "Directory permissions differ from file permissions: r lists the entries, w adds or removes entries, x allows entering the directory.",
+      "detailOther": "Other possible causes: ACLs, a read-only mount, an SFTP chroot or server policy, SELinux or AppArmor.",
+      "detailAdvice": "You can ask the server administrator, or choose a directory your account can already write to. PeachTerm never changes owners or permissions for you.",
+      "report": "Diagnostic result",
+      "account": "Account",
+      "groups": "Groups",
+      "directory": "Directory",
+      "owner": "Owner",
+      "mode": "Permissions",
+      "accessCheck": "The server’s own access check",
+      "writable": "writable",
+      "notWritable": "not writable",
+      "chain": "Path, component by component",
+      "vNoWrite": "Your account does not appear to have write permission here: the directory belongs to {{owner}}:{{group}} with permissions {{mode}}.",
+      "vNoSearch": "Your account does not appear to be allowed to enter this directory (no search/execute permission).",
+      "vBitsAllow": "The permission bits and the access check appear to allow writing, but the server still refused. ACLs, mount options, SFTP restrictions or other server policy may be involved.",
+      "vReadOnly": "The access check says this location is not writable although the permission bits alone would allow it. That is typical of a read-only filesystem or an ACL.",
+      "vAcl": "An ACL is attached to this directory (the “+” after the permissions), so the permission bits alone do not tell the whole story.",
+      "vRoot": "This account is root, so a refusal usually points to a read-only filesystem, an immutable flag or a server policy rather than ordinary permissions.",
+      "vUnknown": "The result is not conclusive. This is an informed guess, not a guarantee.",
+      "guess": "This is an informed guess from read-only checks, not a guarantee.",
+      "noExec": "This server does not allow PeachTerm to run diagnostics (no command channel for this account). The general explanation above still applies.",
+      "notLinux": "The server does not look like Linux, so the checks were skipped. The general explanation above still applies.",
+      "timedOut": "The diagnostics did not finish in time.",
+      "failedDiag": "The diagnostics could not be completed.",
+      "pathRefused": "The path contains characters that cannot be checked safely, so only your account was checked.",
+      "suggest": "Read-only commands you can run yourself in the terminal",
+      "close": "Close",
+      "dismiss": "Dismiss",
+      "userUnknown": "unknown"
     }
   }
 }

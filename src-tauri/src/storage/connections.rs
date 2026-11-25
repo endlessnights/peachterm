@@ -177,6 +177,54 @@ pub(crate) fn required_text(value: &str, max: usize, field: &str) -> AppResult<S
     Ok(v.to_owned())
 }
 
+/// Longest accepted folder path ("a/b/c" typed into the New Folder dialog).
+pub(crate) const MAX_FOLDER_PATH: usize = 3 * MAX_NAME + 8;
+
+/// Splits a relative folder path (`ops/docker`) into validated names.
+/// Rejects absolute paths, empty segments, `.`/`..`, over-long input and more
+/// segments than the folder depth allows. Nothing is created here.
+pub(crate) fn parse_folder_path(path: &str) -> AppResult<Vec<String>> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::validation_key(
+            "folders.pathEmpty",
+            "Folder name is required",
+        ));
+    }
+    if trimmed.chars().count() > MAX_FOLDER_PATH || trimmed.contains('\0') {
+        return Err(AppError::validation_key(
+            "folders.pathInvalid",
+            "The folder path is invalid",
+        ));
+    }
+    let mut names = Vec::new();
+    for raw in trimmed.split('/') {
+        let name = raw.trim();
+        // Absolute paths ("/x"), "a//b" and a trailing "/" all produce an empty segment.
+        if name.is_empty() || name == "." || name == ".." {
+            return Err(AppError::validation_key(
+                "folders.pathInvalid",
+                "The folder path is invalid: use names separated by /, without empty parts, . or ..",
+            ));
+        }
+        if name.chars().any(char::is_control) {
+            return Err(AppError::validation_key(
+                "folders.pathInvalid",
+                "The folder path is invalid",
+            ));
+        }
+        names.push(required_text(name, MAX_NAME, "Folder name")?);
+    }
+    if names.len() > MAX_FOLDER_DEPTH {
+        return Err(AppError::validation_key(
+            "folders.tooDeep",
+            format!("Folders can be nested at most {MAX_FOLDER_DEPTH} levels deep."),
+        )
+        .with_param("max", MAX_FOLDER_DEPTH));
+    }
+    Ok(names)
+}
+
 /// Host names, IPv4 and IPv6 literals (optionally bracketed). No whitespace or
 /// characters that could be mistaken for user/port/path separators.
 pub(crate) fn validate_host(raw: &str) -> AppResult<String> {
@@ -596,6 +644,64 @@ impl ConnectionStore {
         })
     }
 
+    /// Creates `path` (e.g. `ops/docker`) below `parent`, reusing every folder
+    /// that already exists. Everything is validated first and written in one
+    /// atomic save: on any failure nothing is created. Existing folders are not
+    /// renamed, moved or deleted; they are only expanded so the result is visible.
+    /// Returns the whole chain, top first, and how many folders are new.
+    pub fn create_folder_path(
+        &self,
+        parent: Option<Uuid>,
+        path: &str,
+    ) -> AppResult<(Vec<Folder>, usize)> {
+        let names = parse_folder_path(path)?;
+        self.with_doc(|doc| {
+            doc.check_folder_ref(parent)?;
+            let base = parent.map(|p| doc.folder_level(p)).unwrap_or(0);
+            if base + names.len() > MAX_FOLDER_DEPTH {
+                return Err(AppError::validation_key(
+                    "folders.tooDeep",
+                    format!("Folders can be nested at most {MAX_FOLDER_DEPTH} levels deep."),
+                )
+                .with_param("max", MAX_FOLDER_DEPTH));
+            }
+            let mut chain = Vec::new();
+            let mut created = 0;
+            let mut current = parent;
+            for name in names {
+                let existing = doc
+                    .folders
+                    .iter()
+                    .position(|f| f.parent_id == current && f.name == name);
+                let index = match existing {
+                    Some(i) => i,
+                    None => {
+                        let folder = Folder {
+                            id: Uuid::new_v4(),
+                            name,
+                            parent_id: current,
+                            expanded: true,
+                            sort_order: doc.next_order(current, true),
+                        };
+                        doc.folders.push(folder);
+                        created += 1;
+                        doc.folders.len() - 1
+                    }
+                };
+                // Parents stay open so the final folder is visible.
+                doc.folders[index].expanded = true;
+                current = Some(doc.folders[index].id);
+                chain.push(doc.folders[index].clone());
+            }
+            if let Some(p) = parent
+                && let Some(f) = doc.folders.iter_mut().find(|f| f.id == p)
+            {
+                f.expanded = true;
+            }
+            Ok((chain, created))
+        })
+    }
+
     /// Deletes a folder; its sub-folders and connections move to its parent.
     pub fn delete_folder(&self, id: Uuid) -> AppResult<()> {
         self.with_doc(|doc| {
@@ -1008,6 +1114,176 @@ mod tests {
                 .issues()
                 .iter()
                 .any(|i| i.kind == "repaired_references" && i.backed_up)
+        );
+    }
+
+    // ---- nested folder paths ("ops/docker") ----
+
+    fn names(tree: &ConnectionTree) -> Vec<(String, Option<Uuid>)> {
+        let mut v: Vec<_> = tree
+            .folders
+            .iter()
+            .map(|f| (f.name.clone(), f.parent_id))
+            .collect();
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn a_single_name_creates_one_folder() {
+        let (_d, store) = store();
+        let (chain, created) = store.create_folder_path(None, "Docker").unwrap();
+        assert_eq!((chain.len(), created), (1, 1));
+        assert_eq!(chain[0].name, "Docker");
+        assert_eq!(chain[0].parent_id, None);
+    }
+
+    #[test]
+    fn two_and_three_level_paths_create_the_whole_hierarchy() {
+        let (_d, store) = store();
+        let (chain, created) = store.create_folder_path(None, "ops/docker").unwrap();
+        assert_eq!(created, 2);
+        assert_eq!(chain[1].parent_id, Some(chain[0].id));
+        let (chain3, created3) = store.create_folder_path(None, "a/b/c").unwrap();
+        assert_eq!((chain3.len(), created3), (3, 3));
+        assert_eq!(chain3[2].parent_id, Some(chain3[1].id));
+        let tree = store.load().unwrap();
+        assert_eq!(tree.folders.len(), 5);
+        assert!(tree.folders.iter().all(|f| f.expanded));
+    }
+
+    #[test]
+    fn existing_folders_are_reused_never_duplicated() {
+        let (_d, store) = store();
+        let (first, _) = store.create_folder_path(None, "ops").unwrap();
+        let (chain, created) = store
+            .create_folder_path(None, "ops/docker/production")
+            .unwrap();
+        assert_eq!(created, 2);
+        assert_eq!(chain[0].id, first[0].id);
+        // the full path again: nothing new, the same ids come back
+        let (again, created) = store
+            .create_folder_path(None, "ops/docker/production")
+            .unwrap();
+        assert_eq!(created, 0);
+        assert_eq!(
+            again.iter().map(|f| f.id).collect::<Vec<_>>(),
+            chain.iter().map(|f| f.id).collect::<Vec<_>>()
+        );
+        assert_eq!(store.load().unwrap().folders.len(), 3);
+    }
+
+    #[test]
+    fn paths_start_at_the_selected_parent_and_respect_the_depth_limit() {
+        let (_d, store) = store();
+        let (top, _) = store.create_folder_path(None, "a").unwrap();
+        let (chain, _) = store.create_folder_path(Some(top[0].id), "b/c").unwrap();
+        assert_eq!(chain[0].parent_id, Some(top[0].id));
+        // a/b/c is level 3: one more level is refused, below any parent depth
+        let err = store
+            .create_folder_path(Some(chain[1].id), "d")
+            .unwrap_err();
+        assert!(matches!(
+            &err,
+            AppError::Keyed {
+                key: "folders.tooDeep",
+                ..
+            }
+        ));
+        let err = store.create_folder_path(None, "w/x/y/z").unwrap_err();
+        assert!(matches!(
+            &err,
+            AppError::Keyed {
+                key: "folders.tooDeep",
+                ..
+            }
+        ));
+        let err = store
+            .create_folder_path(Some(top[0].id), "x/y/z")
+            .unwrap_err();
+        assert!(matches!(
+            &err,
+            AppError::Keyed {
+                key: "folders.tooDeep",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn invalid_paths_are_rejected_and_create_nothing() {
+        let (dir, store) = store();
+        store.create_folder_path(None, "keep").unwrap();
+        let before = std::fs::read(dir.path().join("connections.json")).unwrap();
+        let long = "x".repeat(MAX_NAME + 1);
+        for bad in [
+            "", "   ", "/", "/abs", "a//b", "a/", "/a/b", "./a", "a/./b", "../a", "a/../b", "..",
+            ".", "a/ /b", "a b", "tab	here", &long, "a/b/c/d",
+        ] {
+            assert!(
+                store.create_folder_path(None, bad).is_err(),
+                "{bad:?} must be rejected"
+            );
+        }
+        // a failure half way (second segment too long) leaves no first segment behind
+        let half = format!("fine/{long}");
+        assert!(store.create_folder_path(None, &half).is_err());
+        assert_eq!(
+            std::fs::read(dir.path().join("connections.json")).unwrap(),
+            before
+        );
+        assert_eq!(
+            names(&store.load().unwrap()),
+            vec![("keep".to_string(), None)]
+        );
+    }
+
+    #[test]
+    fn an_unknown_parent_is_refused_and_connections_are_untouched() {
+        let (_d, store) = store();
+        let mut i = input("web");
+        let saved = store.save_connection(i.clone()).unwrap();
+        i.name = "db".into();
+        let other = store.save_connection(i).unwrap();
+        let before = store.load().unwrap().connections;
+        assert!(store.create_folder_path(Some(Uuid::new_v4()), "x").is_err());
+        store.create_folder_path(None, "ops/docker").unwrap();
+        let after = store.load().unwrap().connections;
+        assert_eq!(before, after);
+        assert_eq!(
+            after.iter().map(|c| c.id).collect::<Vec<_>>(),
+            vec![saved.id, other.id]
+        );
+    }
+
+    #[test]
+    fn names_with_slashes_in_the_old_single_folder_api_are_not_reinterpreted() {
+        // ordinary single-folder validation is unchanged
+        let (_d, store) = store();
+        let f = store
+            .save_folder(FolderInput {
+                id: None,
+                name: "legacy/name".into(),
+                parent_id: None,
+                expanded: true,
+            })
+            .unwrap();
+        assert_eq!(f.name, "legacy/name");
+    }
+
+    #[test]
+    fn a_failed_write_creates_no_partial_hierarchy() {
+        let (dir, store) = store();
+        store.create_folder_path(None, "ok").unwrap();
+        // make the data file unwritable by replacing it with a directory
+        let path = dir.path().join("connections.json");
+        std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        assert!(store.create_folder_path(None, "ops/docker").is_err());
+        // in-memory state still matches what was last written
+        assert_eq!(
+            names(&store.load().unwrap()),
+            vec![("ok".to_string(), None)]
         );
     }
 }

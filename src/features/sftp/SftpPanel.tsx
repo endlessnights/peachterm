@@ -5,6 +5,7 @@
 // separate login). If the server has no SFTP subsystem the panel says so and
 // the terminal keeps working.
 
+import { useFileDrop, type DroppedFiles } from './useFileDrop';
 import { errorMessage } from '../../i18n/errors';
 import { useTranslation } from 'react-i18next';
 import { useActivity } from '../exit/activity';
@@ -13,7 +14,11 @@ import { ContextMenu, type MenuEntry } from '../../components/ContextMenu';
 import { Icon } from '../../components/Icon';
 import { notify, reportError } from '../../components/Toasts';
 import { confirmAction, promptText } from '../../app/dialogs';
-import { ipc } from '../../shared/ipc';
+import { ipc, toAppError } from '../../shared/ipc';
+import { useConnections } from '../connections/store';
+import { useDialogs } from '../../app/dialogs';
+import type { PermissionIssue } from '../help/PermissionDialog';
+import type { PermissionOperation } from '../help/permissions';
 import type { Listing, RemoteEntry, TransferEvent } from '../../shared/types';
 import { useSettings } from '../settings/store';
 import type { Tab } from '../sessions/store';
@@ -26,7 +31,9 @@ import {
   formatTime,
   isDir,
   sortEntries,
-  validateRemoteName,
+  validateRemoteFilePath,
+  validateRemoteFolderPath,
+  folderParts,
   visibleEntries,
   type Sort,
   type SortKey,
@@ -40,6 +47,36 @@ interface Transfer {
   total: number;
   state: 'running' | 'done' | 'failed' | 'cancelled';
   note?: string;
+}
+
+const parentOf = (path: string) => path.replace(/\/[^/]*\/?$/, '') || '/';
+
+/**
+ * Create `a/b/c` below `dir` one level at a time over SFTP. A level that already
+ * exists is reused; the next level then fails by itself if it is not a folder.
+ * Resolves with the path of the last folder.
+ */
+async function createFolderPath(sessionId: string, dir: string, input: string): Promise<string> {
+  const parts = folderParts(input);
+  let current = dir;
+  for (let i = 0; i < parts.length; i += 1) {
+    try {
+      current = await ipc.sftpMkdir(sessionId, current, parts[i]!);
+    } catch (e) {
+      const last = i === parts.length - 1;
+      if (last || toAppError(e).token !== 'already_exists') throw e;
+      current = current === '/' ? `/${parts[i]}` : `${current}/${parts[i]}`;
+    }
+  }
+  return current;
+}
+
+/** Create `a/b/file.txt`: the folders in front first (reused when present), then the file. */
+async function createFileAt(sessionId: string, dir: string, input: string): Promise<string> {
+  const parts = folderParts(input);
+  const name = parts.pop()!;
+  const parent = parts.length > 0 ? await createFolderPath(sessionId, dir, parts.join('/')) : dir;
+  return ipc.sftpCreateFile(sessionId, parent, name);
 }
 
 interface Props {
@@ -64,6 +101,41 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
   const lastPath = useRef<string | null>(null);
   const pendingSelect = useRef<string | null>(null);
   const requestNo = useRef(0);
+  const browserRef = useRef<HTMLDivElement>(null);
+  const linuxHelp = useSettings((s) => s.settings.linuxHelp);
+  const [permIssue, setPermIssue] = useState<PermissionIssue | null>(null);
+  const username = useConnections(
+    (s) => s.tree.connections.find((c) => c.id === tab.connectionId)?.username ?? '',
+  );
+  const assist = linuxHelp.enabled && linuxHelp.permissions;
+  // Upload failures are grouped: one notice per batch, not one per file.
+  const assistRef = useRef(assist);
+  useEffect(() => {
+    assistRef.current = assist;
+  }, [assist]);
+  const uploadDir = useRef('/');
+  const permissionUploadIssue = useRef<(count: number) => PermissionIssue | null>(() => null);
+  const deniedUploads = useRef(0);
+  useEffect(() => {
+    permissionUploadIssue.current = (count) =>
+      sessionId
+        ? { sessionId, operation: 'upload', dir: uploadDir.current, count, user: username }
+        : null;
+  }, [sessionId, username]);
+  /** Report a failed operation; permission errors get the cautious explanation when it is on. */
+  const failWith = (
+    operation: PermissionOperation,
+    dir: string,
+    name?: string,
+  ): ((error: unknown) => void) => {
+    return (error) => {
+      if (assist && sessionId && toAppError(error).token === 'permission_denied') {
+        setPermIssue({ sessionId, operation, dir, name, user: username });
+      } else {
+        reportError(error);
+      }
+    };
+  };
 
   const ready = tab.sftp === 'ready' && sessionId !== null;
 
@@ -163,6 +235,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
             t.id === event.transferId ? { ...t, state: 'done', done: t.total } : t,
           );
         case 'failed':
+          if (event.reason === 'permission_denied') deniedUploads.current += 1;
           return list.map((t) =>
             t.id === event.transferId
               ? { ...t, state: 'failed', note: describeFailure(event.reason) }
@@ -174,7 +247,14 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
           return list;
       }
     });
-    if (event.kind === 'finished') refreshRef.current();
+    if (event.kind === 'finished') {
+      refreshRef.current();
+      const denied = deniedUploads.current;
+      deniedUploads.current = 0;
+      if (denied > 0 && assistRef.current) {
+        setPermIssue((current) => current ?? permissionUploadIssue.current(denied));
+      }
+    }
   }, []);
 
   const download = (entry: RemoteEntry) => {
@@ -189,10 +269,12 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
       if (!picked) return;
       const existing = new Set(listing.entries.map((e) => e.name));
       const clashes = picked.files.filter((f) => existing.has(f.name)).map((f) => f.name);
-      const start = (overwrite: boolean) =>
-        ipc
+      const start = (overwrite: boolean) => {
+        uploadDir.current = listing.path;
+        return ipc
           .sftpUpload(sessionId, picked.pickId, listing.path, overwrite, onTransfer)
           .catch(reportError);
+      };
       if (clashes.length === 0) {
         await start(false);
       } else {
@@ -223,29 +305,85 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
    * dialog opens, so a later navigation cannot redirect it). Both use SFTP
    * requests; nothing is run in a shell.
    */
+  // Files dragged in from the operating system (native events, see filedrop.rs).
+  // The upload uses the same engine, progress list, cancellation and overwrite
+  // question as the Upload button; nothing starts before the mouse is released.
+  const dropUpload = async (drop: DroppedFiles) => {
+    const discard = () => void ipc.sftpDiscardPick(drop.pickId).catch(() => undefined);
+    if (!sessionId || !listing) {
+      discard();
+      return;
+    }
+    const destination = drop.target.kind === 'row' ? drop.target.path : listing.path;
+    try {
+      const plan = await ipc.sftpPlanUpload(sessionId, drop.pickId, destination);
+      if (plan.files === 0 && plan.dirs === 0) {
+        notify(t('sftp.drop.nothing'));
+        discard();
+        return;
+      }
+      const start = (overwrite: boolean) => {
+        uploadDir.current = destination;
+        void ipc
+          .sftpUpload(sessionId, drop.pickId, destination, overwrite, onTransfer)
+          .catch(reportError);
+        if (plan.skipped > 0) notify(t('sftp.drop.skipped', { count: plan.skipped }));
+      };
+      if (plan.conflicts.count === 0) {
+        start(false);
+      } else {
+        confirmAction({
+          title: t('sftp.replaceTitle'),
+          message: t('sftp.drop.conflicts', {
+            count: plan.conflicts.count,
+            names: plan.conflicts.samples.join(', '),
+            dest: destination,
+          }),
+          confirmLabel: t('sftp.replace'),
+          danger: true,
+          onConfirm: () => start(true),
+          onCancel: discard,
+        });
+      }
+    } catch (e) {
+      reportError(e);
+      discard();
+    }
+  };
+  const dragging = useFileDrop(browserRef, ready && !!listing, (drop) => void dropUpload(drop));
+  const dropDestination =
+    dragging?.target?.kind === 'row'
+      ? dragging.target.path
+      : dragging?.target
+        ? (listing?.path ?? '')
+        : null;
+
   const createEntry = (kind: 'file' | 'folder') => {
     if (!sessionId || !listing) return;
     const dir = listing.path;
     const existing = listing.entries.map((e) => e.name);
     promptText({
       title: kind === 'file' ? t('sftp.newFile') : t('folder.newTitle'),
-      label: kind === 'file' ? t('sftp.fileName') : t('folder.name'),
+      label: kind === 'file' ? t('sftp.fileNameOrPath') : t('folder.nameOrPath'),
       hint: t('sftp.createdIn', { dir }),
       initial: '',
       confirmLabel: t('folder.create'),
-      validate: (name) => validateRemoteName(name, existing),
+      validate: (name) =>
+        kind === 'file'
+          ? validateRemoteFilePath(name, existing)
+          : validateRemoteFolderPath(name, existing),
       onSubmit: (name) => {
         const create =
           kind === 'file'
-            ? ipc.sftpCreateFile(sessionId, dir, name)
-            : ipc.sftpMkdir(sessionId, dir, name);
+            ? createFileAt(sessionId, dir, name)
+            : createFolderPath(sessionId, dir, name);
         create
           .then((path) => {
             pendingSelect.current = path;
             // only refresh when the user is still looking at that directory
             if (lastPath.current === dir) refresh();
           })
-          .catch(reportError);
+          .catch(failWith(kind === 'file' ? 'createFile' : 'createFolder', dir, name));
       },
     });
   };
@@ -292,7 +430,10 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
       initial: entry.name,
       confirmLabel: t('rename.submit'),
       onSubmit: (name) => {
-        ipc.sftpRename(sessionId, entry.path, name).then(refresh).catch(reportError);
+        ipc
+          .sftpRename(sessionId, entry.path, name)
+          .then(refresh)
+          .catch(failWith('rename', parentOf(entry.path), entry.name));
       },
     });
   };
@@ -306,7 +447,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
           if (removed > 1) notify(t('sftp.deletedMany', { count: removed }));
           refresh();
         })
-        .catch(reportError);
+        .catch(failWith('delete', parentOf(entry.path), entry.name));
     if (!confirmDelete) {
       void run();
       return;
@@ -392,7 +533,7 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
   const current = rows.find((r) => r.path === selected) ?? null;
 
   return (
-    <div className="sftp-browser">
+    <div className="sftp-browser" ref={browserRef}>
       <div className="sftp-toolbar">
         <button
           className="icon-btn"
@@ -481,6 +622,25 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
           ))}
         </nav>
       )}
+      {permIssue && (
+        <div className="sftp-error sftp-perm" role="alert">
+          <span>
+            {permIssue.operation === 'upload' ? t('help.perm.stripUpload') : t('help.perm.strip')}
+          </span>
+          <button
+            className="btn"
+            onClick={() => {
+              useDialogs.getState().open({ kind: 'permissions', issue: permIssue });
+              setPermIssue(null);
+            }}
+          >
+            {t('help.perm.why')}
+          </button>
+          <button className="btn" onClick={() => setPermIssue(null)}>
+            {t('help.perm.dismiss')}
+          </button>
+        </div>
+      )}
       {error && (
         <div className="sftp-error" role="alert">
           {error}
@@ -502,6 +662,8 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
       </div>
       <div
         className="sftp-list"
+        data-sftp-list
+        data-drop-active={dragging?.target?.kind === 'directory' || undefined}
         role="listbox"
         aria-label={t('sftp.remoteFiles')}
         aria-busy={loading}
@@ -553,6 +715,13 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
             role="option"
             aria-selected={entry.path === selected}
             className="sftp-row"
+            data-sftp-row
+            data-sftp-dir={isDir(entry)}
+            data-sftp-path={entry.path}
+            data-sftp-name={entry.name}
+            data-drop-target={
+              (dragging?.target?.kind === 'row' && dragging.target.path === entry.path) || undefined
+            }
             data-selected={entry.path === selected || undefined}
             onClick={() => setSelected(entry.path)}
             onDoubleClick={() => open(entry)}
@@ -573,6 +742,21 @@ export function SftpPanel({ tab, onOpenFile }: Props) {
         ))}
       </div>
 
+      {dragging && dropDestination !== null && (
+        <div className="sftp-drop" role="presentation">
+          <strong>{t('sftp.drop.title')}</strong>
+          <span className="sftp-drop-label">{t('sftp.drop.destination')}</span>
+          <span className="sftp-drop-path">{dropDestination}</span>
+          <span className="hint">
+            {[
+              dragging.summary.files > 0 && t('count.file', { count: dragging.summary.files }),
+              dragging.summary.dirs > 0 && t('count.directory', { count: dragging.summary.dirs }),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+        </div>
+      )}
       {transfers.length > 0 && (
         <ul className="sftp-transfers" aria-label={t('sftp.transfers')}>
           {transfers.map((x) => (

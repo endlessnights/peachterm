@@ -1,6 +1,7 @@
 // Copyright 2026 Bakhti Baymukhamedov
 // SPDX-License-Identifier: Apache-2.0
 
+import { useDiscardUnclaimedDrops } from '../features/sftp/useFileDrop';
 import { errorMessage } from '../i18n/errors';
 import { useEffect, useState } from 'react';
 import { ConfirmDialog, PromptDialog } from '../components/Dialog';
@@ -8,6 +9,8 @@ import { ResizeHandle } from '../components/ResizeHandle';
 import { reportError, Toasts, useToasts } from '../components/Toasts';
 import { ConnectionEditor } from '../features/connections/ConnectionEditor';
 import { DeleteItemsDialog } from '../features/connections/DeleteItemsDialog';
+import { HelpDialog } from '../features/help/HelpDialog';
+import { PermissionDialog } from '../features/help/PermissionDialog';
 import { MoveDialog } from '../features/connections/MoveDialog';
 import { Sidebar } from '../features/connections/Sidebar';
 import { useConnections } from '../features/connections/store';
@@ -66,6 +69,7 @@ export function App() {
       : { ...settings.appearance, theme: lock?.theme ?? 'dark', accent: lock?.accent ?? 'peach' },
   );
   useShortcuts();
+  useDiscardUnclaimedDrops();
   // The interface language follows the saved preference at once (no restart, no remount).
   useEffect(() => {
     applyLanguagePreference(settings.general.language);
@@ -245,6 +249,10 @@ function DialogHost() {
       return <RenameTabDialog tabId={dialog.tabId} onClose={close} />;
     case 'tabColors':
       return <TabColorsDialog tabId={dialog.tabId} onClose={close} />;
+    case 'linuxHelp':
+      return <HelpDialog mode={dialog.mode} text={dialog.text} onClose={close} />;
+    case 'permissions':
+      return <PermissionDialog issue={dialog.issue} onClose={close} />;
     case 'tunnels':
       return <TunnelsDialog tabId={dialog.tabId} onClose={close} />;
     case 'settings':
@@ -256,7 +264,10 @@ function DialogHost() {
           message={dialog.message}
           confirmLabel={dialog.confirmLabel}
           danger={dialog.danger}
-          onCancel={close}
+          onCancel={() => {
+            close();
+            dialog.onCancel?.();
+          }}
           onConfirm={() => {
             close();
             dialog.onConfirm();

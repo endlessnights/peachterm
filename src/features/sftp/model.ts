@@ -111,6 +111,50 @@ export function describeFailure(reason: string): string {
     : tr('sftp.failure.other');
 }
 
+export const MAX_REMOTE_FOLDER_DEPTH = 16;
+
+/**
+ * Why a new file PATH (`logs/app/1.txt`) cannot be used, or null. The folders in
+ * front of the file name follow the folder-path rules; the last part is the file.
+ */
+export function validateRemoteFilePath(input: string, existing: string[] = []): string | null {
+  const path = input.trim();
+  if (!path.includes('/')) return validateRemoteName(path, existing);
+  const parts = path.split('/');
+  if (parts.length > MAX_REMOTE_FOLDER_DEPTH) {
+    return tr('errors.folders.tooDeep', { max: MAX_REMOTE_FOLDER_DEPTH });
+  }
+  for (const part of parts) {
+    if (part === '' || part === '.' || part === '..') return tr('errors.folders.pathInvalid');
+    const problem = validateRemoteName(part);
+    if (problem) return problem;
+  }
+  return null;
+}
+
+/**
+ * Why a new folder PATH (`ops/docker`) cannot be used, or null. Every part is a
+ * plain name: no absolute paths, empty parts, `.` or `..`. A single name behaves
+ * exactly like `validateRemoteName`.
+ */
+export function validateRemoteFolderPath(input: string, existing: string[] = []): string | null {
+  const path = input.trim();
+  if (!path.includes('/')) return validateRemoteName(path, existing);
+  const parts = path.split('/');
+  if (parts.length > MAX_REMOTE_FOLDER_DEPTH) {
+    return tr('errors.folders.tooDeep', { max: MAX_REMOTE_FOLDER_DEPTH });
+  }
+  for (const part of parts) {
+    if (part === '' || part === '.' || part === '..') return tr('errors.folders.pathInvalid');
+    const problem = validateRemoteName(part);
+    if (problem) return problem;
+  }
+  return null;
+}
+
+/** The parts of a validated folder path. */
+export const folderParts = (input: string): string[] => input.trim().split('/');
+
 /**
  * Why a new file or folder name cannot be used, or `null` when it is fine. The
  * server and Rust check again; this gives the answer before anything is sent.

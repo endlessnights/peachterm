@@ -29,11 +29,14 @@ export function RecentSessions() {
             <button
               className="recent-row"
               onClick={() => connect(c)}
-              title={`${c.username ? `${c.username}@` : ''}${c.host}:${c.port}`}
+              title={`${c.name}
+${c.username ? `${c.username}@` : ''}${c.host}:${c.port}`}
             >
               <Icon name="server" size={13} />
-              <span className="recent-name">{c.name}</span>
-              {c.host !== c.name && <span className="recent-host">{c.host}</span>}
+              <span className="recent-text">
+                <span className="recent-name">{c.name}</span>
+                {c.host !== c.name && <span className="recent-host">{c.host}</span>}
+              </span>
             </button>
           </li>
         ))}

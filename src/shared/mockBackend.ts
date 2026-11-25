@@ -210,6 +210,13 @@ export interface MockSsh {
     emitTransfer: (event: TransferEvent) => void;
     /** Files the next native file picker returns. */
     nextPick: { name: string; size: number }[] | null;
+    /** The plan returned for the next dropped selection (conflicts etc.). */
+    nextPlan: import('./types').UploadPlan | Error | null;
+    plans: { pickId: string; remoteDir: string }[];
+    discards: string[];
+    /** What the permission diagnostics return, and which directories were asked about. */
+    report: import('./types').PermissionReport | Error | null;
+    diagnosed: string[];
     /** Remote file system: directory path -> entries. */
     fs: Record<string, { name: string; dir: boolean; size: number }[]>;
     /** A different file system for one session (by session id). */
@@ -361,6 +368,11 @@ export function createMockBackend(
       cancels: [],
       emitTransfer: () => undefined,
       nextPick: null,
+      nextPlan: null,
+      plans: [],
+      discards: [],
+      report: null,
+      diagnosed: [],
       perSession: {},
       fs: {
         '/': [
@@ -516,6 +528,56 @@ export function createMockBackend(
     },
     connections_move: ({ id, folderId }) => {
       findConnection(id).folderId = (folderId as string | null) ?? null;
+    },
+    folders_create_path: ({ parentId, path }) => {
+      const bad = (key: string, message: string, params?: Record<string, string>) => ({
+        code: 'validation',
+        message,
+        key,
+        params,
+      });
+      const text = String(path).trim();
+      const names = text.split('/').map((n) => n.trim());
+      if (!text || text.length > 392 || names.some((n) => !n || n === '.' || n === '..')) {
+        throw bad('folders.pathInvalid', 'The folder path is invalid');
+      }
+      // eslint-disable-next-line no-control-regex
+      if (names.some((n) => /[\u0000-\u001f\u007f]/.test(n) || [...n].length > 128)) {
+        throw bad('folders.pathInvalid', 'The folder path is invalid');
+      }
+      const parent = (parentId as string | null) ?? null;
+      if (parent && !tree.folders.some((f) => f.id === parent)) {
+        throw { code: 'not_found', message: 'folder was not found' };
+      }
+      const base = parent ? folderLevel(tree, parent) : 0;
+      if (base + names.length > MAX_FOLDER_DEPTH) {
+        throw bad('folders.tooDeep', 'Folders can be nested at most 3 levels deep.', {
+          max: String(MAX_FOLDER_DEPTH),
+        });
+      }
+      const chain: Folder[] = [];
+      let created = 0;
+      let current = parent;
+      for (const name of names) {
+        let folder = tree.folders.find((f) => f.parentId === current && f.name === name);
+        if (!folder) {
+          folder = {
+            id: uuid(),
+            name,
+            parentId: current,
+            expanded: true,
+            sortOrder: nextOrder(tree, current, true),
+          };
+          tree.folders.push(folder);
+          created += 1;
+        }
+        folder.expanded = true;
+        current = folder.id;
+        chain.push(structuredClone(folder));
+      }
+      const top = tree.folders.find((f) => f.id === parent);
+      if (top) top.expanded = true;
+      return { folders: chain, created };
     },
     folders_save: ({ folder }) => {
       const input = folder as FolderInput;
@@ -1220,7 +1282,11 @@ export function createMockBackend(
       if (ssh.sftp.failNext) {
         const message = ssh.sftp.failNext;
         ssh.sftp.failNext = null;
-        throw { code: 'remote', message };
+        throw {
+          code: 'remote',
+          message,
+          token: message === 'permission_denied' ? message : undefined,
+        };
       }
       const dir = ssh.sftp.fs[parent];
       if (dir?.some((e) => e.name === name)) {
@@ -1236,7 +1302,11 @@ export function createMockBackend(
       if (ssh.sftp.failNext) {
         const message = ssh.sftp.failNext;
         ssh.sftp.failNext = null;
-        throw { code: 'remote', message };
+        throw {
+          code: 'remote',
+          message,
+          token: message === 'permission_denied' ? message : undefined,
+        };
       }
       ssh.sftp.mkdirs.push(parent === '/' ? `/${name}` : `${parent}/${name}`);
       ssh.sftp.fs[parent]?.push({ name, dir: true, size: 0 });
@@ -1269,6 +1339,37 @@ export function createMockBackend(
         remoteDir: String(args.remoteDir),
         overwrite: Boolean(args.overwrite),
       });
+    },
+    sftp_plan_upload: (args) => {
+      ssh.sftp.plans.push({ pickId: String(args.pickId), remoteDir: String(args.remoteDir) });
+      const plan = ssh.sftp.nextPlan;
+      ssh.sftp.nextPlan = null;
+      if (plan instanceof Error)
+        throw { code: 'remote', message: plan.message, token: plan.message };
+      return (
+        plan ?? { files: 1, dirs: 0, bytes: 10, skipped: 0, conflicts: { count: 0, samples: [] } }
+      );
+    },
+    sftp_diagnose_permissions: (args) => {
+      ssh.sftp.diagnosed.push(String(args.path));
+      const report = ssh.sftp.report;
+      if (report instanceof Error) throw report;
+      return (
+        report ?? {
+          platform: 'linux',
+          exec: 'ok',
+          user: { uid: 1000, gid: 1000, name: 'deploy', groups: [{ gid: 1000, name: 'deploy' }] },
+          path: String(args.path),
+          pathRefused: false,
+          target: { mode: 'drwxr-xr-x', owner: 'root', group: 'root', name: String(args.path) },
+          chain: [],
+          access: { write: false, search: true },
+          unsupported: [],
+        }
+      );
+    },
+    sftp_discard_pick: (args) => {
+      ssh.sftp.discards.push(String(args.pickId));
     },
     sftp_cancel: (args) => {
       ssh.sftp.cancels.push(String(args.transferId));
